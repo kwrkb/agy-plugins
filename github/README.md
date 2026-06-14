@@ -9,7 +9,7 @@
 | ファイル | 役割 |
 | :--- | :--- |
 | `gemini-extension.json` | `agy` がプラグインをロードするための構成ファイル |
-| `github-mcp-wrapper.sh` | 公式バイナリ起動前に認証トークンを解決するラッパー（ソース） |
+| `github-mcp-wrapper.mjs` | 公式バイナリ起動前に認証トークンを解決するラッパー（Node.js 製・クロスプラットフォーム） |
 | `build.sh`（リポジトリルート） | 公式バイナリを `go install` で取得し、ラッパーと共に `mcpServers/` へ配置 |
 
 ビルド成果物（`mcpServers/` 配下の公式バイナリとラッパー）は `.gitignore` で除外され、`build.sh` で生成します。
@@ -17,6 +17,7 @@
 ## 必要条件
 
 * **Go**: 1.26 以上（`go install` で公式バイナリをビルドするため）
+* **Node.js**: 18 以上（`agy` 本体が Node なので、通常は既に利用可能）
 * **GitHub 認証**: 以下のいずれか
   * 環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` / `GITHUB_TOKEN` / `GH_TOKEN`
   * GitHub CLI (`gh auth login` 済み)
@@ -24,7 +25,7 @@
 ## 認証の仕組み
 
 公式バイナリは `GITHUB_PERSONAL_ACCESS_TOKEN` のみを参照します。
-`github-mcp-wrapper.sh` が起動時に次の優先順位でトークンを解決し、`GITHUB_PERSONAL_ACCESS_TOKEN` として公式バイナリに渡します。
+`github-mcp-wrapper.mjs` が起動時に次の優先順位でトークンを解決し、`GITHUB_PERSONAL_ACCESS_TOKEN` として公式バイナリに渡します。
 
 1. `GITHUB_PERSONAL_ACCESS_TOKEN`（既に設定済みならそのまま）
 2. `GITHUB_TOKEN`
@@ -43,8 +44,8 @@
 
 完了すると以下が生成されます。
 
-* `mcpServers/github-mcp-server` … 公式バイナリ (v1.3.0)
-* `mcpServers/github-mcp-wrapper.sh` … 認証ラッパー
+* `mcpServers/github-mcp-server` （Linux/macOS）または `mcpServers/github-mcp-server.exe`（Windows） … 公式バイナリ (v1.3.0)
+* `mcpServers/github-mcp-wrapper.mjs` … 認証ラッパー
 
 公式バージョンを変更する場合は `build.sh` の `GITHUB_MCP_VERSION` を編集してください。
 
@@ -59,6 +60,6 @@ agy plugin install /path/to/agy-plugins/github
 
 ## 提供する機能
 
-公式サーバーのデフォルトツールセット（context / copilot / issues / pull_requests / repos / users）が有効になります。`--toolsets` や `--read-only` 等のオプションを使いたい場合は `github-mcp-wrapper.sh` の `exec` 行に引数を追加してください（例: `exec "$(dirname "$0")/github-mcp-server" stdio --read-only "$@"`）。
+公式サーバーのデフォルトツールセット（context / copilot / issues / pull_requests / repos / users）が有効になります。`--toolsets` や `--read-only` 等のオプションを使いたい場合は `gemini-extension.json` の `args` に追加してください（例: `"args": ["${extensionPath}${/}mcpServers${/}github-mcp-wrapper.mjs", "--read-only"]`）。
 
 利用可能なツールの詳細は公式ドキュメントを参照してください: <https://github.com/github/github-mcp-server>

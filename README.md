@@ -33,13 +33,12 @@ agy plugin install /path/to/agy-plugins/gitlab
 ```bash
 # 両プラグインを一括ビルド
 ./build.sh
-
-# 個別ビルド
-cd github && go mod tidy && go build -o mcpServers/github-plugin main.go
-cd gitlab && go mod tidy && go build -o mcpServers/gitlab-plugin main.go
 ```
+
+GitLab プラグインはビルド不要（システムの `glab` を直接利用）。
 
 ## 動作要件
 
-* Go 1.26以上
-* 各プラットフォームに対応した CLI ツール（`gh` や `glab`）またはアクセストークンの環境変数設定
+* **Go** 1.26 以上（github プラグインのバイナリビルドに必要）
+* **Node.js** 18 以上（github プラグインの認証ラッパー実行に必要。`agy` 本体が Node なので通常は既に利用可能）
+* 各プラットフォームの CLI ツール（`gh` / `glab`）またはアクセストークンの環境変数設定

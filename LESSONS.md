@@ -1,5 +1,22 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-14: github プラグインを Windows でクロスプラットフォーム化
+
+### 学んだこと
+
+#### 10. agy（Node ホスト）では MCP `command` に `.sh` を直接置くと Windows で起動不可
+
+`agy plugin install` が生成する `mcp_config.json` の `command` は `.sh` の絶対パスになる。Node.js の `child_process.spawn` は Windows で `.sh` を直接実行できない（シェルなし）→ agy が MCP サーバーを起動できずエラーになる。
+
+**解決**: `command: "node"` + `args: ["${extensionPath}${/}mcpServers${/}wrapper.mjs"]` の形式に変える。これは gitlab プラグインの `command: "glab"`（ベア名 PATH 解決）と同型。Node は agy 本体が依存しているため必ず PATH 上にある。
+
+**Node ラッパーの注意点**:
+- **stdout には絶対に書かない**（MCP は NDJSON を stdout で流すため。`console.log` 1 行でストリーム破壊）
+- 診断メッセージは stderr 限定
+- `stdio: 'inherit'` で子の stdio を素通しする（バッファリングしない）
+- `spawnSync` で終了コードを伝播。stdin EOF で子も落ちるので signal 転送は不要
+- `gh auth token` は `execFileSync` でシェルなし呼び出し可能（`gh.exe` が PATH 上にある場合）
+
 ## 2026-06-14: gitlab プラグインを `glab mcp serve` へ置き換え
 
 ### 学んだこと
