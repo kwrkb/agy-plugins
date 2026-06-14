@@ -1,5 +1,21 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-14: gitlab プラグインを `glab mcp serve` へ置き換え
+
+### 学んだこと
+
+#### 7. CLI 内蔵 MCP は wrapper 不要（github と非対称）
+
+GitLab 公式 CLI `glab` は **v1.74.0 頃から `glab mcp serve`（stdio, EXPERIMENTAL）** を内蔵する。github-mcp-server は MCP 専用バイナリで `GITHUB_PERSONAL_ACCESS_TOKEN` のみ読む→ wrapper でトークンをブリッジする必要があったが、`glab mcp serve` は glab 自身のサブコマンドなので **glab 既存 config（`~/.config/glab-cli/config.yml`）をそのまま再利用**する。よってトークン env も wrapper も不要。「公式バイナリ置き換え」でも、対象が汎用 CLI 内蔵か MCP 専用バイナリかで認証グルーの要否が変わる。
+
+#### 8. apt 版 glab は古く mcp 非対応 → go install で最新化
+
+Ubuntu universe の `glab` は 1.53.0（apt 候補も同じ）で `mcp` サブコマンド非対応。`go install gitlab.com/gitlab-org/cli/cmd/glab@latest` で最新化し、`~/go/bin`（PATH 上）に入れる。`gemini-extension.json` の `command` は**ベア名 `glab`**（PATH 解決）で良く、同梱バイナリ不要＝build.sh の gitlab セクションも撤去できる。注意: `go install`（ldflags 未注入）だと `glab --version` は `DEV` 表示になる→バージョン判定は version 文字列でなく `glab mcp serve --help` の成否で行う。
+
+#### 9. バージョン導入時期の二分探索は docs raw を使う
+
+`mcp serve` がどの版で入ったかは、`docs/source/mcp/serve.md` を各タグの raw URL（`/-/raw/<tag>/...`）で取得し有無を二分探索して特定できる（v1.70=なし, v1.74=あり）。grep 判定する際、ファイル先頭は YAML frontmatter の `---` なので `head -1` で `title` を探すと誤判定する（`head -5` でマッチ語を見る）。
+
 ## 2026-06-14: 公式 github-mcp-server への置き換え
 
 ### 学んだこと

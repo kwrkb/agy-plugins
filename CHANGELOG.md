@@ -1,5 +1,16 @@
 # Changelog
 
+## [gitlab 0.2.0] - 2026-06-14
+
+### Changed
+- GitLab plugin now uses the **official** GitLab CLI's built-in MCP server (`glab mcp serve`, EXPERIMENTAL) instead of the in-house Go server. Exposes issues / merge requests / projects and adds CI/CD pipelines & jobs.
+- `gemini-extension.json` points `command: "glab"`, `args: ["mcp", "serve"]` at the system `glab` on PATH (requires glab >= v1.74.0; apt builds are too old — install via `go install gitlab.com/gitlab-org/cli/cmd/glab@latest`).
+- No wrapper needed: `glab mcp serve` reuses glab's own auth config (`~/.config/glab-cli/config.yml`), unlike github-mcp-server.
+- `build.sh` no longer builds a gitlab binary.
+
+### Removed
+- Custom GitLab MCP server source: `gitlab/main.go`, `gitlab/go.mod`, `gitlab/go.sum` (replaced by the official `glab mcp serve`).
+
 ## [github 0.2.0] - 2026-06-14
 
 ### Changed

@@ -1,10 +1,11 @@
 {
   "name": "gitlab",
-  "version": "0.1.0",
-  "description": "GitLab MCP server (issues / MRs / project info)",
+  "version": "0.2.0",
+  "description": "Official GitLab CLI MCP server (glab mcp serve)",
   "mcpServers": {
-    "gitlab": {
-      "command": "${extensionPath}${/}mcpServers${/}gitlab-plugin"
+    "glab": {
+      "command": "glab",
+      "args": ["mcp", "serve"]
     }
   }
 }

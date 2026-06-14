@@ -1,63 +1,59 @@
-# GitLab MCP Server
+# GitLab MCP プラグイン（`glab mcp serve`）
 
-このプロジェクトは、Model Context Protocol (MCP) を使用して、GitLabのプロジェクト（リポジトリ）情報、イシュー、マージリクエスト（MR）の操作をAIアシスタントから実行できるようにするためのMCPサーバーです。
+このプラグインは、GitLab 公式 CLI [`glab`](https://gitlab.com/gitlab-org/cli) に内蔵された **`glab mcp serve`**（Model Context Protocol サーバー）を、Antigravity (`agy`) から利用できるようにするものです。
 
-Go言語で実装されており、標準入出力（Stdio）を介してMCPクライアントと通信します。
+以前は自作の Go 製 MCP サーバーでしたが、`glab` 自身が MCP サーバー機能を持つようになったため、公式実装に置き換えました。自作サーバーの全機能（プロジェクト情報・イシュー・MR）を包含し、さらに CI/CD パイプライン・ジョブの操作が加わります。
+
+> **Note**: `glab mcp serve` は GitLab により **EXPERIMENTAL** と位置づけられています。仕様が変更・削除される可能性があります。
 
 ## 提供する機能（MCPツール）
 
-本サーバーは以下のツールをMCPクライアントに公開します。
+`glab mcp serve` は `glab` の各サブコマンドを MCP ツールとして公開します（実測で約 190 ツール。`glab_<command>_<subcommand>` 形式。具体的なツール名・引数は `glab` のバージョンに依存します）。主なカテゴリ:
 
-| ツール名 | 説明 | パラメータ |
-| :--- | :--- | :--- |
-| `get_project_info` | プロジェクトの基本情報（スター数、フォーク数、オープンイシュー数など）を取得します。 | `owner` (ユーザー名またはグループ名), `repo` (プロジェクト名) |
-| `list_issues` | イシュー一覧を取得します（デフォルトは open/opened のみ）。 | `owner`, `repo`, `state` (`opened`/`closed`/`all`), `per_page` (ページあたりの件数) |
-| `create_issue` | 新しいイシューを作成します。 | `owner`, `repo`, `title` (タイトル), `body` (本文) |
-| `get_issue` | 指定したイシューの詳細情報およびコメント一覧を取得します。 | `owner`, `repo`, `issue_number` (イシュー IID) |
-| `create_issue_comment` | イシューまたはマージリクエストにコメントを追加します。 | `owner`, `repo`, `issue_number` (イシューまたはMRのIID), `body` (コメント本文) |
-| `list_mrs` | マージリクエスト一覧を取得します。 | `owner`, `repo`, `state` (`opened`/`closed`/`locked`/`merged`/`all`), `per_page` |
-| `create_mr` | 新しいマージリクエストを作成します。 | `owner`, `repo`, `title`, `body`, `head` (ソースブランチ), `base` (ターゲットブランチ) |
-| `get_mr` | マージリクエストの詳細（コンフリクト有無など）を取得します。 | `owner`, `repo`, `pr_number` (MRのIID) |
-| `merge_mr` | マージリクエストをマージします。 | `owner`, `repo`, `pr_number` (MRのIID), `commit_title` (コミット詳細) |
+- **Issues** (`glab_issue_*`): 一覧・作成・更新・クローズ・ノート追加・view など
+- **Merge Requests** (`glab_mr_*`): 一覧・作成・更新・マージ・diff・approve・ノート操作 など
+- **Projects / Repo** (`glab_repo_*`): 一覧・view・create・clone・search など
+- **CI/CD** (`glab_ci_*`, `glab_job_*`): パイプライン実行・status・trace・job artifact など
+- その他: releases / labels / milestones / variables / schedules など glab の広範なコマンド群
+
+> **引数の差分（旧自作サーバーから）**: 旧サーバーは `owner` / `repo` を引数に取っていましたが、`glab mcp serve` のツールは glab 流のプロジェクトパス（例: `group/project`）系の指定になります。
 
 ## 必要条件
 
-* **Go**: 1.26以上
-* **GitLab 個人用アクセストークン (PAT) または OAuth トークン**: 操作対象のプロジェクトに応じた適切な権限（`api` スコープなど）が必要です。
+- **`glab` >= v1.74.0**（`mcp serve` サブコマンドを含むバージョン。推奨は最新版 v1.102.0 以降）
+  - apt 版（Ubuntu universe）の `glab` は古く（例: 1.53.0）`mcp` 非対応です。次のように最新版を導入してください:
+    ```bash
+    # 必要なら apt 版を削除
+    sudo apt remove glab
+    # 最新の glab を導入（~/go/bin が PATH 上にあること）
+    go install gitlab.com/gitlab-org/cli/cmd/glab@latest
+    ```
+  - 導入後の確認:
+    ```bash
+    which glab            # ~/go/bin/glab を指すこと
+    glab mcp serve --help # ヘルプが表示されること（mcp serve 対応の確認）
+    ```
+    `go install`（ldflags 未注入）でビルドした場合 `glab --version` は `DEV` と表示されますが、`mcp serve` 機能には影響しません。
 
 ## セットアップと認証
 
-認証用トークンとAPIエンドポイントは、サーバー起動時に自動的に以下の優先順位で探索・取得されます。
+認証は `glab` 自身の設定（`~/.config/glab-cli/config.yml`）をそのまま再利用します。専用のトークン環境変数や wrapper は不要です。
 
-1. **環境変数**:
-   環境変数 `GITLAB_TOKEN` (または `GL_TOKEN`) が設定されている場合、そのトークンを使用します。
-   また、オンプレミス版などの場合は `GITLAB_BASE_URL` (または `GL_BASE_URL`) でAPIのエンドポイントを指定可能です。
-   ```bash
-   export GITLAB_TOKEN=glpat-your-personal-access-token
-   ```
+```bash
+glab auth login        # 未認証の場合
+glab auth status       # 認証済みか確認
+```
 
-2. **GitLab CLI (`glab`)**:
-   環境変数が空の場合、システムにインストールされている GitLab CLI から認証情報を取得しようと試みます（`glab auth status -t` コマンドを使用）。
-   OAuthトークンにも対応しており、CLI経由でログインしている場合は設定不要で自動的に動作します。
+OAuth / 個人用アクセストークン（PAT）いずれも、`glab auth login` で構成済みであればそのまま利用されます。
 
 ## ビルド方法
 
-以下のコマンドを実行して依存関係を解決し、実行可能バイナリをビルドします。
-
-```bash
-go mod tidy
-go build -o mcpServers/gitlab-plugin main.go
-```
-
-ビルドが完了すると、`mcpServers/gitlab-plugin` にバイナリが出力されます。
+ビルド不要です。システムにインストールされた `glab` を直接利用するため、`gemini-extension.json` は PATH 上の `glab` を `glab mcp serve` で起動します。
 
 ## プラグインとしての登録
 
-本ディレクトリに含まれる `gemini-extension.json` が、Antigravity (`agy`) がこのMCPサーバーをロードするための構成ファイルです。
-
 ```bash
-# ビルド後にインストール
 agy plugin install /path/to/agy-plugins/gitlab
 ```
 
-インストールは絶対パスで指定してください。`gemini-extension.json` 内の `${extensionPath}` 変数が `agy` によってインストール先ディレクトリに自動解決されるため、手動でのパス編集は不要です。
+インストールは絶対パスで指定してください。`gemini-extension.json` の `mcpServers.glab` が `command: "glab"`, `args: ["mcp", "serve"]` を定義しており、`agy` は PATH 上の `glab` を解決して MCP サーバーを起動します。
