@@ -1,7 +1,6 @@
 # MCP Server build binaries
 */mcpServers/
 github/mcpServers/
-gitlab/mcpServers/
 
 # Go IDE / System files
 .idea/
