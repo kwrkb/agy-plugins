@@ -4,7 +4,8 @@
   "description": "Official GitHub MCP server (github/github-mcp-server)",
   "mcpServers": {
     "github": {
-      "command": "${extensionPath}${/}mcpServers${/}github-mcp-wrapper.sh"
+      "command": "node",
+      "args": ["${extensionPath}${/}mcpServers${/}github-mcp-wrapper.mjs"]
     }
   }
 }

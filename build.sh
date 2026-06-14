@@ -7,8 +7,7 @@ GITHUB_MCP_VERSION="v1.3.0"
 rm -rf "$SCRIPT_DIR/github/mcpServers"
 mkdir -p "$SCRIPT_DIR/github/mcpServers"
 GOBIN="$SCRIPT_DIR/github/mcpServers" go install "github.com/github/github-mcp-server/cmd/github-mcp-server@$GITHUB_MCP_VERSION"
-cp "$SCRIPT_DIR/github/github-mcp-wrapper.sh" "$SCRIPT_DIR/github/mcpServers/github-mcp-wrapper.sh"
-chmod +x "$SCRIPT_DIR/github/mcpServers/github-mcp-wrapper.sh"
+cp "$SCRIPT_DIR/github/github-mcp-wrapper.mjs" "$SCRIPT_DIR/github/mcpServers/github-mcp-wrapper.mjs"
 echo "official github-mcp-server ($GITHUB_MCP_VERSION) installed."
 
 # gitlab: uses the system-installed `glab` CLI (`glab mcp serve`); no build step.
