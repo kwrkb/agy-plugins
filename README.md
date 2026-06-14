@@ -13,9 +13,12 @@
 
 ## インストール方法
 
-`agy` CLI などの対応クライアントを使用している場合、以下のコマンドでプラグインを直接インストールできます。
+リポジトリルートで `build.sh` を実行してバイナリをビルドしてから、`agy plugin install` でインストールします。
 
 ```bash
+# ビルド（両プラグイン）
+./build.sh
+
 # GitHub プラグインのインストール
 agy plugin install /path/to/agy-plugins/github
 
@@ -23,21 +26,20 @@ agy plugin install /path/to/agy-plugins/github
 agy plugin install /path/to/agy-plugins/gitlab
 ```
 
-> **⚠️ 重要: インストール時の絶対パスに関する注意**
-> 
-> 1. `agy plugin install` コマンドを実行する際は、必ず対象プラグインのソースディレクトリを **絶対パス** で指定してください。相対パスで指定すると正しくインストールされない場合があります。
-> 2. インストール完了後、`agy` CLI のパス解決の仕様により、MCPサーバーへの接続（プロセスの起動）に失敗することがあります。その場合は、インストール先の構成ファイル（例: `~/.gemini/config/plugins/github/plugin.json` および `mcp_config.json` 等）を開き、`"command"` の値を `./mcpServers/...` のような相対パスから、**実行バイナリの完全な絶対パス** に直接書き換えてください。
+インストールは絶対パスで指定してください。`gemini-extension.json` 内の `${extensionPath}` 変数が `agy` によってインストール先ディレクトリに自動解決されるため、手動でのパス編集は不要です。
 
 ## 開発とビルド
 
-各プラグインディレクトリに移動し、Goコマンドで依存関係の解決とビルドを行います。
-
 ```bash
-cd gitlab
-go mod tidy
-go build -o mcpServers/gitlab-plugin main.go
+# 両プラグインを一括ビルド
+./build.sh
+
+# 個別ビルド
+cd github && go mod tidy && go build -o mcpServers/github-plugin main.go
+cd gitlab && go mod tidy && go build -o mcpServers/gitlab-plugin main.go
 ```
 
 ## 動作要件
-* Go 1.20以上
+
+* Go 1.26以上
 * 各プラットフォームに対応した CLI ツール（`gh` や `glab`）またはアクセストークンの環境変数設定

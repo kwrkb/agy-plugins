@@ -434,49 +434,6 @@ func main() {
 		}, nil, nil
 	})
 
-	// 10. commit_and_push
-	type commitAndPushArgs struct {
-		RepoPath      string  `json:"repo_path" jsonschema:"Absolute path to the local git repository"`
-		CommitMessage string  `json:"commit_message" jsonschema:"Commit message"`
-		Branch        *string `json:"branch,omitempty" jsonschema:"Branch to push to (default: current branch)"`
-	}
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "commit_and_push",
-		Description: "Stage all changes, commit, and push to the remote repository using local git CLI",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, args commitAndPushArgs) (*mcp.CallToolResult, any, error) {
-		cmdAdd := exec.CommandContext(ctx, "git", "add", ".")
-		cmdAdd.Dir = args.RepoPath
-		if out, err := cmdAdd.CombinedOutput(); err != nil {
-			return nil, nil, fmt.Errorf("git add failed: %v\nOutput: %s", err, string(out))
-		}
-
-		cmdCommit := exec.CommandContext(ctx, "git", "commit", "-m", args.CommitMessage)
-		cmdCommit.Dir = args.RepoPath
-		out, err := cmdCommit.CombinedOutput()
-		commitOutput := string(out)
-		if err != nil && !strings.Contains(commitOutput, "nothing to commit") {
-			return nil, nil, fmt.Errorf("git commit failed: %v\nOutput: %s", err, commitOutput)
-		}
-
-		var cmdPush *exec.Cmd
-		if args.Branch != nil && *args.Branch != "" {
-			cmdPush = exec.CommandContext(ctx, "git", "push", "origin", *args.Branch)
-		} else {
-			cmdPush = exec.CommandContext(ctx, "git", "push")
-		}
-		cmdPush.Dir = args.RepoPath
-		if out, err := cmdPush.CombinedOutput(); err != nil {
-			return nil, nil, fmt.Errorf("git push failed: %v\nOutput: %s", err, string(out))
-		}
-
-		result := fmt.Sprintf("Successfully committed and pushed changes in %s", args.RepoPath)
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: result},
-			},
-		}, nil, nil
-	})
-
 	// Run the server on Stdio transport
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		log.Fatalf("Server failed: %v", err)

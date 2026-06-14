@@ -1,4 +1,4 @@
-module github.com/user/agy-plugins/gitlab
+module github.com/kwrkb/agy-plugins/gitlab
 
 go 1.26.4
 

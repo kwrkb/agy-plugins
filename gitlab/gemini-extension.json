@@ -1,0 +1,10 @@
+{
+  "name": "gitlab",
+  "version": "0.1.0",
+  "description": "GitLab MCP server (issues / MRs / project info)",
+  "mcpServers": {
+    "gitlab": {
+      "command": "${extensionPath}${/}mcpServers${/}gitlab-plugin"
+    }
+  }
+}
