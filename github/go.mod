@@ -1,4 +1,4 @@
-module github.com/yugosasaki/agy-plugins/github
+module github.com/kwrkb/agy-plugins/github
 
 go 1.26.4
 

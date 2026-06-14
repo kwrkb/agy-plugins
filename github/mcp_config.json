@@ -1,7 +1,0 @@
-{
-  "mcpServers": {
-    "github": {
-      "command": "/home/yugosasaki/code/agy-plugins/github/mcpServers/github-plugin"
-    }
-  }
-}

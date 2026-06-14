@@ -1,0 +1,10 @@
+{
+  "name": "github",
+  "version": "0.1.0",
+  "description": "GitHub MCP server (issues / PRs / repo info)",
+  "mcpServers": {
+    "github": {
+      "command": "${extensionPath}${/}mcpServers${/}github-plugin"
+    }
+  }
+}
