@@ -8,7 +8,7 @@
 
 | ファイル | 役割 |
 | :--- | :--- |
-| `gemini-extension.json` | `agy` がプラグインをロードするための構成ファイル |
+| `gemini-extension.json` | `agy plugin install` が読む設定ファイル。`${extensionPath}` 変数が絶対パスに解決されて `mcp_config.json` として書き出される |
 | `github-mcp-wrapper.go` | 公式バイナリ起動前に認証トークンを解決するラッパー（Go 製・クロスプラットフォーム） |
 | `build.sh`（リポジトリルート） | 公式バイナリを `go install` で取得し、ラッパーと共に `mcpServers/` へ配置 |
 
@@ -24,7 +24,7 @@
 ## 認証の仕組み
 
 公式バイナリは `GITHUB_PERSONAL_ACCESS_TOKEN` のみを参照します。
-`github-mcp-wrapper.mjs` が起動時に次の優先順位でトークンを解決し、`GITHUB_PERSONAL_ACCESS_TOKEN` として公式バイナリに渡します。
+`github-mcp-wrapper` が起動時に次の優先順位でトークンを解決し、`GITHUB_PERSONAL_ACCESS_TOKEN` として公式バイナリに渡します。
 
 1. `GITHUB_PERSONAL_ACCESS_TOKEN`（既に設定済みならそのまま）
 2. `GITHUB_TOKEN`
@@ -55,7 +55,7 @@
 agy plugin install /path/to/agy-plugins/github
 ```
 
-`gemini-extension.json` 内の `${extensionPath}` 変数が `agy` によってインストール先ディレクトリに自動解決されるため、手動でのパス編集は不要です。
+`gemini-extension.json` 内の `${extensionPath}` 変数が `agy plugin install` によってインストール先ディレクトリに解決され、`mcp_config.json` として書き出されます。手動でのパス編集は不要です。
 
 ## 提供する機能
 

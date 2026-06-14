@@ -48,7 +48,7 @@ OAuth / 個人用アクセストークン（PAT）いずれも、`glab auth logi
 
 ## ビルド方法
 
-ビルド不要です。システムにインストールされた `glab` を直接利用するため、`gemini-extension.json` は PATH 上の `glab` を `glab mcp serve` で起動します。
+ビルド不要です。システムにインストールされた `glab` を直接利用するため、`mcp_config.json` は PATH 上の `glab` を `glab mcp serve` で起動します。
 
 ## プラグインとしての登録
 
@@ -56,4 +56,4 @@ OAuth / 個人用アクセストークン（PAT）いずれも、`glab auth logi
 agy plugin install /path/to/agy-plugins/gitlab
 ```
 
-インストールは絶対パスで指定してください。`gemini-extension.json` の `mcpServers.glab` が `command: "glab"`, `args: ["mcp", "serve"]` を定義しており、`agy` は PATH 上の `glab` を解決して MCP サーバーを起動します。
+インストールは絶対パスで指定してください。`mcp_config.json` の `mcpServers.glab` が `command: "glab"`, `args: ["mcp", "serve"]` を定義しており、`agy` は PATH 上の `glab` を解決して MCP サーバーを起動します。

@@ -26,7 +26,7 @@ agy plugin install /path/to/agy-plugins/github
 agy plugin install /path/to/agy-plugins/gitlab
 ```
 
-インストールは絶対パスで指定してください。`gemini-extension.json` 内の `${extensionPath}` 変数が `agy` によってインストール先ディレクトリに自動解決されるため、手動でのパス編集は不要です。
+インストールは絶対パスで指定してください。github は同梱バイナリを `${extensionPath}` で参照しており、`agy plugin install` がインストール先ディレクトリの絶対パスに自動解決するため、手動でのパス編集は不要です（gitlab は PATH 上の `glab` を使うため解決不要）。
 
 ## 開発とビルド
 
