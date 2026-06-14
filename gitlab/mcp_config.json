@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "gitlab": {
+      "command": "./mcpServers/gitlab-plugin"
+    }
+  }
+}
