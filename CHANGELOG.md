@@ -1,5 +1,17 @@
 # Changelog
 
+## [github 0.2.0] - 2026-06-14
+
+### Changed
+- GitHub plugin now wraps the **official** [github/github-mcp-server](https://github.com/github/github-mcp-server) (v1.3.0) instead of the in-house Go server. Exposes the full official toolset (issues / pull_requests / repos / actions / code_security / discussions / ...) — 43 tools by default.
+- `build.sh` installs the official binary via `go install ...@v1.3.0` into `github/mcpServers/` (version pinned via `GITHUB_MCP_VERSION`).
+
+### Added
+- `github/github-mcp-wrapper.sh`: resolves a token (`GITHUB_PERSONAL_ACCESS_TOKEN` → `GITHUB_TOKEN` → `GH_TOKEN` → `gh auth token`) and exports `GITHUB_PERSONAL_ACCESS_TOKEN` before exec'ing the official binary, since the official server only reads that one variable. Preserves the previous gh-CLI-based auth behavior.
+
+### Removed
+- Custom GitHub MCP server source: `github/main.go`, `github/go.mod`, `github/go.sum` (replaced by the official binary).
+
 ## [0.1.0] - 2026-06-14
 
 ### Added
