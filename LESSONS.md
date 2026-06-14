@@ -4,18 +4,24 @@
 
 ### 学んだこと
 
-#### 10. agy（Node ホスト）では MCP `command` に `.sh` を直接置くと Windows で起動不可
+#### 10. MCP `command` に `.sh` を直接置くと Windows で起動不可 → Go ラッパーで解決
 
-`agy plugin install` が生成する `mcp_config.json` の `command` は `.sh` の絶対パスになる。Node.js の `child_process.spawn` は Windows で `.sh` を直接実行できない（シェルなし）→ agy が MCP サーバーを起動できずエラーになる。
+`agy plugin install` が生成する `mcp_config.json` の `command` は `.sh` の絶対パスになる。Windows では `.sh` を直接 spawn できないため agy が MCP サーバーを起動できずエラーになる。
 
-**解決**: `command: "node"` + `args: ["${extensionPath}${/}mcpServers${/}wrapper.mjs"]` の形式に変える。これは gitlab プラグインの `command: "glab"`（ベア名 PATH 解決）と同型。Node は agy 本体が依存しているため必ず PATH 上にある。
+**agy は Node.js ホストではない**（`agy.exe` は PE32+ コンパイル済みバイナリ）。Node.js を前提にした解決策（`.mjs` ラッパー）は不要な依存を追加する。
 
-**Node ラッパーの注意点**:
-- **stdout には絶対に書かない**（MCP は NDJSON を stdout で流すため。`console.log` 1 行でストリーム破壊）
-- 診断メッセージは stderr 限定
-- `stdio: 'inherit'` で子の stdio を素通しする（バッファリングしない）
-- `spawnSync` で終了コードを伝播。stdin EOF で子も落ちるので signal 転送は不要
-- `gh auth token` は `execFileSync` でシェルなし呼び出し可能（`gh.exe` が PATH 上にある場合）
+**正しい解決**: Go で認証ラッパーをビルドし `gemini-extension.json` の `command` をフルパス（拡張子なし）で指定する。
+
+```json
+"command": "${extensionPath}${/}mcpServers${/}github-mcp-wrapper"
+```
+
+**実測確認済み**: Windows で `mcpServers/github-mcp-wrapper.exe` を置き、`command` に `.exe` なしフルパスを指定しても agy は正常に spawn できる（MCP ハンドシェイク・ツール呼び出し両方動作）。
+
+**Go ラッパーの注意点**:
+- stdout には書かない（MCP は NDJSON を stdout で流すため）
+- `os.Executable()` で自身のパスを取得し、同ディレクトリのバイナリを `runtime.GOOS` で `.exe` 付与して起動
+- `cmd.Stdin/Stdout/Stderr = os.Stdin/Stdout/Stderr` で stdio を素通し
 
 ## 2026-06-14: gitlab プラグインを `glab mcp serve` へ置き換え
 
