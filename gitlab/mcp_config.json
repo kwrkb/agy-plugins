@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "gitlab": {
-      "command": "./mcpServers/gitlab-plugin"
+      "command": "/home/yugosasaki/code/agy-plugins/gitlab/mcpServers/gitlab-plugin"
     }
   }
 }

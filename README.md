@@ -23,7 +23,10 @@ agy plugin install /path/to/agy-plugins/github
 agy plugin install /path/to/agy-plugins/gitlab
 ```
 
-> **注意**: インストール後、実行環境のパス解決の仕様によっては、インストール先の `plugin.json` および `mcp_config.json` 内の `command` をバイナリの絶対パスへ変更する必要がある場合があります。
+> **⚠️ 重要: インストール時の絶対パスに関する注意**
+> 
+> 1. `agy plugin install` コマンドを実行する際は、必ず対象プラグインのソースディレクトリを **絶対パス** で指定してください。相対パスで指定すると正しくインストールされない場合があります。
+> 2. インストール完了後、`agy` CLI のパス解決の仕様により、MCPサーバーへの接続（プロセスの起動）に失敗することがあります。その場合は、インストール先の構成ファイル（例: `~/.gemini/config/plugins/github/plugin.json` および `mcp_config.json` 等）を開き、`"command"` の値を `./mcpServers/...` のような相対パスから、**実行バイナリの完全な絶対パス** に直接書き換えてください。
 
 ## 開発とビルド
 
