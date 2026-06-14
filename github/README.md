@@ -1,62 +1,64 @@
-# GitHub MCP Server
+# GitHub MCP Server (公式版プラグイン)
 
-このプロジェクトは、Model Context Protocol (MCP) を使用して、GitHubのリポジトリ情報、イシュー、プルリクエストの操作をAIアシスタント（Antigravityなど）から実行できるようにするためのMCPサーバーです。
+公式の [github/github-mcp-server](https://github.com/github/github-mcp-server) を Antigravity CLI (`agy`) プラグインとして使えるようにパッケージしたものです。
 
-Go言語で実装されており、標準入出力（Stdio）を介してMCPクライアントと通信します。
+以前は自作の Go 製 MCP サーバーでしたが、公式サーバーへ置き換えました。issues / pull_requests / repos / actions / code_security / discussions など、公式がメンテナンスする全ツールセットを利用できます。
 
-## 提供する機能（MCPツール）
+## 構成
 
-本サーバーは以下のツールをMCPクライアントに公開します。
+| ファイル | 役割 |
+| :--- | :--- |
+| `gemini-extension.json` | `agy` がプラグインをロードするための構成ファイル |
+| `github-mcp-wrapper.sh` | 公式バイナリ起動前に認証トークンを解決するラッパー（ソース） |
+| `build.sh`（リポジトリルート） | 公式バイナリを `go install` で取得し、ラッパーと共に `mcpServers/` へ配置 |
 
-| ツール名 | 説明 | パラメータ |
-| :--- | :--- | :--- |
-| `get_repo_info` | リポジトリの基本情報（スター数、フォーク数、オープンイシュー数など）を取得します。 | `owner` (リポジトリ所有者), `repo` (リポジトリ名) |
-| `list_issues` | イシュー一覧を取得します（デフォルトはオープンのみ）。 | `owner`, `repo`, `state` (`open`/`closed`/`all`), `per_page` (ページあたりの件数) |
-| `create_issue` | 新しいイシューを作成します。 | `owner`, `repo`, `title` (タイトル), `body` (本文) |
-| `get_issue` | 指定したイシューの詳細情報およびコメント一覧を取得します。 | `owner`, `repo`, `issue_number` (イシュー番号) |
-| `create_issue_comment` | イシューまたはプルリクエストにコメントを追加します。 | `owner`, `repo`, `issue_number`, `body` (コメント本文) |
-| `list_prs` | プルリクエスト一覧を取得します。 | `owner`, `repo`, `state` (`open`/`closed`/`all`), `per_page` |
-| `create_pr` | 新しいプルリクエストを作成します。 | `owner`, `repo`, `title`, `body`, `head` (ソースブランチ), `base` (ターゲットブランチ) |
-| `get_pr` | プルリクエストの詳細（マージ可能ステータスなど）を取得します。 | `owner`, `repo`, `pr_number` |
-| `merge_pr` | プルリクエストをマージします。 | `owner`, `repo`, `pr_number`, `commit_title` (コミット詳細), `merge_method` (`merge`/`squash`/`rebase`) |
+ビルド成果物（`mcpServers/` 配下の公式バイナリとラッパー）は `.gitignore` で除外され、`build.sh` で生成します。
 
 ## 必要条件
 
-* **Go**: 1.26以上
-* **GitHub 個人用アクセストークン (PAT)**: 操作対象のリポジトリに応じた適切な権限（`repo` スコープなど）が必要です。
+* **Go**: 1.26 以上（`go install` で公式バイナリをビルドするため）
+* **GitHub 認証**: 以下のいずれか
+  * 環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` / `GITHUB_TOKEN` / `GH_TOKEN`
+  * GitHub CLI (`gh auth login` 済み)
 
-## セットアップと認証
+## 認証の仕組み
 
-認証用トークンは、サーバー起動時に自動的に以下の優先順位で探索・取得されます。
+公式バイナリは `GITHUB_PERSONAL_ACCESS_TOKEN` のみを参照します。
+`github-mcp-wrapper.sh` が起動時に次の優先順位でトークンを解決し、`GITHUB_PERSONAL_ACCESS_TOKEN` として公式バイナリに渡します。
 
-1. **環境変数**:
-   環境変数 `GITHUB_TOKEN` または `GH_TOKEN` が設定されている場合、そのトークンを使用します。
-   ```bash
-   export GITHUB_TOKEN=ghp_your_personal_access_token
-   ```
+1. `GITHUB_PERSONAL_ACCESS_TOKEN`（既に設定済みならそのまま）
+2. `GITHUB_TOKEN`
+3. `GH_TOKEN`
+4. `gh auth token`（GitHub CLI の認証情報）
 
-2. **GitHub CLI (`gh`)**:
-   環境変数が空の場合、システムにインストールされている GitHub CLI から認証情報を取得しようと試みます（`gh auth token` コマンドを使用）。
-
-*※認証情報が見つからない場合でも起動はしますが、パブリックリポジトリ以外の操作やAPI制限により正しく機能しない場合があります。*
+これにより、静的な PAT を環境変数に置かなくても `gh` 認証だけで動作します。
 
 ## ビルド方法
 
-以下のコマンドを実行して実行可能バイナリをビルドします。
+リポジトリルートの `build.sh` を実行します（github / gitlab 両方をビルド）。
 
 ```bash
-go build -o mcpServers/github-plugin main.go
+./build.sh
 ```
 
-ビルドが完了すると、`mcpServers/github-plugin` にバイナリが出力されます。
+完了すると以下が生成されます。
+
+* `mcpServers/github-mcp-server` … 公式バイナリ (v1.3.0)
+* `mcpServers/github-mcp-wrapper.sh` … 認証ラッパー
+
+公式バージョンを変更する場合は `build.sh` の `GITHUB_MCP_VERSION` を編集してください。
 
 ## プラグインとしての登録
 
-本ディレクトリに含まれる `gemini-extension.json` が、Antigravity (`agy`) がこのMCPサーバーをロードするための構成ファイルです。
-
 ```bash
-# ビルド後にインストール
+# ビルド後にインストール（絶対パスで指定）
 agy plugin install /path/to/agy-plugins/github
 ```
 
-インストールは絶対パスで指定してください。`gemini-extension.json` 内の `${extensionPath}` 変数が `agy` によってインストール先ディレクトリに自動解決されるため、手動でのパス編集は不要です。
+`gemini-extension.json` 内の `${extensionPath}` 変数が `agy` によってインストール先ディレクトリに自動解決されるため、手動でのパス編集は不要です。
+
+## 提供する機能
+
+公式サーバーのデフォルトツールセット（context / copilot / issues / pull_requests / repos / users）が有効になります。`--toolsets` や `--read-only` 等のオプションを使いたい場合は `github-mcp-wrapper.sh` の `exec` 行に引数を追加してください（例: `exec "$(dirname "$0")/github-mcp-server" stdio --read-only "$@"`）。
+
+利用可能なツールの詳細は公式ドキュメントを参照してください: <https://github.com/github/github-mcp-server>

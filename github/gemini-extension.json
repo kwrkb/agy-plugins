@@ -1,10 +1,10 @@
 {
   "name": "github",
-  "version": "0.1.0",
-  "description": "GitHub MCP server (issues / PRs / repo info)",
+  "version": "0.2.0",
+  "description": "Official GitHub MCP server (github/github-mcp-server)",
   "mcpServers": {
     "github": {
-      "command": "${extensionPath}${/}mcpServers${/}github-plugin"
+      "command": "${extensionPath}${/}mcpServers${/}github-mcp-wrapper.sh"
     }
   }
 }
