@@ -4,7 +4,7 @@
 
 Issues / Pull Requests / リポジトリ / Actions / Discussions など、公式がメンテナンスする全ツールセットを AI アシスタントから利用できます。
 
-> **対応 OS**: Linux / macOS（POSIX シェル）。Windows 版は検証中です（リポジトリの Issue で追跡）。
+> **対応 OS**: Linux / macOS（POSIX シェル）。Windows 版は今後対応予定です。
 
 ## 構成
 
