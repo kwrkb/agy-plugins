@@ -11,8 +11,8 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func runGhCommand(args ...string) (string, error) {
-	cmd := exec.Command("gh", args...)
+func runGhCommand(ctx context.Context, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "gh", args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -46,7 +46,7 @@ func main() {
 			return mcp.NewToolResultError("args must contain at least one element"), nil
 		}
 
-		output, err := runGhCommand(args...)
+		output, err := runGhCommand(ctx, args...)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
