@@ -69,10 +69,15 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 - 発火時の `PWD` は**プラグインのインストール先**（`~/.gemini/config/plugins/<name>/`）。相対パスで同梱
   バイナリは呼べるが、上記のとおり対象ファイルを取得できないため意味を成さない。
 - `hooks.json` 内の `${extensionPath}` / `${/}` は**実行時に一切置換されず literal のまま残る**。Linux では
-  `/bin/sh` が `${/}` を `Bad substitution` と見なし hook 起動に失敗する（C10 で検出）。
+  `/bin/sh` が `${/}` を `Bad substitution` と見なし hook 起動に失敗する（C10 で検出。トークン非展開は
+  MCP 側と同根で agy upstream [#390](https://github.com/google-antigravity/antigravity-cli/issues/390)）。
 
-将来 agy のフック payload が編集ファイルを露出するようになれば、`validator/main.go` の `runHook` を
-その実 payload（`transcriptPath` 解析等）に対応させたうえで再導入を検討する。
+> **upstream tracking**: 上記のうち payload に編集ファイル情報が無い件・発火が不安定な件は agy 本体へ
+> [#395](https://github.com/google-antigravity/antigravity-cli/issues/395) として報告済み。`rules/` が
+> 機能しない件（プラグインの知識は `skills/` で渡す）は [#396](https://github.com/google-antigravity/antigravity-cli/issues/396)。
+
+将来 agy のフック payload が編集ファイルを露出するようになれば（#395 の解消）、`validator/main.go` の
+`runHook` をその実 payload（`transcriptPath` 解析等）に対応させたうえで再導入を検討する。
 
 ## ライセンス
 
