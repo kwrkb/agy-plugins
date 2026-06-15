@@ -1,0 +1,17 @@
+description = "既存の agy プラグインから README / SKILL.md を自動生成・更新する"
+prompt = """
+agy プラグインのドキュメントを生成/更新します。対象パス: {{args}}。
+
+手順:
+1. 対象の構成を読み取る: `plugin.json`/`gemini-extension.json`（name・description）、`mcp_config.json`
+   （提供する MCP サーバーと command）、`commands/`・`skills/`（提供するスラッシュコマンド）、`hooks.json`。
+2. その情報から README.md を生成/更新する。含める節:
+   - 概要 / 対応 OS / 構成（ファイル表）/ 必要条件（PATH に要るバイナリ・認証）/ インストール
+     （`agy plugin install https://github.com/<owner>/<repo>/<plugin>`）/ ライセンス・帰属。
+   - リポジトリ既存プラグイン（`github-windows/README.md` 等）のトーンに合わせる。
+3. プラグインが既存 CLI をラップする場合は、`cli-to-skill` の流儀で `--help` を読み、SKILL.md を生成できる。
+   その CLI の `--help` を実行して要点（サブコマンド・主要オプション）を SKILL.md に落とす。
+4. 生成物は事実に基づくこと（推測でコマンドや認証を書かない）。不明点はソースを読むか不明と明示する。
+5. 仕上げに `~/.gemini/config/plugins/agy-plugin-kit/validator/validator.exe <対象>` を実行し、ドキュメント追加で
+   構造が壊れていないか確認する。
+"""

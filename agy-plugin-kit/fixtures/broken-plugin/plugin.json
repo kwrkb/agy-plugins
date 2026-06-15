@@ -1,0 +1,4 @@
+{
+  "name": "broken-plugin",
+  "description": "deliberately malformed fixture for validator e2e tests (trips C1, C2, C3, C8)"
+}

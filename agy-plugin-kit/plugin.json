@@ -1,0 +1,4 @@
+{
+  "name": "agy-plugin-kit",
+  "description": "Meta-helper for agy plugin authors: scaffold, validate (LESSONS traps), Issue #390 path-fix, and doc generation."
+}

@@ -9,6 +9,7 @@
 | **[github-unix](./github-unix/README.md)** | GitHub の Issues / PR / リポジトリ等を操作する MCP サーバー（Linux / macOS） |
 | **[github-windows](./github-windows/README.md)** | 同上の Windows 版（Go 製トークン解決ラッパーを `.exe` で同梱） |
 | **[gitlab](./gitlab/README.md)** | GitLab の Issues / MR / プロジェクト等を操作する MCP サーバー |
+| **[agy-plugin-kit](./agy-plugin-kit/README.md)** | agy プラグイン開発メタ・ヘルパー（雛形生成・静的検査・Issue #390 パス修正・doc 生成） |
 
 > **github を OS 別に分けている理由**: 公式 `github-mcp-server` はトークンを環境変数からしか読まず、起動グルー（トークン解決ラッパー）が OS のシェルに依存するためです。`gh auth login` 済みなら手動のトークン設定なしで動きます。Linux / macOS は POSIX sh ラッパー、Windows は `.sh` を `command` に直接置けないため Go 製 `.exe` ラッパーを使います。
 
@@ -23,6 +24,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/github-windows
 
 # GitLab プラグイン
 agy plugin install https://github.com/kwrkb/agy-plugins/gitlab
+
+# agy プラグイン開発メタ・ヘルパー
+agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 ```
 
 各プラグインの前提条件（PATH に入れるバイナリ / 認証設定）については、各ディレクトリの README を参照してください。
@@ -34,6 +38,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/gitlab
 | github-unix | `github-mcp-server`（PATH 上） | `gh auth login` または `GITHUB_PERSONAL_ACCESS_TOKEN` 等の環境変数 |
 | github-windows | `github-mcp-server`（PATH 上） | `gh auth login` または `GITHUB_PERSONAL_ACCESS_TOKEN` 等の環境変数 |
 | gitlab | `glab` >= v1.74.0（PATH 上） | `glab auth login` 済み |
+| agy-plugin-kit | （任意）`go` ※validator 再ビルド時のみ。`.exe` 同梱なので通常不要 | 不要 |
 
 ## ライセンス・帰属
 
