@@ -1,0 +1,17 @@
+{
+  "description": "agy-plugin-kit: マニフェスト編集時に validator を自動実行して警告する（実験的: プラグイン同梱 hook の実行時発火は要対話セッション確認）",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${extensionPath}${/}validator${/}validator.exe\" --hook",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

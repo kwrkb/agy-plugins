@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "x": {
+      "command": "${extensionPath}${/}server.sh",
+      "args": ["--port", "1"]
+    },
+    "y": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/run.exe"
+    }
+  }
+}
