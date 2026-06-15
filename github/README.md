@@ -23,11 +23,6 @@ go install github.com/github/github-mcp-server/cmd/github-mcp-server@latest
 **公式リリースバイナリを使う場合:**  
 [github/github-mcp-server Releases](https://github.com/github/github-mcp-server/releases) からお使いの OS / アーキテクチャのバイナリをダウンロードし、PATH の通ったディレクトリに置いてください。
 
-**Windows（winget）:**
-```powershell
-winget install GitHub.GitHubMCPServer
-```
-
 ### 2. 認証トークンの設定
 
 環境変数 `GITHUB_PERSONAL_ACCESS_TOKEN` に GitHub の Personal Access Token を設定します。
