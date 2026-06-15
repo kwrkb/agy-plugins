@@ -143,7 +143,7 @@ gh_command(args=["run", "list", "-R", "org/repo", "--limit", "5", "--json", "sta
 |---|---|
 | コア | `issue` / `pr` / `repo` / `release` |
 | Actions | `run` / `workflow` / `cache` |
-| 検索 | `search repos\|issues\|prs\|commits\|code` |
+| 検索 | `search` の `repos` / `issues` / `prs` / `commits` / `code` |
 | 低レベル | `api` |
 | その他 | `gist` / `org` / `project` / `label` / `secret` / `variable` |
 
