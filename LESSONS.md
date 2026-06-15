@@ -1,5 +1,21 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-15: github-windows を実装しネイティブ Windows で検証（Issue #1）
+
+### 学んだこと
+
+#### 15. 「検証不能だから follow-up」は環境前提に依存する — 環境が変われば撤回する
+
+判断 4（implementation-notes）で Windows 検証を「WSL2 では不能」と Issue 化したが、後日の作業環境が **Windows ネイティブ**だった。`follow-up 化` の根拠は環境制約であって設計の不確実性ではなかったので、環境が変わった時点で**着手前に前提を再確認**すれば、その場で end-to-end まで完了できた。検証可否は毎回環境を実測して判断する（`go version` が `windows/amd64`、`agy`/`gh` の有無）。
+
+#### 16. Go ラッパーは sh ラッパーの `:-` 意味論を厳密移植する（空文字＝未設定）
+
+`${A:-${B:-...}}` は**空文字列も未設定扱い**でフォールバックする。Go で `os.Getenv(name)` の戻り値が空でないか（`v != ""`）で判定しないと、空の `GITHUB_TOKEN` を「設定済み」と誤判定して `gh auth token` に落ちず、`.sh` と挙動が乖離する。`gh auth token` は `cmd.Output()` でバッファ取り込み（stdout 非継承＝NDJSON を汚さない）、子の exit code は `os.Exit` で伝播。`exec.LookPath("github-mcp-server")` は Windows で `.exe` を自動補完する。
+
+#### 17. Windows でのラッパー検証は「MCP キャッシュ mtime 更新＋オーファン無し」で証拠化
+
+LESSONS #12 の証拠法はそのまま Windows でも有効: env トークン無しで `agy -p` を流し、`~/.gemini/antigravity-cli/mcp/github/*.json` の mtime が更新されれば「トークン解決（`gh auth token`）→ server 起動 → introspect」が通った証拠。加えて Windows は exec-replace が無く agy→wrapper→server の親子構造になるが、stdio server は stdin EOF で終了するため**セッション後にオーファン残留しない**ことを `tasklist | grep github-mcp` で確認した（残る場合のみ Job Object 対応）。
+
 ## 2026-06-15: binary-on-PATH 化で github が起動不能になった件と差し戻し
 
 ### 学んだこと

@@ -15,3 +15,20 @@
 
 ### 判断 4: OS 別分割で Windows は未同梱（follow-up）
 - ユーザー判断で `github-unix` / `github-windows` に分割。Windows は `.sh`/`.cmd` を `command` に直接置けず、実測確認済みは Go `.exe` ラッパー（LESSONS #10）。WSL2 では Windows 実機検証ができないため、**未検証コードを同梱せず**フォローアップ（Issue）に回す。`github-unix`（実環境で end-to-end 検証済み）を先行リリース。
+
+## 2026-06-15: github-windows を実装・ネイティブ Windows で end-to-end 検証（Issue #1）
+
+### 判断 5: 検証 follow-up を撤回し、本タスクで検証まで完了させた
+- **背景**: 判断 4 では WSL2 制約で Windows 検証不能 → Issue 化していた。が、今回の作業環境が **Windows 11 ネイティブ**（Go 1.26.4 windows/amd64、`gh` 認証済み、`agy` インストール済み）と判明。制約が消えたため「未検証コードを同梱しない」原則の適用対象外になった。
+- **決定**: ラッパーを実機ビルド＋`agy plugin install`＋`agy -p` で end-to-end 検証してからコミット。LESSONS #12 の証拠法（MCP キャッシュ mtime 更新）で起動成功を客観確認した。
+
+### 判断 6: Go ラッパーは sh の `:-` 意味論を厳密移植
+- 空文字列の env を未設定扱い（`v != ""`）にし、空 `GITHUB_TOKEN` でも `gh auth token` へフォールバックさせた。`os.Getenv` の存在チェックだけだと空文字を「設定済み」と誤判定し `.sh` と挙動が乖離するため。
+- `gh auth token` は `cmd.Output()` でバッファ取り込み（stdout 非継承）。1 バイトでも漏れると NDJSON が壊れる。子の exit code は `os.Exit` で伝播。
+
+### 検証結果（全 6 点パス / ネイティブ Windows）
+- ビルド: `go build` 単一 stdlib ファイル、go.mod 不要。
+- install: `mcp_config.json` の `command` が `...\github\github-mcp-wrapper`（拡張子なし絶対パス）に解決。
+- 起動証拠: env トークン無し → `gh auth token` フォールバックで解決 → `agy -p` 実行後にキャッシュ（`get_me.json` 等）mtime が `08:10`→`12:53` に更新、40+ ツールが introspect された。
+- オーファン: セッション終了後に `github-mcp-server.exe` の残留なし（stdin EOF で子が終了）。
+- go.mod / arm64 は不要（amd64 のみ。arm64 は必要時 follow-up）。
