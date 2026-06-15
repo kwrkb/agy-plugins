@@ -1,0 +1,20 @@
+description = "正しい構造の agy プラグイン雛形を生成する（マニフェスト形式の自動選択・Windows 対応・検証込み）"
+prompt = """
+新しい agy プラグインの雛形を生成します。引数: {{args}}（プラグイン名。必要なら種別も）。
+
+まず skill `agy-plugin-authoring` の規則を読み込み、それに完全準拠した雛形を作ること。
+
+手順:
+1. ユーザーに種別を確認（未確定なら）:
+   - **A. PATH コマンド型**（既存 CLI を起動。例 `glab mcp serve`）→ native `plugin.json` + `mcp_config.json`。
+   - **B. バイナリ同梱型**（自作ラッパー等を同梱）→ `gemini-extension.json` 形式（`${extensionPath}${/}<name>` 拡張子なし）
+     ＋ Windows は Go `.exe` ラッパー（`templates/wrapper.go.tmpl` を雛形に）。`plugin.json` は置かない。
+   - **C. コマンド/スキル中心**（MCP 無し）→ native `plugin.json` のみ。
+2. `~/.gemini/config/plugins/agy-plugin-kit/templates/` の該当テンプレートを複製し、プレースホルダ
+   （`{{NAME}}` `{{DESC}}` 等）を埋める。生成先はカレントリポジトリ直下の `<name>/`。
+3. 種別 B で同梱バイナリを作る場合は **必ず `.gitignore` を確認**し、同梱 `.exe` がコミット対象になるようにする
+   （C4 回避）。Go ラッパーは stdout に書かない（C9）。
+4. 生成後に `~/.gemini/config/plugins/agy-plugin-kit/validator/validator.exe <生成先>` を実行し、
+   **0 エラー**であることを確認してからユーザーに引き渡す（自分が吐いた雛形が自分のルールに適合することを保証）。
+5. 最後に `agy plugin install <生成先>` でのインストール手順を案内する。
+"""

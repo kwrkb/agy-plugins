@@ -1,0 +1,14 @@
+description = "agy プラグインソースを静的検査し、既知のトラップ（Issue #390 / Windows .sh / gitignore 消失 等）を検出する"
+prompt = """
+agy プラグインのソースディレクトリを検査します。対象パス: {{args}}（未指定ならカレントの agy プラグインを推測）。
+
+手順:
+1. 同梱バリデータを実行する（install 先のフルパス）:
+   `~/.gemini/config/plugins/agy-plugin-kit/validator/validator.exe <対象ディレクトリ>`
+   - 上記パスに無ければ `agy plugin list` でこのプラグインの install 先を確認して読み替える。
+2. 出力の各 `[ERROR]`/`[WARN]` を、対応する規則（C1〜C9）とともにユーザーへ要約する。
+3. `[ERROR]` があれば「URL install/起動が失敗する」ことを明示し、`/agy-plugin-kit:doctor` での修正を促す。
+4. 判断に迷う指摘は skill `agy-plugin-authoring` の規則を引いて根拠を示す。
+
+バリデータの終了コードは [ERROR] があれば 1。出力をそのまま貼るのではなく、何が問題でどう直すかを簡潔に伝えること。
+"""

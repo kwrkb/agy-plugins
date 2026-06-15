@@ -1,0 +1,17 @@
+description = "プラグインを診断し、検出した問題を修正する（agy plugin validate + Issue #390 の絶対パス自動埋め込みを含む）"
+prompt = """
+agy プラグインを診断して修正します。対象パス: {{args}}。
+
+手順:
+1. agy 公式の健全性チェック: `agy plugin validate <対象>`（`agy doctor` は存在しないので使わない）。
+2. キット固有のトラップ検査: `~/.gemini/config/plugins/agy-plugin-kit/validator/validator.exe <対象>`。
+3. 検出した各問題を、skill `agy-plugin-authoring` の規則に対応づけて修正案を提示する。代表的な修正:
+   - **C2 / Issue #390**（native plugin.json で `${extensionPath}` 未解決）:
+     ユーザー合意のうえ `validator.exe --fix-paths <対象>` を実行し、`mcp_config.json` の `${extensionPath}` を
+     install 先の絶対パスへ書き換える。または `gemini-extension.json` 形式への移行を提案する。
+   - **C3**（`.sh`/`.cmd`/`.bat` を command 直指定）: Go `.exe` ラッパー化（拡張子なしフルパス）を提案。
+   - **C4**（同梱バイナリが gitignore 対象）: `.gitignore` を修正し対象を明示コミットする。
+   - **C8**（`${CLAUDE_PLUGIN_ROOT}`）: agy には無いので除去し `${extensionPath}` 方式へ。
+4. 破壊的な書き換え（--fix-paths や .gitignore 変更）は実行前に必ず差分と意図を説明し、同意を取る。
+5. 修正後に再度 validator を実行して 0 エラーを確認する。
+"""

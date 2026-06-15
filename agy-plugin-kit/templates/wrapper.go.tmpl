@@ -1,0 +1,51 @@
+// {{WRAPPER}} — Windows 用 MCP グルー（github-windows パターン）。
+// agy は .sh/.cmd を command に直接置けないため Go で .exe にビルドして使う。
+// 重要: stdout には一切書かない（MCP は stdout で NDJSON を流すため）。診断は stderr へ。
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+)
+
+// 必要なら env/CLI からトークン等を解決する（空文字は未設定扱い = shell の ${A:-${B:-}} 同様）。
+func resolve() string {
+	for _, name := range []string{"{{PRIMARY_ENV}}", "{{FALLBACK_ENV}}"} {
+		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
+			return v
+		}
+	}
+	out, err := exec.Command("{{AUTH_CMD}}").Output() // stdout はバッファに取り込む（継承しない）
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func main() {
+	token := resolve()
+
+	bin, err := exec.LookPath("{{SERVER_BIN}}")
+	if err != nil {
+		if p, err2 := exec.LookPath("{{SERVER_BIN}}.exe"); err2 == nil {
+			bin = p
+		} else {
+			fmt.Fprintln(os.Stderr, "{{WRAPPER}}: {{SERVER_BIN}} not found in PATH:", err)
+			os.Exit(127)
+		}
+	}
+
+	cmd := exec.Command(bin, append([]string{"{{SERVER_ARGS}}"}, os.Args[1:]...)...)
+	cmd.Env = append(os.Environ(), "{{PRIMARY_ENV}}="+token)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr // 子の stdio を素通し
+
+	if err := cmd.Run(); err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			os.Exit(ee.ExitCode())
+		}
+		fmt.Fprintln(os.Stderr, "{{WRAPPER}}: failed to run:", err)
+		os.Exit(1)
+	}
+}
