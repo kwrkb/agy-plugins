@@ -62,3 +62,7 @@ agy plugin install /path/to/agy-plugins/github
 公式サーバーのデフォルトツールセット（context / copilot / issues / pull_requests / repos / users）が有効になります。`--toolsets` や `--read-only` 等のオプションを使いたい場合は `gemini-extension.json` の `args` に追加してください（例: `"args": ["--read-only"]`）。
 
 利用可能なツールの詳細は公式ドキュメントを参照してください: <https://github.com/github/github-mcp-server>
+
+## ライセンス・帰属
+
+本プラグインは [github/github-mcp-server](https://github.com/github/github-mcp-server)（MIT License）の公式バイナリを実行するラッパーです。公式バイナリはリポジトリに同梱せず `build.sh` 実行時に取得します（再配布なし）。本プラグインのコード（認証ラッパー）は公式実装に準じ MIT として扱います。

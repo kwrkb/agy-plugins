@@ -57,3 +57,7 @@ agy plugin install /path/to/agy-plugins/gitlab
 ```
 
 インストールは絶対パスで指定してください。`mcp_config.json` の `mcpServers.glab` が `command: "glab"`, `args: ["mcp", "serve"]` を定義しており、`agy` は PATH 上の `glab` を解決して MCP サーバーを起動します。
+
+## ライセンス・帰属
+
+本プラグインは [gitlab-org/cli (`glab`)](https://gitlab.com/gitlab-org/cli)（MIT License）に内蔵された `glab mcp serve` を呼び出すラッパーです。`glab` バイナリはシステムに別途インストールされたものを使用し、再配布はしません。本プラグインのコードは公式実装に準じ MIT として扱います。
