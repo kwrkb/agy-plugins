@@ -20,10 +20,13 @@
 - [x] スコープ外の Linux `validator` バイナリを除去（`.exe` 正規同梱物は保持）
 - [x] LESSONS.md 更新（#23 配列入力 / #24 install は wipe しない / #25 キャッシュのツール名で確認）
 - [x] PR #7 を origin に push・更新
-
-## 未対応 / フォローアップ
+- [x] Gemini Code Assist レビュー対応
+  > Medium 指摘の `exec.CommandContext`（取消・タイムアウト伝播）を採用。High 指摘の `splitCommand`（手書きシェルパーサ）は配列化で根本解決済みのため見送り。
 
 - [x] destructive な `gh` 操作（`gh repo delete` / `gh api` 等）への README 注意書き
   > `github/README.md` の「提供されるツール」に任意コマンド実行の警告を追記。あわせて `gh_command` を配列引数 `args` 方式に記述更新。`destructiveHint` アノテーションは単一汎用ツールのため見送り。
+- [x] PR #7 マージ（ユーザー承認のうえ master へマージ）
+
+## フォローアップ Issue 候補
+
 - [ ] バイナリビルドの CI 自動化（`main.go` 変更時の再ビルド忘れ＝stale バイナリ配布を防止）
-- [ ] PR #7 マージ（ユーザー承認後）
