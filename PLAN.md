@@ -34,3 +34,19 @@
 - [x] `.github/workflows/build-verify.yml` 新設（github / validator の2ジョブ：vet・test・govulncheck・決定論ビルド・`git diff --exit-code` ゲート）
 - [x] `github/README.md` / `agy-plugin-kit/README.md` を決定論フラグ＋Go 1.26.4 固定・validator 両 OS 同梱に更新
 - [x] `CLAUDE.md` 新規作成（構成・コマンド・tmux 実機検証・地雷の入口）
+
+## フェーズ3: github / gitlab プラグインへスキル追加（PR #9・完了）
+
+agy 1.0.8 では `rules/` が非機能（LESSONS #22）なため、プラグインからエージェントへ知識を渡す唯一の手段が `skills/<name>/SKILL.md`。両プラグインにスキルが無く、エージェントが引数フォーマット・プロジェクトパス規約を知らずに操作する懸念があった。
+
+- [x] `github/skills/github/SKILL.md` 作成（`gh_command` の args 配列規則・CWD 非定常で `-R` 必須・`--json` フィールド必須・頻出パターン）
+- [x] `gitlab/skills/gitlab/SKILL.md` 作成（`glab_*` の args/flags/limit/offset 形式・プロジェクト指定の制約・カテゴリ別ツールマップ）
+- [x] `glab mcp serve` の実スキーマを `tools/list` / `tools/call` で検証し記述を裏取り
+  > `flags.repo` の有無・`assignee` 型はツール単位で異なることを実測（LESSONS #29-30）。
+- [x] Codex レビュー対応（種別での過度な一般化バグを修正）
+  > `glab_ci_list` は repo フラグなし、`glab_mr_list.assignee` は配列。実スキーマで確認のうえ訂正。
+- [x] Gemini レビュー対応（表の区切りを `/` に統一）
+  > SKILL.md は生テキストでエージェントに注入されるため `&#124;` は不適。LESSONS #31。
+- [x] LESSONS.md 更新（#29 ツール単位の repo / #30 ツール単位の型 / #31 生テキスト consumer）
+- [x] CI（build-verify: github / validator）pass を確認のうえ PR #9 を master へ squash マージ
+- [x] PLAN.md / README 群更新
