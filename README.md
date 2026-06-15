@@ -9,7 +9,7 @@
 | **[github-unix](./github-unix/README.md)** | GitHub の Issues / PR / リポジトリ等を操作する MCP サーバー（Linux / macOS） |
 | **[gitlab](./gitlab/README.md)** | GitLab の Issues / MR / プロジェクト等を操作する MCP サーバー |
 
-> **github を OS 別に分けている理由**: 公式 `github-mcp-server` はトークンを環境変数からしか読まず、起動グルー（トークン解決ラッパー）が OS のシェルに依存するためです。`gh auth login` 済みなら手動のトークン設定なしで動きます。Windows 版（`github-windows`）は検証中です（Issue で追跡）。
+> **github を OS 別に分けている理由**: 公式 `github-mcp-server` はトークンを環境変数からしか読まず、起動グルー（トークン解決ラッパー）が OS のシェルに依存するためです。`gh auth login` 済みなら手動のトークン設定なしで動きます。Windows 版（`github-windows`）は今後対応予定です。
 
 ## インストール方法
 

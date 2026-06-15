@@ -1,5 +1,27 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-15: binary-on-PATH 化で github が起動不能になった件と差し戻し
+
+### 学んだこと
+
+#### 11. github-mcp-server は無トークンだと**起動拒否で即終了**する（gitlab との非対称）
+
+URL install をクロスプラットフォーム化する過程で github をラッパー廃止＋「PATH の `github-mcp-server stdio` を直接 `command` に置く」binary-on-PATH 方式へ変更したが、**install は成功するのに MCP が起動しない**事象が発生。原因は `github-mcp-server` が `GITHUB_PERSONAL_ACCESS_TOKEN` 未設定だと `Error: GITHUB_PERSONAL_ACCESS_TOKEN not set` で**即 exit する**こと（知見 #5 の通りトークンは env からのみ読む）。直接 `command` 委譲はトークンを供給しないため起動できない。gitlab(`glab mcp serve`) は自前 config を読むので無トークンでも動く（知見 #7）——この非対称性を見落とすと「動かない」を踏む。
+
+→ **差し戻し**: 薄い POSIX sh ラッパー（知見 #5）で `gh auth token` 等を解決してから PATH の `github-mcp-server` を exec する方式に戻した。ただしバイナリは**同梱せず PATH のものを exec**（URL install で clone されるのは軽量スクリプトのみ＝同梱バイナリ gitignore 問題も同時に解消）。
+
+#### 12. 「動く」の検証は実環境（端末から agy）で、キャッシュ更新を証拠にする
+
+`agy -p "..."`（print モード）でも**セッション起動時に MCP サーバーを introspect する**ことを利用し、`~/.gemini/antigravity-cli/mcp/<server-key>/` の mtime 更新を「起動成功」の客観証拠にできる。無トークンの github は stale のまま、`glab` は更新される、という差で切り分けられた。自分の shell で手動 export して直接バイナリを叩くテストは**実環境と一致しない**（agy の env 継承を経由していない）ので、ラッパー経由・env 未設定での確認が必須。
+
+#### 13. `${extensionPath}` の検証より先に LESSONS を引くべきだった（手戻り）
+
+`${extensionPath}` がネイティブ形式で効くかを probe プラグインで実験したが、答えは知見 #1 に既出だった（`gemini-extension.json` 形式でのみ解決、`plugin.json` があるとコピーのみ）。**過去の落とし穴は着手前に LESSONS.md を確認する**こと。probe の結果も #1 と完全一致した。
+
+#### 14. OS 別分割: Windows は `.cmd`/`.sh` を `command` に直接置けない
+
+ユーザー判断で github を OS 別に分割（`github-unix` / `github-windows`）。Windows は `.sh` 直接 spawn 不可（知見 #10）に加え、`.cmd`/`.bat` も `CreateProcess` が直接実行できず `cmd /c` 経由が要る。実測確認済みの方式は Go ラッパー `.exe`（拡張子なしフルパス、知見 #10）。WSL2 では Windows 実機検証不能のため、未検証コードを同梱せず follow-up 化する判断（「検証不能な提案は Issue 化」）。
+
 ## 2026-06-14: github プラグインを Windows でクロスプラットフォーム化
 
 ### 学んだこと
