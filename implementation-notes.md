@@ -41,3 +41,28 @@
 - 起動証拠: env トークン無し → `gh auth token` フォールバックで解決 → `agy -p` 実行後にキャッシュ（`get_me.json` 等）mtime が `08:10`→`12:53` に更新、40+ ツールが introspect された。
 - オーファン: セッション終了後に `github-mcp-server.exe` の残留なし（stdin EOF で子が終了）。
 - go.mod / arm64 は不要（amd64 のみ。arm64 は必要時 follow-up）。
+
+## 2026-06-15: gh CLI ラッパーへ移行（PR #7）と CI 検証ゲート（PR #8）
+
+### 判断 9: `gh_command` の引数は `args: string[]` 配列にする（自作シェルパーサを避ける）
+- **背景**: 入力を単一 `command` 文字列にして `strings.Fields` で空白分割していたため、`--title "My Title"` 等のスペース込み値が壊れていた（LESSONS #23）。
+- **選択肢**: (a) Gemini/Codex bot 提案の自作 `splitCommand`（手書きシェルワードパーサ）/ (b) `google/shlex` 依存追加 / (c) ツール入力を配列化。
+- **決定**: (c)。パース自体が消滅しクオート曖昧性が原理的に無くなる。依存ゼロ、bot 提案の手書きパーサが抱えるエッジケース（`\\`・混在クオート）も回避。mcp-go の `WithArray`+`RequireStringSlice` で実装。bot の (a) は「修正前コードへの指摘」で、配列化が上位互換のため見送り。
+
+### 判断 10: CI は「検証ゲート方式」（書き込みしない）+ 決定論ビルド
+- **背景**: `agy plugin install` がコミット済みバイナリをコピーするだけのため、再ビルド忘れで stale が配布される。
+- **選択肢**: (a) 検証ゲート（CI で再ビルド→`git diff --exit-code`、開発者が手動 build+commit 維持）/ (b) CI が自動ビルドして PR に commit。
+- **決定**: (a)（ユーザー選択）。CI に write 権限・無限ループ対策・fork 制限が要る (b) より安全。成立条件として、素の `go build` は BuildID 非決定で誤検出するため `CGO_ENABLED=0 ... -trimpath -buildvcs=false -ldflags=-buildid=` で bit-identical 化し（実測）、Go 1.26.4 固定＋既存バイナリの baseline 再ビルドで揃えた。ローカル↔CI 一致を実走で実証（LESSONS #26）。
+
+### 判断 11: ビルド設定を `build.sh` / `build.ps1` に単一ソース化
+- フラグが README×2・workflow・CLAUDE.md に重複し drift していた。引数 `github|validator|all` を取るスクリプトに集約し、CI もこれを呼ぶ形に。Windows ネイティブ運用のため PowerShell 版も用意（ユーザー要望）。落とし穴として、スクリプト自身を workflow の `paths` に含めないとゲートが起動しない点を Codex P2 指摘で修正（LESSONS #27）。
+
+### 判断 12: validator に Linux 版を正式同梱（方針変更）
+- PR #7 では `validator/validator`（Linux）を「スコープ外混入」として削除したが、ユーザー判断で **Linux/Windows 両同梱**へ方針変更。README の「当面 Windows ターゲット」を改訂。決定論フラグで作り直して採用。
+
+### 判断 13: gitlab はバイナリ同梱に「揃えない」（現状維持）
+- **論点**: github と形式を揃えるか。
+- **決定**: 揃えない。github のバイナリ同梱は「`gh` に MCP 機能が無いことへの回避策」であり、`glab` は `glab mcp serve` を内蔵する（LESSONS #7 の本質的非対称）。gitlab に同梱するには glab ラッパーの再実装になり、動作中の公式機能を二重化するだけでコストに見合わない。`glab mcp serve` の experimental 依存を切りたい具体理由が出た時のみ再検討。
+
+### 判断 14: bot 誤指摘（`master`→`main`）の却下
+- Codex GitHub bot が「既定ブランチは `main`」と P2 指摘したが、`gh repo view`=`master`・`main` ref 不在・PR #7 が master マージ済みで**前提が誤り**と検証。鵜呑みにすると実ブランチでゲートが無効化される。却下根拠を PR コメントとコミットに残した（LESSONS #28）。
