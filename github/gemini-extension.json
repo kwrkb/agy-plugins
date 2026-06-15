@@ -1,0 +1,10 @@
+{
+  "name": "github",
+  "version": "1.0.0",
+  "description": "GitHub MCP server wrapping the gh CLI.",
+  "mcpServers": {
+    "github": {
+      "command": "${extensionPath}${/}github"
+    }
+  }
+}

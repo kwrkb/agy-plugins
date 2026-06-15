@@ -1,5 +1,21 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-15: github プラグインを gh CLI ラッパーへ移行・実機検証（PR #7）
+
+### 学んだこと
+
+#### 23. MCP ツールに「スペース込みの値」を渡すなら入力は配列にする — 文字列＋空白分割は壊れる
+
+`gh_command` の入力を単一 `command` 文字列にして `strings.Fields(cmdStr)` で空白分割していたが、`pr create --title "My Title"` は `["--title", "\"My", "Title\""]` に砕け、`exec.Command`（シェル非経由）なのでリテラルのクオートも剥がれず `gh` に渡る。`issue list --limit 10` 等の**スペース無し読み取り系はたまたま通る**ためスモークテストをすり抜け、書き込み系（title/body/検索クエリ）で破綻する。**修正は shell-words パーサ追加よりツール入力を `args: string[]` 配列にするのが筋**（依存ゼロ・クオート曖昧性が原理消滅）。mcp-go なら `mcp.WithArray`+`mcp.Items` で定義し `request.RequireStringSlice("args")` で受ける。description に「スペースを含む値は1要素」と明示する。
+
+#### 24. `agy plugin install` はインストール先を事前に wipe しない — 設計変更時は旧ファイルが残る
+
+github-mcp-server ラッパー設計 → gh CLI ラッパー設計へ作り替えて再 install したら、`~/.gemini/config/plugins/github/` に**旧設計の残骸**（`github-mcp-wrapper.sh` / 旧 `plugin.json` / 旧 `mcp_config.json`）が同居していた。install はソースを上書きコピーするが**消えたファイルは消さない**。残った旧 `plugin.json` があると `${extensionPath}` 解決条件（知見 #1）も崩れうる。**プラグインの構成ファイルを増減させた時は、再 install 前にインストール先ディレクトリを `rm -rf` してから入れる**。MCP ツールキャッシュ（`~/.gemini/antigravity-cli/mcp/<name>/`）も旧ツール名が残るので併せて消す。
+
+#### 25. agy 実機での「動いた」証拠は MCP キャッシュの中身（ツール名）まで見る
+
+知見 #12 はキャッシュ mtime 更新を起動成功の証拠としたが、設計を作り替えた今回は mtime だけでは不十分だった。クリーン install（`git archive HEAD`→`agy plugin install`、知見 #21）後に tmux で `agy -p` を流し、`~/.gemini/antigravity-cli/mcp/github/` が**新サーバーの単一ツール `gh_command.json` のみ**に置き換わった（旧 github-mcp-server の 40+ ツールが消えた）ことで「新サーバーが introspect された」と確証できた。さらに**スペース込みクエリ `"mark3labs mcp-go"` を含む読み取り操作**を agy 経由で1回実行し、正しい検索結果が返ることでエンドツーエンド（agy→MCP→gh_command→gh）と知見 #23 の修正効果を同時に実証した。**設計変更時は mtime ではなくキャッシュ内のツール名で別人確認する**。
+
 ## 2026-06-15: agy 1.0.8 のプラグイン同梱フックを実機検証（PR #4 をクローズ）
 
 ### 学んだこと
