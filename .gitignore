@@ -1,7 +1,3 @@
-# MCP Server build binaries
-*/mcpServers/
-github/mcpServers/
-
 # Go IDE / System files
 .idea/
 .vscode/
