@@ -191,10 +191,13 @@ func validate(dir string) []finding {
 		}
 	}
 
-	// C10: native plugin.json 形式の hooks.json で ${extensionPath} を使用（hook 実行時の解決は未確認）
-	if hasPluginJSON && !hasGeminiExt && strings.Contains(hooksRaw, "${extensionPath}") {
+	// C10: native plugin.json 形式の hooks.json で ${extensionPath}/${/} を使用
+	// （実機検証: 実行時に置換されず literal のまま残る。${extensionPath} は未定義 env として空文字に消え、
+	//  ${/} は /bin/sh で Bad substitution になり hook プロセスが起動前にクラッシュする。LESSONS #20）
+	if hasPluginJSON && !hasGeminiExt &&
+		(strings.Contains(hooksRaw, "${extensionPath}") || strings.Contains(hooksRaw, "${/}")) {
 		out = append(out, finding{sevWarn, "C10",
-			"plugin.json 形式の hooks.json で ${extensionPath} を使用しています。hook 実行時にこのトークンが解決される保証はありません（実機未確認）。確実に動かすには絶対パス等の代替を検討してください。"})
+			"plugin.json 形式の hooks.json で ${extensionPath}/${/} を使用しています。実機検証では実行時に置換されず literal のまま残り、${/} は /bin/sh で Bad substitution になり hook が起動しません（LESSONS #20）。絶対パス等の代替を検討してください。"})
 	}
 
 	// command を構造化して収集。C3/C6/C7 は MCP の executable（command 本体）のみを対象にする
