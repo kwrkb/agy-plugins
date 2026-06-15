@@ -52,10 +52,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/github
 
 ### バイナリの再ビルド
 
-**Go 1.26.4** を使い、決定論フラグ付きでビルドします（CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求します。Go のバージョンやフラグがずれると CI が fail します）。
+リポジトリルートのビルドスクリプトを使います（**Go 1.26.4**。決定論フラグはスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求し、Go のバージョンがずれると fail します）。
 
 ```bash
-cd github
-CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-buildid= -o github   .
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-buildid= -o github.exe .
+./build.sh github    # github のバイナリ（linux/windows）を再ビルド。Windows は ./build.ps1 github
+# 引数なし（./build.sh / ./build.ps1）で全プラグイン
 ```

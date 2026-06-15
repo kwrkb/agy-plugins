@@ -18,10 +18,10 @@ on:
       - '.github/workflows/build-verify.yml'
 
 # 決定論ビルドは Go ツールチェーンのバージョンまで一致が必要。
-# 上げる時はここと各 README、ローカル環境を揃えて全バイナリを再ビルドすること。
+# 上げる時はこことローカル環境を揃えて全バイナリを再ビルドすること。
+# ビルドフラグ自体は build.sh に集約している（重複定義を避けるため）。
 env:
   GO_VERSION: '1.26.4'
-  BUILD_FLAGS: '-trimpath -buildvcs=false -ldflags=-buildid='
 
 jobs:
   github:
@@ -41,14 +41,13 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           "$(go env GOPATH)/bin/govulncheck" ./...
       - name: Deterministic rebuild
-        run: |
-          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $BUILD_FLAGS -o github   .
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $BUILD_FLAGS -o github.exe .
+        run: ./build.sh github
+        working-directory: .
       - name: Verify committed binaries are up to date
         run: |
           if ! git diff --exit-code -- github/github github/github.exe; then
             echo "::error::Committed github binaries differ from a deterministic rebuild."
-            echo "::error::Rebuild with the flags in github/README.md and commit the result."
+            echo "::error::Run ./build.sh github and commit the result."
             exit 1
           fi
         working-directory: .
@@ -70,14 +69,13 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           "$(go env GOPATH)/bin/govulncheck" ./...
       - name: Deterministic rebuild
-        run: |
-          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $BUILD_FLAGS -o validator     .
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $BUILD_FLAGS -o validator.exe .
+        run: ./build.sh validator
+        working-directory: .
       - name: Verify committed binaries are up to date
         run: |
           if ! git diff --exit-code -- agy-plugin-kit/validator/validator agy-plugin-kit/validator/validator.exe; then
             echo "::error::Committed validator binaries differ from a deterministic rebuild."
-            echo "::error::Rebuild with the flags in agy-plugin-kit/README.md and commit the result."
+            echo "::error::Run ./build.sh validator and commit the result."
             exit 1
           fi
         working-directory: .

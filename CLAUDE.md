@@ -11,13 +11,12 @@ agy (Google Antigravity CLI) 向け MCP プラグイン集。グローバル CLA
 ## コマンド
 
 ```bash
-# github（go 1.26.4）— ソース変更時は必ず再ビルドしてコミット（agy install はビルドしない）
-cd github && go vet ./... && go test ./...
-CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-buildid= -o github   .
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-buildid= -o github.exe .
+cd github && go vet ./... && go test ./...   # テスト・静的解析
+./build.sh                                    # 全プラグインのバイナリを再ビルド（go 1.26.4。Windows は ./build.ps1）
+./build.sh github                             # github だけ再ビルド
 ```
 
-決定論フラグ（`-trimpath -buildvcs=false -ldflags=-buildid=`）＋ Go バージョン固定で bit-identical になる。CI の stale 検出ゲートがこれを前提にする。
+**ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に集約され、Go 1.26.4 固定で bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
 
 ## 実機検証（tmux + agy）
 
