@@ -27,6 +27,10 @@
   > `github/README.md` の「提供されるツール」に任意コマンド実行の警告を追記。あわせて `gh_command` を配列引数 `args` 方式に記述更新。`destructiveHint` アノテーションは単一汎用ツールのため見送り。
 - [x] PR #7 マージ（ユーザー承認のうえ master へマージ）
 
-## フォローアップ Issue 候補
+## フェーズ2: CI 検証ゲート（完了）
 
-- [ ] バイナリビルドの CI 自動化（`main.go` 変更時の再ビルド忘れ＝stale バイナリ配布を防止）
+- [x] 全 Go バイナリを決定論フラグ（`-trimpath -buildvcs=false -ldflags=-buildid=`）+ Go 1.26.4 で baseline 再ビルド
+  > 2回ビルドで bit-identical を実測確認。validator は Linux 版（`validator`）も新規同梱に方針変更。
+- [x] `.github/workflows/build-verify.yml` 新設（github / validator の2ジョブ：vet・test・govulncheck・決定論ビルド・`git diff --exit-code` ゲート）
+- [x] `github/README.md` / `agy-plugin-kit/README.md` を決定論フラグ＋Go 1.26.4 固定・validator 両 OS 同梱に更新
+- [x] `CLAUDE.md` 新規作成（構成・コマンド・tmux 実機検証・地雷の入口）
