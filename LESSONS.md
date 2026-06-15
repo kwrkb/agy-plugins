@@ -1,5 +1,23 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-15: agy-plugin-kit の hooks.json 解析と Linux 対応
+
+### 学んだこと
+
+#### 18. `hooks.json` のルート直下に `description` を置くとパースエラーになる
+
+`hooks.json` のルートオブジェクトに `"description"` フィールドが存在していると、agy CLI 内部でフックファイルをパースする際、`cannot unmarshal string into Go value of type jsonhook.JSONHookSpec` という unmarshal エラーを引き起こす。ルートからは `"description"` などの非フック関連文字列キーを除去し、純粋に `"hooks"` オブジェクトのみを記述する必要がある。
+
+#### 19. フック実行時の `PWD` はプラグインのインストール先ディレクトリである
+
+実機検証でフック環境変数をダンプした結果、フックコマンド実行時のカレントワーキングディレクトリ (`PWD`) は `~/.gemini/config/plugins/<name>/` （インストール先絶対パス）であることが判明した。これにより、`${extensionPath}` トークンを使用せずとも、`validator/validator` などの相対パス指定で同梱バイナリを安全に呼び出すことができる。
+
+#### 20. `hooks.json` 内の `${extensionPath}` や `${/}` は一切置換されない
+
+`gemini-extension.json` 形式でプラグインをインポートした場合でも、`hooks.json` 内の `${extensionPath}` や `${/}` は一切置換されず literal のまま残る。その結果、Linux 等の環境下では `/bin/sh` が `${/}` を不正な変数置換と見なし、`sh: 1: Bad substitution` エラーが発生してフック起動に失敗する。
+そのため、`hooks.json` 内ではこれらの置換用トークンは一切使用せず、`PWD` がインストール先であることを前提に、直接の相対パス表記に頼るべきである。
+この際、`validator/validator --hook` のように拡張子を省略したスラッシュ表記（パス区切り文字入り）で指定すると、Linuxではカレント相対パス `validator/validator` としてそのまま実行され、WindowsではGoの `exec.Command` (CreateProcess) の拡張子自動補完とパス置換により `validator\validator.exe` が見つけ出されて起動する。これにより、1つの `hooks.json` の記述で Windows/Linux 間の完全なクロスプラットフォーム動作を実現できる。
+
 ## 2026-06-15: github-windows を実装しネイティブ Windows で検証（Issue #1）
 
 ### 学んだこと
