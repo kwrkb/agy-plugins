@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -31,20 +30,22 @@ func main() {
 	)
 
 	ghCommandTool := mcp.NewTool("gh_command",
-		mcp.WithDescription("Run an arbitrary gh CLI command. Example command: 'issue list --limit 10' or 'pr view 123'."),
-		mcp.WithString("command", mcp.Description("The subcommands and arguments for gh separated by spaces. Do NOT include the 'gh' executable itself."), mcp.Required()),
+		mcp.WithDescription("Run an arbitrary gh CLI command. Pass the subcommands and arguments as an array of separate strings, e.g. [\"issue\", \"list\", \"--limit\", \"10\"] or [\"pr\", \"create\", \"--title\", \"My Title\"]. Keep each value that contains spaces (titles, bodies, search queries) as a single array element."),
+		mcp.WithArray("args",
+			mcp.Description("The gh subcommands and arguments, one array element per token. Do NOT include the 'gh' executable itself. A value with spaces must be one element, e.g. [\"--title\", \"My Title\"]."),
+			mcp.Items(map[string]any{"type": "string"}),
+			mcp.Required(),
+		),
 	)
 	s.AddTool(ghCommandTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		argsMap, ok := request.Params.Arguments.(map[string]interface{})
-		if !ok {
-			return mcp.NewToolResultError("invalid arguments format"), nil
+		args, err := request.RequireStringSlice("args")
+		if err != nil {
+			return mcp.NewToolResultError("args is required and must be an array of strings"), nil
 		}
-		cmdStr, ok := argsMap["command"].(string)
-		if !ok || cmdStr == "" {
-			return mcp.NewToolResultError("command is required"), nil
+		if len(args) == 0 {
+			return mcp.NewToolResultError("args must contain at least one element"), nil
 		}
-		
-		args := strings.Fields(cmdStr)
+
 		output, err := runGhCommand(args...)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
