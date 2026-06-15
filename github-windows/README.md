@@ -57,10 +57,11 @@ agy plugin install https://github.com/kwrkb/agy-plugins/github-windows
 
 ## 高度な設定
 
-`--read-only` や `--toolsets` などのオプションを使う場合は、`github-mcp-wrapper.go` の `args` を組み立てている箇所（`stdio` 引数）を編集し、再ビルドします。
+`--read-only` や `--toolsets` などのオプションを使う場合は、`github-mcp-wrapper.go` の `args` を組み立てている箇所（`stdio` 引数）を編集し、`github-windows` ディレクトリ内で再ビルドします（`go.mod` 同梱なのでモジュールモードで確実にビルドできます）。
 
 ```powershell
-go build -o github-mcp-wrapper.exe ./github-mcp-wrapper.go
+cd github-windows
+go build -o github-mcp-wrapper.exe .
 ```
 
 利用可能なオプションの詳細は [公式ドキュメント](https://github.com/github/github-mcp-server) を参照してください。

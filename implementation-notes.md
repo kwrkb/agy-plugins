@@ -30,6 +30,11 @@
 - **反映**: (#2) 空白のみ env を `strings.TrimSpace` で未設定扱いにしフォールバック継続。(#5) `LookPath` 失敗時に `github-mcp-server.exe` を明示再試行（PATHEXT 非標準対策）。(#8) README に「PATH は信頼できるディレクトリのみで構成」のセキュリティ注記。
 - **見送り**: (#6 Job Object によるオーファン kill) — 実測でオーファン残留が無く（stdin EOF で stdio server が終了）、`golang.org/x/sys/windows` 依存＋`go.mod` 追加というコストに見合わない。advisor も「残留した場合のみ Job Object、先回り実装はしない」と助言済み。残留を観測したら導入する方針を README/notes に残す。
 
+### 判断 8: PR レビュー（gemini-code-assist）指摘で go.mod を追加
+- **指摘**: クリーン環境/CI で `go build` が `go.mod not found` で失敗しうるので `github-windows/go.mod` を追加すべき。
+- **検証**: 親ツリーに go.mod 無し＋完全クリーンな一時ディレクトリで**単一ファイル `go build x.go` は成功**（stdlib のみはモジュール不要）。よって指摘の失敗前提は単一ファイルビルドには当てはまらない。一方 `go build .`（パッケージモード）は go.mod 無しだと失敗する。
+- **決定**: 堅牢性・慣習に従い最小 `go.mod`（`module github-mcp-wrapper` / `go 1.21`）を追加。パッケージモードビルドも可能になり、ビルド/vet はモジュール内で実行する形に統一（README の再ビルド手順も `cd github-windows && go build -o github-mcp-wrapper.exe .` に更新）。追加後に両ビルドモード・`go vet`・agy end-to-end を再検証済み。
+
 ### 検証結果（全 6 点パス / ネイティブ Windows）
 - ビルド: `go build` 単一 stdlib ファイル、go.mod 不要。
 - install: `mcp_config.json` の `command` が `...\github\github-mcp-wrapper`（拡張子なし絶対パス）に解決。
