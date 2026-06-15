@@ -9,12 +9,16 @@ on:
     paths:
       - 'github/**'
       - 'agy-plugin-kit/validator/**'
+      - 'build.sh'
+      - 'build.ps1'
       - '.github/workflows/build-verify.yml'
   push:
     branches: [master]
     paths:
       - 'github/**'
       - 'agy-plugin-kit/validator/**'
+      - 'build.sh'
+      - 'build.ps1'
       - '.github/workflows/build-verify.yml'
 
 # 決定論ビルドは Go ツールチェーンのバージョンまで一致が必要。
