@@ -1,5 +1,21 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-15: コミット済みバイナリの stale 検出 CI ゲート（PR #8）
+
+### 学んだこと
+
+#### 26. 「再ビルド → `git diff --exit-code`」でバイナリの stale を検出するには決定論ビルドが前提（BuildID 固定が肝）
+
+`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけなので、`main.go` 変更後の再ビルド忘れで stale バイナリが配布される。これを CI で防ぐ素直な方法は「CI が再ビルド → コミット済みと `git diff --exit-code`」だが、**素の `go build` は BuildID がランダムで毎回バイナリが変わり**、同一ソースでも sha 不一致＝誤検出する（実測: `-trimpath -buildvcs=false` だけでは不十分）。`CGO_ENABLED=0 ... go build -trimpath -buildvcs=false -ldflags=-buildid=` まで付けると **bit-identical** になり、ローカル(WSL2) ↔ CI(ubuntu-latest + setup-go) でも一致した（実走で実証）。決定論は **Go ツールチェーンのパッチ版まで一致が条件**なので、CI は `go-version: '1.26.4'` 固定、開発者も同じ版を使う。ゲート導入時は**既存のコミット済みバイナリも決定論フラグで baseline 再ビルドして揃える**（揃えないと初回から fail）。CI は書き込みせず fail で知らせるだけ（auto-commit はしない選択）。
+
+#### 27. ビルド設定は単一スクリプトに集約し、その**スクリプト自身も** CI の `paths` フィルタに入れる
+
+決定論フラグを README・workflow・CLAUDE.md に直書きすると drift する。`build.sh`/`build.ps1`（引数 `github|validator|all`）に集約し、**CI もこのスクリプトを呼ぶ**ことでフラグの真実が1箇所になる。ただし落とし穴: workflow の `on.paths` フィルタが `build.sh`/`build.ps1` を含まないと、**スクリプトだけ変更した PR でゲートが起動せず**、壊れたビルド設定が素通りする（ゲートがゲート自身の依存を守れない）。集約したスクリプトは必ず `pull_request`/`push` 両方の `paths` に加える。
+
+#### 28. bot レビューの「既定ブランチ」前提は鵜呑みにせず事実確認する
+
+Codex の GitHub bot が「push トリガが `master` だが実際の既定ブランチは `main`」と P2 指摘してきたが、`gh repo view --json defaultBranchRef` は `master`、`git ls-remote --heads` に `main` は無く、過去 PR も `master` にマージ済み——**bot の前提が誤り**だった。鵜呑みに `master`→`main` すると実ブランチでゲートが動かなくなる。bot 指摘（特にリポジトリ状態に依存する主張）はトレース検証してから採否を決め、却下時は根拠を PR コメント・コミットに残す。
+
 ## 2026-06-15: github プラグインを gh CLI ラッパーへ移行・実機検証（PR #7）
 
 ### 学んだこと
