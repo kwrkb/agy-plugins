@@ -21,7 +21,8 @@ import (
 // 空文字列は未設定扱いとし、いずれの env も空なら `gh auth token` にフォールバックする。
 func resolveToken() string {
 	for _, name := range []string{"GITHUB_PERSONAL_ACCESS_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"} {
-		if v := os.Getenv(name); v != "" {
+		// 空白のみの値も未設定扱いにし、次の候補 / `gh auth token` へフォールバックする。
+		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
 			return v
 		}
 	}
@@ -39,9 +40,14 @@ func main() {
 
 	serverPath, err := exec.LookPath("github-mcp-server")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "github-mcp-wrapper: github-mcp-server not found in PATH:", err)
-		fmt.Fprintln(os.Stderr, "  install it, e.g.: go install github.com/github/github-mcp-server/cmd/github-mcp-server@latest")
-		os.Exit(127)
+		// PATHEXT に .EXE が無い等で素の名前が解決できない場合に備え、明示的に .exe も試す。
+		if p, err2 := exec.LookPath("github-mcp-server.exe"); err2 == nil {
+			serverPath = p
+		} else {
+			fmt.Fprintln(os.Stderr, "github-mcp-wrapper: github-mcp-server not found in PATH:", err)
+			fmt.Fprintln(os.Stderr, "  install it, e.g.: go install github.com/github/github-mcp-server/cmd/github-mcp-server@latest")
+			os.Exit(127)
+		}
 	}
 
 	args := append([]string{"stdio"}, os.Args[1:]...)

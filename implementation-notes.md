@@ -26,6 +26,10 @@
 - 空文字列の env を未設定扱い（`v != ""`）にし、空 `GITHUB_TOKEN` でも `gh auth token` へフォールバックさせた。`os.Getenv` の存在チェックだけだと空文字を「設定済み」と誤判定し `.sh` と挙動が乖離するため。
 - `gh auth token` は `cmd.Output()` でバッファ取り込み（stdout 非継承）。1 バイトでも漏れると NDJSON が壊れる。子の exit code は `os.Exit` で伝播。
 
+### 判断 7: Codex レビュー指摘の取捨（依存追加を避ける範囲で反映）
+- **反映**: (#2) 空白のみ env を `strings.TrimSpace` で未設定扱いにしフォールバック継続。(#5) `LookPath` 失敗時に `github-mcp-server.exe` を明示再試行（PATHEXT 非標準対策）。(#8) README に「PATH は信頼できるディレクトリのみで構成」のセキュリティ注記。
+- **見送り**: (#6 Job Object によるオーファン kill) — 実測でオーファン残留が無く（stdin EOF で stdio server が終了）、`golang.org/x/sys/windows` 依存＋`go.mod` 追加というコストに見合わない。advisor も「残留した場合のみ Job Object、先回り実装はしない」と助言済み。残留を観測したら導入する方針を README/notes に残す。
+
 ### 検証結果（全 6 点パス / ネイティブ Windows）
 - ビルド: `go build` 単一 stdlib ファイル、go.mod 不要。
 - install: `mcp_config.json` の `command` が `...\github\github-mcp-wrapper`（拡張子なし絶対パス）に解決。
