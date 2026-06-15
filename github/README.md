@@ -48,4 +48,14 @@ gh auth login
 agy plugin install https://github.com/kwrkb/agy-plugins/github
 ```
 
-> **注意**: ソースコード (`main.go`) を変更した場合は、ビルド（`go build` および Windows向けのクロスコンパイル）を再実行してから、再度 `agy plugin install` してください。
+> **注意**: ソースコード (`main.go`) を変更したら、下記コマンドで両 OS 分のバイナリを再ビルドしてコミットしてください（`agy plugin install` はビルドせず**コミット済みバイナリをコピー**するため、再ビルドを忘れると stale バイナリが配布されます）。
+
+### バイナリの再ビルド
+
+**Go 1.26.4** を使い、決定論フラグ付きでビルドします（CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求します。Go のバージョンやフラグがずれると CI が fail します）。
+
+```bash
+cd github
+CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-buildid= -o github   .
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-buildid= -o github.exe .
+```

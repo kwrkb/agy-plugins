@@ -1,0 +1,83 @@
+name: build-verify
+
+# コミット済みバイナリがソースと乖離（stale）していないかを検証するゲート。
+# 決定論フラグ（-trimpath -buildvcs=false -ldflags=-buildid=）+ Go バージョン固定で
+# 再ビルドし、git diff が出たら fail させる。CI は書き込みをしない。
+
+on:
+  pull_request:
+    paths:
+      - 'github/**'
+      - 'agy-plugin-kit/validator/**'
+      - '.github/workflows/build-verify.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'github/**'
+      - 'agy-plugin-kit/validator/**'
+      - '.github/workflows/build-verify.yml'
+
+# 決定論ビルドは Go ツールチェーンのバージョンまで一致が必要。
+# 上げる時はここと各 README、ローカル環境を揃えて全バイナリを再ビルドすること。
+env:
+  GO_VERSION: '1.26.4'
+  BUILD_FLAGS: '-trimpath -buildvcs=false -ldflags=-buildid='
+
+jobs:
+  github:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: github
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: go vet ./...
+      - run: go test ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Deterministic rebuild
+        run: |
+          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $BUILD_FLAGS -o github   .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $BUILD_FLAGS -o github.exe .
+      - name: Verify committed binaries are up to date
+        run: |
+          if ! git diff --exit-code -- github/github github/github.exe; then
+            echo "::error::Committed github binaries differ from a deterministic rebuild."
+            echo "::error::Rebuild with the flags in github/README.md and commit the result."
+            exit 1
+          fi
+        working-directory: .
+
+  validator:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agy-plugin-kit/validator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: go vet ./...
+      - run: go test ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Deterministic rebuild
+        run: |
+          CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $BUILD_FLAGS -o validator     .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $BUILD_FLAGS -o validator.exe .
+      - name: Verify committed binaries are up to date
+        run: |
+          if ! git diff --exit-code -- agy-plugin-kit/validator/validator agy-plugin-kit/validator/validator.exe; then
+            echo "::error::Committed validator binaries differ from a deterministic rebuild."
+            echo "::error::Rebuild with the flags in agy-plugin-kit/README.md and commit the result."
+            exit 1
+          fi
+        working-directory: .
