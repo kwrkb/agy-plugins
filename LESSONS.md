@@ -1,5 +1,17 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-15: github/gitlab プラグインへのスキル追加
+
+### 学んだこと
+
+#### 29. glab MCP の `flags.repo` はスキーマに存在するツールのみ有効 — スキーマ外のフラグは無視されCWD依存のまま
+
+`glab mcp serve` の MCP ツールは list 系（`glab_issue_list`、`glab_mr_list`、`glab_ci_list` 等）には `flags.repo` がスキーマに含まれ、プロジェクトを `flags={"repo": "group/project"}` で明示指定できる。一方、view 系（`glab_issue_view`、`glab_mr_view`）・write 系（`glab_issue_create`、`glab_mr_create` 等）にはスキーマに `repo` がなく、`flags.repo` を渡しても**サーバー側でフィルタリングされ無視される**（スキーマ外フラグは転送されない）。これらは `glab mcp serve` 起動時の CWD の git remote からプロジェクトを検出する。agy が GitLab リモートのないディレクトリで起動した場合は「Could not determine base repository」エラーになる。**スキルに例を書く前に MCP サーバーに `tools/list` を叩いて実スキーマを確認すること**。
+
+#### 30. glab MCP の `assignee` は string 型（配列ではない）、`@me` は公式サポート
+
+`glab_issue_list`/`glab_mr_list` の `flags.assignee` は MCP スキーマで `{"type": "string"}` であり、`["@me"]` の配列形式は誤り。正しくは `flags={"assignee": "@me"}`。`@me` は `glab issue list --assignee=@me` として公式ヘルプに記載されており glab でサポートされている（gh のイディオムが偶然一致している）。
+
 ## 2026-06-15: コミット済みバイナリの stale 検出 CI ゲート（PR #8）
 
 ### 学んだこと
