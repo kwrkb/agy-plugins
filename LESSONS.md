@@ -6,15 +6,15 @@
 
 #### 18. agy のフック stdin は Claude Code と別形式 — `file_path` が無く編集ファイルを特定できない
 
-agy 1.0.8 で tmux 対話セッションを起こし、`PostToolUse` フックを実発火させて payload をダンプした結果、agy が送る stdin は `{"artifactDirectoryPath": "...", "conversationId": "...", "error": null, "stepIdx": 0, "toolCall": null, "transcriptPath": "...", "workspacePaths": []}` だった。Claude Code 流の `file_path` / `tool_input` が**存在せず** `toolCall` も `null`。よって `file_path` を前提にしたフックハンドラ（`validator --hook`）は**発火しても対象を特定できず常に no-op**。agy 向けフックを書くなら payload は実測してから設計する（`tee` で stdin を採取）。
+agy 1.0.8 で tmux 対話セッションを起こし、`PostToolUse` フックを実発火させて payload をダンプした結果、agy が送る stdin は `{"artifactDirectoryPath": "...", "conversationId": "...", "error": null, "stepIdx": 0, "toolCall": null, "transcriptPath": "...", "workspacePaths": []}` だった。Claude Code 流の `file_path` / `tool_input` が**存在せず** `toolCall` も `null`。よって `file_path` を前提にしたフックハンドラ（`validator --hook`）は**発火しても対象を特定できず常に no-op**。agy 向けフックを書くなら payload は実測してから設計する（`tee` で stdin を採取）。upstream tracking: [agy#395](https://github.com/google-antigravity/antigravity-cli/issues/395)。
 
 #### 19. agy のフック発火は対話セッション限定かつ不安定
 
-`agy -p`（print mode）ではフックは発火しない。対話セッションでは発火するが、**セッション内の最初の編集（特定 `stepIdx`）でのみ発火し、2 回目以降の `Edit` では発火しないことがある**。「編集ごとに必ず実行」という前提のフック機能は agy 1.0.8 では信頼できない。発火時の `PWD` はプラグインのインストール先（`~/.gemini/config/plugins/<name>/`）なので相対パスで同梱バイナリは呼べる。
+`agy -p`（print mode）ではフックは発火しない。対話セッションでは発火するが、**セッション内の最初の編集（特定 `stepIdx`）でのみ発火し、2 回目以降の `Edit` では発火しないことがある**。「編集ごとに必ず実行」という前提のフック機能は agy 1.0.8 では信頼できない。発火時の `PWD` はプラグインのインストール先（`~/.gemini/config/plugins/<name>/`）なので相対パスで同梱バイナリは呼べる。upstream tracking: [agy#395](https://github.com/google-antigravity/antigravity-cli/issues/395)。
 
 #### 20. `hooks.json` 内の `${extensionPath}` / `${/}` は実行時に置換されない（Linux で `Bad substitution`）
 
-`hooks.json` 内の `${extensionPath}` / `${/}` は実行時に一切置換されず literal のまま残り、そのままシェルに渡される。`${extensionPath}` は**未定義の環境変数**として `/bin/sh` に評価され空文字に消滅（argv ダンプで欠落を確認）、`${/}` は `/bin/sh` が不正な変数置換と見なし `sh: 1: Bad substitution` で hook プロセスが起動前にクラッシュする。agy 側にトークン展開は無い。
+`hooks.json` 内の `${extensionPath}` / `${/}` は実行時に一切置換されず literal のまま残り、そのままシェルに渡される。`${extensionPath}` は**未定義の環境変数**として `/bin/sh` に評価され空文字に消滅（argv ダンプで欠落を確認）、`${/}` は `/bin/sh` が不正な変数置換と見なし `sh: 1: Bad substitution` で hook プロセスが起動前にクラッシュする。agy 側にトークン展開は無い。MCP 側（mcp_config.json）と同根で upstream tracking: [agy#390](https://github.com/google-antigravity/antigravity-cli/issues/390)。
 
 #### 21. 「修正」の前に機能が成立するかを実機検証する — クリーン install は git 追跡ファイルのみ
 
@@ -22,7 +22,7 @@ PR #4 は `hooks.json` のパス/パースを直したが、上記 #18 のとお
 
 #### 22. agy 1.0.8 の `rules/` 機能は完全に非機能 — プラグインの知識は `skills/` で渡す
 
-実機検証（3 パターン: プラグイン内 `rules/*.md` / `plugin.json` の `"rules":[...]` / グローバル `~/.gemini/rules/*.md`）で、いずれもエージェントのシステムプロンプト（`<user_rules>`）に**一切注入されなかった**（未実装ないし不具合）。現状プロンプトへ載るのは UI 側設定（Gemini Added Memories）のグローバルルールのみ。**プラグインからエージェントへ固有の知識・規約を渡すには `rules/` に頼れず、必ず `skills/<name>/SKILL.md` として定義し呼び出させる**設計にする。`hooks.json`（#18-21）と同様、「ドキュメントに載っている機能 ≠ 実機で動く機能」。
+実機検証（3 パターン: プラグイン内 `rules/*.md` / `plugin.json` の `"rules":[...]` / グローバル `~/.gemini/rules/*.md`）で、いずれもエージェントのシステムプロンプト（`<user_rules>`）に**一切注入されなかった**（未実装ないし不具合）。現状プロンプトへ載るのは UI 側設定（Gemini Added Memories）のグローバルルールのみ。**プラグインからエージェントへ固有の知識・規約を渡すには `rules/` に頼れず、必ず `skills/<name>/SKILL.md` として定義し呼び出させる**設計にする。`hooks.json`（#18-21）と同様、「ドキュメントに載っている機能 ≠ 実機で動く機能」。upstream tracking: [agy#396](https://github.com/google-antigravity/antigravity-cli/issues/396)。
 
 ## 2026-06-15: github-windows を実装しネイティブ Windows で検証（Issue #1）
 
