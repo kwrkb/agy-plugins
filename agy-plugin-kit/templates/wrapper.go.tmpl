@@ -17,7 +17,12 @@ func resolve() string {
 			return v
 		}
 	}
-	out, err := exec.Command("{{AUTH_CMD}}").Output() // stdout はバッファに取り込む（継承しない）
+	// コマンドと引数を分割（"gh auth token" のような複数語コマンドに対応）。
+	parts := strings.Fields("{{AUTH_CMD}}")
+	if len(parts) == 0 {
+		return ""
+	}
+	out, err := exec.Command(parts[0], parts[1:]...).Output() // stdout はバッファに取り込む（継承しない）
 	if err != nil {
 		return ""
 	}
@@ -37,7 +42,10 @@ func main() {
 		}
 	}
 
-	cmd := exec.Command(bin, append([]string{"{{SERVER_ARGS}}"}, os.Args[1:]...)...)
+	// サーバー引数を分割（空なら何も足さない。"a b" を単一引数にしない）。
+	srvArgs := strings.Fields("{{SERVER_ARGS}}")
+	srvArgs = append(srvArgs, os.Args[1:]...)
+	cmd := exec.Command(bin, srvArgs...)
 	cmd.Env = append(os.Environ(), "{{PRIMARY_ENV}}="+token)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr // 子の stdio を素通し
 

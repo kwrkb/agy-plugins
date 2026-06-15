@@ -156,11 +156,13 @@ func validate(dir string) []finding {
 		out = append(out, finding{sevError, "C5",
 			"plugin.json（または gemini-extension.json）が無く、agy がプラグインと認識できません。"})
 	}
-	if hasPluginJSON {
-		if raw := read("plugin.json"); raw != "" {
-			var v map[string]any
-			if json.Unmarshal([]byte(raw), &v) != nil {
-				out = append(out, finding{sevError, "C5", "plugin.json が不正な JSON です。"})
+	for _, mf := range []string{"plugin.json", "gemini-extension.json"} {
+		if has(mf) {
+			if raw := read(mf); raw != "" {
+				var v map[string]any
+				if json.Unmarshal([]byte(raw), &v) != nil {
+					out = append(out, finding{sevError, "C5", mf + " が不正な JSON です。"})
+				}
 			}
 		}
 	}
@@ -216,9 +218,10 @@ func validate(dir string) []finding {
 
 	cmds := append(append([]string{}, mcpCmds...), hookCmds...) // C4 用（参照ファイルは両方見る）
 
-	// C4: command が参照するローカルバイナリが .gitignore で除外されている（URL install で消える）
+	// C4: command が参照するローカルバイナリが .gitignore で除外されている（URL install で消える）。
+	// git check-ignore には絶対パスより dir 相対パスを渡す方がクロスプラットフォームで確実。
 	for _, p := range referencedLocalFiles(dir, cmds) {
-		if gitIgnored(dir, p) {
+		if gitIgnored(dir, rel(dir, p)) {
 			out = append(out, finding{sevError, "C4",
 				fmt.Sprintf("マニフェストが参照する %s が .gitignore で除外されています。URL install で clone されず起動不能になります。明示的にコミットしてください（LESSONS #11）。", rel(dir, p))})
 		}
@@ -357,9 +360,13 @@ func runFixPaths(dir string) {
 		os.Exit(2)
 	}
 	sep := string(filepath.Separator)
-	fixed := strings.ReplaceAll(string(raw), "${extensionPath}${/}", abs+sep)
-	fixed = strings.ReplaceAll(fixed, "${extensionPath}", abs)
-	fixed = strings.ReplaceAll(fixed, "${/}", sep)
+	// Windows の絶対パス（C:\Users\...）はバックスラッシュを含むため、JSON 文字列値に埋め込む前に
+	// \ を \\ にエスケープする。しないと \U 等が不正な JSON エスケープになり mcp_config.json が壊れる。
+	absEsc := strings.ReplaceAll(abs, `\`, `\\`)
+	sepEsc := strings.ReplaceAll(sep, `\`, `\\`)
+	fixed := strings.ReplaceAll(string(raw), "${extensionPath}${/}", absEsc+sepEsc)
+	fixed = strings.ReplaceAll(fixed, "${extensionPath}", absEsc)
+	fixed = strings.ReplaceAll(fixed, "${/}", sepEsc)
 	if fixed == string(raw) {
 		fmt.Println("変更なし（${extensionPath} は見つかりませんでした）:", mcpPath)
 		return
