@@ -4,13 +4,13 @@
 
 ### 学んだこと
 
-#### 29. glab MCP の `flags.repo` はスキーマに存在するツールのみ有効 — スキーマ外のフラグは無視されCWD依存のまま
+#### 29. glab MCP の `flags.repo` はスキーマに存在するツールのみ有効 — 「list 系なら一律あり」と一般化してはいけない
 
-`glab mcp serve` の MCP ツールは list 系（`glab_issue_list`、`glab_mr_list`、`glab_ci_list` 等）には `flags.repo` がスキーマに含まれ、プロジェクトを `flags={"repo": "group/project"}` で明示指定できる。一方、view 系（`glab_issue_view`、`glab_mr_view`）・write 系（`glab_issue_create`、`glab_mr_create` 等）にはスキーマに `repo` がなく、`flags.repo` を渡しても**サーバー側でフィルタリングされ無視される**（スキーマ外フラグは転送されない）。これらは `glab mcp serve` 起動時の CWD の git remote からプロジェクトを検出する。agy が GitLab リモートのないディレクトリで起動した場合は「Could not determine base repository」エラーになる。**スキルに例を書く前に MCP サーバーに `tools/list` を叩いて実スキーマを確認すること**。
+`glab mcp serve` の MCP ツールで `flags.repo` を持つかは**ツール単位**で異なる。`glab_issue_list`・`glab_mr_list` は `repo`（string）を持ち `flags={"repo": "group/project"}` で明示指定できるが、**同じ list 系でも `glab_ci_list` は `repo` を持たない**（CWD 依存）。view 系（`glab_issue_view`、`glab_mr_view`）・write 系（`glab_issue_create`、`glab_mr_create` 等）も `repo` がない。スキーマにないツールへ `flags.repo` を渡しても**サーバー側でフィルタリングされ無視される**（スキーマ外フラグは転送されない）。これらは起動時の CWD の git remote からプロジェクトを検出し、GitLab リモートのないディレクトリでは「Could not determine base repository」エラーになる。**「list / view / write」のような種別でまとめて一般化せず、ツールごとに `tools/list` で実スキーマを確認すること**（種別での一般化が誤りを生んだ実例: Codex レビューで `glab_ci_list` の repo 誤記を指摘された）。
 
-#### 30. glab MCP の `assignee` は string 型（配列ではない）、`@me` は公式サポート
+#### 30. glab MCP の `assignee` 型はツールで異なる — `glab_issue_list` は string、`glab_mr_list` は array
 
-`glab_issue_list`/`glab_mr_list` の `flags.assignee` は MCP スキーマで `{"type": "string"}` であり、`["@me"]` の配列形式は誤り。正しくは `flags={"assignee": "@me"}`。`@me` は `glab issue list --assignee=@me` として公式ヘルプに記載されており glab でサポートされている（gh のイディオムが偶然一致している）。
+`flags.assignee` の型が同じ「list 系」でも**ツールによって違う**。`glab_issue_list.assignee` は `{"type": "string"}`（`"assignee": "@me"`）だが、`glab_mr_list.assignee` は `{"items": {"type": "string"}, "type": "array"}`（`"assignee": ["@me"]`）。issue_list で確認した型を mr_list に流用すると誤る。`@me` 自体は `glab issue list --assignee=@me` として公式サポートされている。**#29 と同根の教訓: ツール種別で型を一般化せず、各ツールのスキーマを個別に確認する**。
 
 ## 2026-06-15: コミット済みバイナリの stale 検出 CI ゲート（PR #8）
 

@@ -32,15 +32,16 @@ glab_<cmd>_<subcmd>(
 
 ## プロジェクトの指定方法
 
-ツールによって `repo` フラグの有無が異なる:
+`repo` フラグの有無は**ツール単位**で異なる（「list 系なら一律あり」ではない）。使う前にスキーマで確認すること:
 
-| ツール種別 | 例 | `flags.repo` | 動作 |
-|---|---|---|---|
-| **list 系** | `glab_issue_list`, `glab_mr_list`, `glab_ci_list` | あり（string） | `flags.repo` で明示指定できる |
-| **view 系** | `glab_issue_view`, `glab_mr_view`, `glab_mr_diff` | なし | CWD 依存（※） |
-| **write 系** | `glab_issue_create`, `glab_mr_create` 等 | なし | CWD 依存（※） |
+| ツール | `flags.repo` | 動作 |
+|---|---|---|
+| `glab_issue_list`, `glab_mr_list` | あり（string） | `flags.repo` で明示指定できる |
+| `glab_ci_list` | **なし** | CWD 依存（※）。`ref` 等で絞り込むがプロジェクト指定はできない |
+| view 系（`glab_issue_view`, `glab_mr_view`, `glab_mr_diff`） | なし | CWD 依存（※） |
+| write 系（`glab_issue_create`, `glab_mr_create` 等） | なし | CWD 依存（※） |
 
-**※ CWD 依存の制限**: `repo` フラグがないツールは、`glab mcp serve` が起動された CWD の git remote からプロジェクトを検出する。agy が GitLab リモートのないディレクトリで起動した場合は「Could not determine base repository」エラーになる。
+**※ CWD 依存の制限**: `repo` フラグがないツールは、`glab mcp serve` が起動された CWD の git remote からプロジェクトを検出する。agy が GitLab リモートのないディレクトリで起動した場合は「Could not determine base repository」エラーになる。`flags.repo` を渡してもスキーマにないツールでは無視される。
 
 ```
 # list 系は flags.repo で明示指定（推奨）
@@ -125,13 +126,13 @@ glab_issue_view(args=["42"])
 # イシュー作成（repo 指定不可 → CWD 依存）
 glab_issue_create(flags={"title": "Bug: login fails", "description": "Steps: ..."})
 
-# MR 一覧（自分担当、assignee は string）
-glab_mr_list(flags={"repo": "myorg/myapp", "assignee": "@me"}, limit=20)
+# MR 一覧（自分担当）。mr_list の assignee は配列（issue_list は string）
+glab_mr_list(flags={"repo": "myorg/myapp", "assignee": ["@me"]}, limit=20)
 
 # MR 作成（repo 指定不可 → CWD 依存）
 glab_mr_create(flags={"source_branch": "feature/oauth", "target_branch": "main", "title": "Add OAuth support"})
 
-# パイプライン一覧
+# パイプライン一覧（ci_list に repo フラグはない → CWD 依存）
 glab_ci_list(flags={"ref": "main"}, limit=10)
 
 # ジョブログ確認（job_id は positional）
