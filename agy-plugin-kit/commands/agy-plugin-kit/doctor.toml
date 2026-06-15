@@ -8,7 +8,10 @@ agy プラグインを診断して修正します。対象パス: {{args}}。
 3. 検出した各問題を、skill `agy-plugin-authoring` の規則に対応づけて修正案を提示する。代表的な修正:
    - **C2 / Issue #390**（native plugin.json で `${extensionPath}` 未解決）:
      ユーザー合意のうえ `validator.exe --fix-paths <対象>` を実行し、`mcp_config.json` の `${extensionPath}` を
-     install 先の絶対パスへ書き換える。または `gemini-extension.json` 形式への移行を提案する。
+     絶対パスへ書き換える。または `gemini-extension.json` 形式への移行を提案する。
+     **注意**: `--fix-paths` は**install 先のプラグインディレクトリ**（`~/.gemini/config/plugins/<name>`）に対して
+     実行すること。git 管理下のソースに対して実行すると開発機固有の絶対パスが焼き込まれ配布できなくなる
+     （validator がソースツリー実行時に警告する）。ソースを直す場合は `gemini-extension.json` 形式へ。
    - **C3**（`.sh`/`.cmd`/`.bat` を command 直指定）: Go `.exe` ラッパー化（拡張子なしフルパス）を提案。
    - **C4**（同梱バイナリが gitignore 対象）: `.gitignore` を修正し対象を明示コミットする。
    - **C8**（`${CLAUDE_PLUGIN_ROOT}`）: agy には無いので除去し `${extensionPath}` 方式へ。

@@ -12,6 +12,12 @@ prompt = """
    - **C. コマンド/スキル中心**（MCP 無し）→ native `plugin.json` のみ。
 2. `~/.gemini/config/plugins/agy-plugin-kit/templates/` の該当テンプレートを複製し、プレースホルダ
    （`{{NAME}}` `{{DESC}}` 等）を埋める。生成先はカレントリポジトリ直下の `<name>/`。
+   - **プラグイン名は識別子安全に検証**する（英数・ハイフンのみ。空白や記号は不可）。Go ラッパー雛形の
+     `module`/識別子に使う値も同様。
+   - JSON（plugin.json/mcp_config.json）に埋める値は **ダブルクォート・バックスラッシュを必ずエスケープ**し、
+     Go ソース（wrapper.go.tmpl）の文字列リテラルに埋める値も**エスケープ済みであることを確認**する
+     （未エスケープだと不正な JSON / コンパイルエラー / ソース注入になる）。複数引数を持つコマンドは
+     `strings.Fields` 分割では不十分なので、必要なら生成後に Go スライスリテラルへ手修正する。
 3. 種別 B で同梱バイナリを作る場合は **必ず `.gitignore` を確認**し、同梱 `.exe` がコミット対象になるようにする
    （C4 回避）。Go ラッパーは stdout に書かない（C9）。
 4. 生成後に `~/.gemini/config/plugins/agy-plugin-kit/validator/validator.exe <生成先>` を実行し、

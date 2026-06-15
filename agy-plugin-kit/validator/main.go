@@ -88,13 +88,23 @@ func runCLI(dir string) {
 
 // runHook は PostToolUse stdin を読み、編集されたファイルがマニフェスト系のときだけ検査する。
 func runHook() {
+	// agy/Claude 互換: file_path はトップレベルか tool_input の下にある。両対応にする。
 	var payload struct {
-		FilePath string `json:"file_path"`
-		ToolName string `json:"tool_name"`
+		FilePath  string `json:"file_path"`
+		ToolName  string `json:"tool_name"`
+		ToolInput struct {
+			FilePath string `json:"file_path"`
+		} `json:"tool_input"`
 	}
-	_ = json.NewDecoder(os.Stdin).Decode(&payload) // 失敗しても黙って 0 終了
+	if err := json.NewDecoder(os.Stdin).Decode(&payload); err != nil {
+		fmt.Fprintln(os.Stderr, "agy-plugin-kit hook: stdin JSON を解析できません:", err)
+		return // 0 終了（hook はブロックしない）
+	}
 
 	fp := payload.FilePath
+	if fp == "" {
+		fp = payload.ToolInput.FilePath
+	}
 	if fp == "" {
 		return
 	}
@@ -156,13 +166,13 @@ func validate(dir string) []finding {
 		out = append(out, finding{sevError, "C5",
 			"plugin.json（または gemini-extension.json）が無く、agy がプラグインと認識できません。"})
 	}
-	for _, mf := range []string{"plugin.json", "gemini-extension.json"} {
-		if has(mf) {
-			if raw := read(mf); raw != "" {
-				var v map[string]any
-				if json.Unmarshal([]byte(raw), &v) != nil {
-					out = append(out, finding{sevError, "C5", mf + " が不正な JSON です。"})
-				}
+	// 存在する JSON 系ファイルは空 or 不正 JSON を ERROR（マニフェストだけでなく mcp_config/hooks も）。
+	for _, jf := range []string{"plugin.json", "gemini-extension.json", "mcp_config.json", "hooks.json"} {
+		if has(jf) {
+			raw := read(jf)
+			var v any
+			if strings.TrimSpace(raw) == "" || json.Unmarshal([]byte(raw), &v) != nil {
+				out = append(out, finding{sevError, "C5", jf + " が空または不正な JSON です。"})
 			}
 		}
 	}
@@ -181,49 +191,67 @@ func validate(dir string) []finding {
 		}
 	}
 
-	// command 文字列を収集（MCP と hook を分けて扱う）。C3/C6/C7 は MCP command 固有のルール
-	// （agy の LookPath 補完・MCP spawn 前提）。hook command はシェル実行で .exe が要るため対象外。
+	// C10: native plugin.json 形式の hooks.json で ${extensionPath} を使用（hook 実行時の解決は未確認）
+	if hasPluginJSON && !hasGeminiExt && strings.Contains(hooksRaw, "${extensionPath}") {
+		out = append(out, finding{sevWarn, "C10",
+			"plugin.json 形式の hooks.json で ${extensionPath} を使用しています。hook 実行時にこのトークンが解決される保証はありません（実機未確認）。確実に動かすには絶対パス等の代替を検討してください。"})
+	}
+
+	// command を構造化して収集。C3/C6/C7 は MCP の executable（command 本体）のみを対象にする
+	// （args 内の .sh/.exe で誤検出しないため）。hook command はシェル文字列として扱う。
 	mcpCmds := collectMCPCommands(mcpRaw, read("gemini-extension.json"))
 	hookCmds := collectHookCommands(hooksRaw)
 
 	for _, c := range mcpCmds {
-		low := strings.ToLower(c)
-		// C3: .sh/.cmd/.bat を MCP command に直接指定（Windows で spawn 不可）
+		exe := strings.ToLower(c.command)
+		// C3: executable が .sh/.cmd/.bat（Windows で spawn 不可）
 		for _, ext := range []string{".sh", ".cmd", ".bat"} {
-			if strings.HasSuffix(strings.TrimSpace(low), ext) || strings.Contains(low, ext+" ") {
+			if strings.HasSuffix(exe, ext) {
 				out = append(out, finding{sevError, "C3",
-					fmt.Sprintf("MCP command が %s を直接指定しています（Windows で spawn 不可）。拡張子なしの Go .exe ラッパーにしてください（LESSONS #10/#14）: %q", ext, c)})
+					fmt.Sprintf("MCP command が %s を直接指定しています（Windows で spawn 不可）。拡張子なしの Go .exe ラッパーにしてください（LESSONS #10/#14）: %q", ext, c.command)})
 				break
 			}
 		}
 		// C6: ${extensionPath} 形式の MCP command に .exe 拡張子（拡張子なしにすべき）
-		if strings.Contains(c, "${extensionPath}") && strings.Contains(low, ".exe") {
+		if strings.Contains(c.command, "${extensionPath}") && strings.HasSuffix(exe, ".exe") {
 			out = append(out, finding{sevWarn, "C6",
-				fmt.Sprintf("${extensionPath} 形式の MCP command に .exe を付けています。agy が補完するため拡張子なしフルパス推奨（LESSONS #10）: %q", c)})
+				fmt.Sprintf("${extensionPath} 形式の MCP command に .exe を付けています。agy が補完するため拡張子なしフルパス推奨（LESSONS #10）: %q", c.command)})
 		}
 		// C7: トークン専用 MCP サーバーを wrapper 無しで直叩き（heuristic）
-		if strings.Contains(low, "github-mcp-server") && !strings.Contains(low, "wrapper") {
+		if strings.Contains(exe, "github-mcp-server") && !strings.Contains(exe, "wrapper") {
 			out = append(out, finding{sevWarn, "C7",
 				"github-mcp-server を wrapper 無しで起動しています。GITHUB_PERSONAL_ACCESS_TOKEN 未設定だと即終了します。トークン解決ラッパー経由を推奨（LESSONS #5/#11）。(heuristic)"})
 		}
 	}
 
-	// C8: ${CLAUDE_PLUGIN_ROOT}（agy に存在しないトークン）は MCP・hook どちらでも無効
-	for _, c := range append(append([]string{}, mcpCmds...), hookCmds...) {
-		if strings.Contains(c, "${CLAUDE_PLUGIN_ROOT}") {
+	// C8: ${CLAUDE_PLUGIN_ROOT}（agy に存在しないトークン）は command/args/hook のどこにあっても無効
+	var allStrings []string
+	for _, c := range mcpCmds {
+		allStrings = append(allStrings, c.command)
+		allStrings = append(allStrings, c.args...)
+	}
+	allStrings = append(allStrings, hookCmds...)
+	for _, s := range allStrings {
+		if strings.Contains(s, "${CLAUDE_PLUGIN_ROOT}") {
 			out = append(out, finding{sevError, "C8",
-				fmt.Sprintf("command に ${CLAUDE_PLUGIN_ROOT} を使用。これは Claude Code 専用で agy では解決されません: %q", c)})
+				fmt.Sprintf("command に ${CLAUDE_PLUGIN_ROOT} を使用。これは Claude Code 専用で agy では解決されません: %q", s)})
 		}
 	}
 
-	cmds := append(append([]string{}, mcpCmds...), hookCmds...) // C4 用（参照ファイルは両方見る）
-
-	// C4: command が参照するローカルバイナリが .gitignore で除外されている（URL install で消える）。
+	// C4: 参照する実行ファイルが .gitignore で除外されている（URL install で消える）。
+	// MCP は command 本体、hook はシェル文字列の先頭トークン（引用符対応）を実行ファイルとして解決する。
+	var execs []string
+	for _, c := range mcpCmds {
+		execs = append(execs, c.command)
+	}
+	for _, h := range hookCmds {
+		execs = append(execs, firstShellToken(h))
+	}
 	// git check-ignore には絶対パスより dir 相対パスを渡す方がクロスプラットフォームで確実。
-	for _, p := range referencedLocalFiles(dir, cmds) {
+	for _, p := range referencedLocalFiles(dir, execs) {
 		if gitIgnored(dir, rel(dir, p)) {
 			out = append(out, finding{sevError, "C4",
-				fmt.Sprintf("マニフェストが参照する %s が .gitignore で除外されています。URL install で clone されず起動不能になります。明示的にコミットしてください（LESSONS #11）。", rel(dir, p))})
+				fmt.Sprintf("マニフェスト/hook が参照する %s が .gitignore で除外されています。URL install で clone されず起動不能になります。明示的にコミットしてください（LESSONS #11）。", rel(dir, p))})
 		}
 	}
 
@@ -251,9 +279,15 @@ func validate(dir string) []finding {
 	return out
 }
 
-// collectMCPCommands は mcp_config.json と gemini-extension.json の mcpServers から command(+args) を抽出する。
-func collectMCPCommands(raws ...string) []string {
-	var cmds []string
+// mcpCmd は MCP サーバーの起動定義（executable と引数を分離して保持）。
+type mcpCmd struct {
+	command string
+	args    []string
+}
+
+// collectMCPCommands は mcp_config.json と gemini-extension.json の mcpServers から command/args を抽出する。
+func collectMCPCommands(raws ...string) []mcpCmd {
+	var cmds []mcpCmd
 	for _, raw := range raws {
 		if raw == "" {
 			continue
@@ -267,12 +301,31 @@ func collectMCPCommands(raws ...string) []string {
 		if json.Unmarshal([]byte(raw), &m) == nil {
 			for _, s := range m.McpServers {
 				if s.Command != "" {
-					cmds = append(cmds, strings.Join(append([]string{s.Command}, s.Args...), " "))
+					cmds = append(cmds, mcpCmd{s.Command, s.Args})
 				}
 			}
 		}
 	}
 	return cmds
+}
+
+// firstShellToken はシェル風コマンド文字列の先頭トークン（実行ファイル）を引用符対応で返す。
+// 例: `"a b\c.exe" --hook` → `a b\c.exe`、`./srv arg` → `./srv`。
+func firstShellToken(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if q := s[0]; q == '"' || q == '\'' {
+		if i := strings.IndexByte(s[1:], q); i >= 0 {
+			return s[1 : 1+i]
+		}
+		return s[1:]
+	}
+	if i := strings.IndexAny(s, " \t"); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // collectHookCommands は hooks.json の各 hook command を抽出する。
@@ -302,16 +355,12 @@ func collectHookCommands(hooksRaw string) []string {
 	return cmds
 }
 
-// referencedLocalFiles は command 中の ${extensionPath}${/}foo / ./foo を実ファイルに解決する。
-func referencedLocalFiles(dir string, cmds []string) []string {
+// referencedLocalFiles は実行ファイルトークン（${extensionPath}${/}foo / ./foo / "..."）を実ファイルに解決する。
+func referencedLocalFiles(dir string, execs []string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, c := range cmds {
-		// 先頭トークン（実行ファイル部分）だけを見る
-		tok := c
-		if i := strings.IndexAny(tok, " "); i >= 0 {
-			tok = tok[:i]
-		}
+	for _, tok := range execs {
+		tok = strings.Trim(tok, `"'`) // 残った引用符を除去
 		// ${extensionPath}${/} を剥がしてプラグインルート相対にする
 		t := strings.ReplaceAll(tok, "${extensionPath}", "")
 		t = strings.ReplaceAll(t, "${/}", string(filepath.Separator))
@@ -347,11 +396,22 @@ func gitIgnored(dir, path string) bool {
 	return false
 }
 
+// inGitWorkTree は dir が git の作業ツリー内か判定する（--fix-paths をソースで実行した警告用）。
+func inGitWorkTree(dir string) bool {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree").Output()
+	return err == nil && strings.TrimSpace(string(out)) == "true"
+}
+
 func runFixPaths(dir string) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "validator: bad path:", err)
 		os.Exit(2)
+	}
+	// ソースツリー（git 管理下）で実行すると開発機固有の絶対パスが焼き込まれる。install 先で実行すべき。
+	if inGitWorkTree(abs) {
+		fmt.Fprintln(os.Stderr, "警告: --fix-paths は install 先のプラグインディレクトリ（~/.gemini/config/plugins/<name>）で実行してください。"+
+			"git 管理下のソースで実行すると開発機固有の絶対パスが mcp_config.json に焼き込まれ、配布できなくなります。")
 	}
 	mcpPath := filepath.Join(abs, "mcp_config.json")
 	raw, err := os.ReadFile(mcpPath)
@@ -370,6 +430,12 @@ func runFixPaths(dir string) {
 	if fixed == string(raw) {
 		fmt.Println("変更なし（${extensionPath} は見つかりませんでした）:", mcpPath)
 		return
+	}
+	// 置換後が valid JSON であることを確認してから書き込む（壊れた JSON を書かない保険）。
+	var chk any
+	if json.Unmarshal([]byte(fixed), &chk) != nil {
+		fmt.Fprintln(os.Stderr, "validator --fix-paths: 置換結果が不正な JSON になりました。書き込みを中止します。")
+		os.Exit(2)
 	}
 	if err := os.WriteFile(mcpPath, []byte(fixed), 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "validator --fix-paths: 書き込み失敗:", err)
