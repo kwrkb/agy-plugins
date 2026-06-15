@@ -20,6 +20,7 @@ GitHub CLI (`gh`) を利用して、GitHub の各種操作（Issues, Pull Reques
 | `gemini-extension.json` | プラグインマニフェスト。`${extensionPath}` でビルドされたバイナリの絶対パスを解決する |
 | `main.go` / `go.mod` / `go.sum` | `gh` コマンドを呼び出す MCP サーバーのソースコード |
 | `github` / `github.exe` | コンパイル済みの MCP サーバーバイナリ |
+| `skills/github/SKILL.md` | エージェント向け使用ガイド（呼び出し時ロード）。`gh_command` の引数規則・`-R` 必須・`--json` フィールド指定・頻出パターン |
 
 ## 必要条件
 

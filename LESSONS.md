@@ -12,6 +12,10 @@
 
 `flags.assignee` の型が同じ「list 系」でも**ツールによって違う**。`glab_issue_list.assignee` は `{"type": "string"}`（`"assignee": "@me"`）だが、`glab_mr_list.assignee` は `{"items": {"type": "string"}, "type": "array"}`（`"assignee": ["@me"]`）。issue_list で確認した型を mr_list に流用すると誤る。`@me` 自体は `glab issue list --assignee=@me` として公式サポートされている。**#29 と同根の教訓: ツール種別で型を一般化せず、各ツールのスキーマを個別に確認する**。
 
+#### 31. SKILL.md は生テキストでエージェントに注入される — HTML レンダリング前提のレビュー指摘を鵜呑みにしない
+
+PR #9 で Gemini bot が「Markdown テーブル内の `\|` は GitHub で backslash がそのまま表示されうるので HTML エンティティ `&#124;` を使え」と指摘した。しかし **SKILL.md は HTML レンダリングされず、エージェントへ生テキストとして注入される**成果物であり、`&#124;` にすると逆にエージェントが `repos&#124;issues` というエンティティ文字列をそのまま読んで悪化する。最適解はどちらでもなく、表の他行と同じ `/` 区切りに統一すること（生テキスト可読性・GitHub レンダリング・表内スタイルの全てを満たす）。**ルール: agy の `skills/`・`commands/` 等「LLM が生テキストで読む」成果物では、HTML 表示を前提にした bot 指摘（エンティティ化・装飾）は consumer を取り違えている可能性を疑い、人間向けレンダリングではなく LLM の生テキスト読解を最優先に判断する**。
+
 ## 2026-06-15: コミット済みバイナリの stale 検出 CI ゲート（PR #8）
 
 ### 学んだこと
