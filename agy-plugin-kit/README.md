@@ -63,7 +63,7 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 - **発火が不安定**。セッション内の最初の編集（特定の `stepIdx`）でのみ発火し、2 回目以降の `Edit` では
   発火しないことがある。「編集ごとに必ず検査」という用途には信頼できない。
 - **agy のフック stdin payload に編集ファイル情報が無い**。実際に送られるのは
-  `{"artifactDirectoryPath","conversationId","error","stepIdx","toolCall":null,"transcriptPath","workspacePaths":[...]}`
+  `{"artifactDirectoryPath": "...", "conversationId": "...", "error": null, "stepIdx": 0, "toolCall": null, "transcriptPath": "...", "workspacePaths": []}`
   で、Claude Code 流の `file_path` / `tool_input` が存在せず `toolCall` も `null`。validator の `--hook` は
   `file_path` を前提に編集対象を特定するため、**発火しても対象を特定できず常に無音 no-op** になる。
 - 発火時の `PWD` は**プラグインのインストール先**（`~/.gemini/config/plugins/<name>/`）。相対パスで同梱

@@ -6,7 +6,7 @@
 
 #### 18. agy のフック stdin は Claude Code と別形式 — `file_path` が無く編集ファイルを特定できない
 
-agy 1.0.8 で tmux 対話セッションを起こし、`PostToolUse` フックを実発火させて payload をダンプした結果、agy が送る stdin は `{"artifactDirectoryPath","conversationId","error","stepIdx","toolCall":null,"transcriptPath","workspacePaths":[...]}` だった。Claude Code 流の `file_path` / `tool_input` が**存在せず** `toolCall` も `null`。よって `file_path` を前提にしたフックハンドラ（`validator --hook`）は**発火しても対象を特定できず常に no-op**。agy 向けフックを書くなら payload は実測してから設計する（`tee` で stdin を採取）。
+agy 1.0.8 で tmux 対話セッションを起こし、`PostToolUse` フックを実発火させて payload をダンプした結果、agy が送る stdin は `{"artifactDirectoryPath": "...", "conversationId": "...", "error": null, "stepIdx": 0, "toolCall": null, "transcriptPath": "...", "workspacePaths": []}` だった。Claude Code 流の `file_path` / `tool_input` が**存在せず** `toolCall` も `null`。よって `file_path` を前提にしたフックハンドラ（`validator --hook`）は**発火しても対象を特定できず常に no-op**。agy 向けフックを書くなら payload は実測してから設計する（`tee` で stdin を採取）。
 
 #### 19. agy のフック発火は対話セッション限定かつ不安定
 
