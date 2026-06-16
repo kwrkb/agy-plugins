@@ -92,9 +92,11 @@ func runSgCommand(ctx context.Context, args ...string) (string, error) {
 		if errors.As(err, &execErr) {
 			return "", fmt.Errorf("%s command failed: %w", astGrepBinary, err)
 		}
-		// ast-grep ran but exited non-zero. `ast-grep run` exits 0 even when it
-		// finds no matches, so a non-zero exit carrying stderr diagnostics is a
-		// real error (e.g. a pattern parse error).
+		// ast-grep ran but exited non-zero. Verified against ast-grep 0.43.0:
+		// "no matches" exits 1 with an empty stderr (grep-like), while a real
+		// error (e.g. an unsupported --lang) exits non-zero *with* a diagnostic
+		// on stderr. So treat a non-zero exit as an error only when stderr is
+		// non-empty; an empty stderr means "no matches", which is not an error.
 		if stderr.Len() > 0 {
 			return "", fmt.Errorf("%s command failed: %v\nstderr: %s", astGrepBinary, err, stderr.String())
 		}
