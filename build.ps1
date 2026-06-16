@@ -39,12 +39,14 @@ Set-Location $PSScriptRoot
 switch ($Target) {
     'github' { Build 'github' 'github' }
     'validator' { Build 'agy-plugin-kit/validator' 'validator' }
+    'ast-grep' { Build 'ast-grep' 'ast-grep' }
     'all' {
         Build 'github' 'github'
         Build 'agy-plugin-kit/validator' 'validator'
+        Build 'ast-grep' 'ast-grep'
     }
     default {
-        Write-Error "unknown target: $Target (expected: github | validator | all)"
+        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | all)"
         exit 2
     }
 }

@@ -36,12 +36,14 @@ target="${1:-all}"
 case "$target" in
 	github)    build github github ;;
 	validator) build agy-plugin-kit/validator validator ;;
+	ast-grep)  build ast-grep ast-grep ;;
 	all)
 		build github github
 		build agy-plugin-kit/validator validator
+		build ast-grep ast-grep
 		;;
 	*)
-		echo "unknown target: $target (expected: github | validator | all)" >&2
+		echo "unknown target: $target (expected: github | validator | ast-grep | all)" >&2
 		exit 2
 		;;
 esac
