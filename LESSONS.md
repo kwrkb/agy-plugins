@@ -1,5 +1,15 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-16: ast-grep プラグインのレビュー対応・実機検証（PR #10）
+
+### 学んだこと
+
+#### 32. ast-grep の終了コードは grep 互換（マッチなし=1）— bot の「no-match=0」主張は逆、CLI ラッパーの error 判定は exit code 単独で決めない
+
+ast-grep プラグインのレビューで Gemini bot が「最近の ast-grep は**マッチなしでも exit 0**、exit 1 はパースエラー」と critical 指摘し、`if err != nil { return error }` への単純化を勧めた。実機検証（`npm i -g @ast-grep/cli`、ast-grep 0.43.0）すると**真逆**だった: `ast-grep run` は**マッチあり→exit 0 / マッチなし→exit 1（grep 互換）/ 本当のエラー（不正な `--lang` 等）→exit 2 + stderr にエラー文**。つまり bot 提案どおり `err != nil` でエラーにすると、**マッチ0件の正常検索を全てエラー報告するバグ**になる。正しい判定は「**非0終了でも stderr が空なら no-match（無害）、stderr に出力がある時だけ real error**」＋「起動失敗（`*exec.Error`、command-not-found）は常にエラー」。exit code は CLI/版で grep 互換だったり逆だったりするので、ラッパーの error 判定を **exit code 単独に依存させず stderr の有無で見る**のが堅牢（bot 指摘を鵜呑みにせず実機で exit code を取って初めて確定できた典型例）。
+
+補足の実機事実: ①Linux では npm 版が `ast-grep` と `sg` 両方を入れるが、`sg` は `setgroups`(/usr/bin/sg) と衝突するためラッパーは**フルネーム `ast-grep` を hard-code** する。②`--json[=<STYLE>]` は値指定に `=` 必須（`--json .` は `.` を style として食わず positional path のまま）＝ラッパーの `--json` 直後に dir を置く引数構築は安全。③`-r ''`（空 rewrite）は**マッチノードの削除**として正常動作（exit 0, stderr=`Applied N changes`）＝必須引数チェックは「存在＋string 型」だけにし空文字を弾かない。④`fmt.Println($A)` は Go の**型変換式**と解釈されマッチしない（`$$$` 可変長や具体リテラルなら可）＝マッチしない時はパターン解釈を `--debug-query` で疑う（プラグインのバグではない）。
+
 ## 2026-06-15: github/gitlab プラグインへのスキル追加
 
 ### 学んだこと
