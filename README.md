@@ -40,7 +40,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/ast-grep
 | github | `gh`（PATH 上） | `gh auth login` 済み |
 | gitlab | `glab` >= v1.74.0（PATH 上） | `glab auth login` 済み |
 | agy-plugin-kit | （任意）`go` ※validator 再ビルド時のみ。`.exe` 同梱なので通常不要 | 不要 |
-| ast-grep | `sg`（ast-grep CLI, PATH 上） | 不要 |
+| ast-grep | `ast-grep`（CLI, PATH 上） | 不要 |
 
 ## ライセンス・帰属
 
@@ -50,6 +50,6 @@ agy plugin install https://github.com/kwrkb/agy-plugins/ast-grep
 | :-- | :-- | :-- |
 | github | `gh` CLI | MIT |
 | gitlab | [gitlab-org/cli (`glab mcp serve`)](https://gitlab.com/gitlab-org/cli) | MIT |
-| ast-grep | `sg` CLI | MIT |
+| ast-grep | [`ast-grep` CLI](https://ast-grep.github.io/) | MIT |
 
 各プラグインは PATH 上のユーザー導入バイナリ / CLI に処理を委譲します（同梱・再配布なし）。
