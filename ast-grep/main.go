@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,19 +12,92 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// astGrepBinary is the ast-grep CLI name. The full name is used instead of the
+// `sg` alias because on Linux `sg` resolves to the setgroups command, which
+// would make every invocation fail before reaching ast-grep.
+// See https://ast-grep.github.io/guide/quick-start.html
+const astGrepBinary = "ast-grep"
+
+// requiredString extracts a non-empty string argument, returning an error
+// suitable for surfacing to the MCP client when it is missing or blank.
+func requiredString(m map[string]any, key string) (string, error) {
+	v, ok := m[key].(string)
+	if !ok || v == "" {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return v, nil
+}
+
+// optionalString returns the string value for key, or "" when absent.
+func optionalString(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// buildSearchArgs validates the search arguments and constructs the ast-grep
+// command line for a structural search.
+func buildSearchArgs(m map[string]any) ([]string, error) {
+	pattern, err := requiredString(m, "pattern")
+	if err != nil {
+		return nil, err
+	}
+	language, err := requiredString(m, "language")
+	if err != nil {
+		return nil, err
+	}
+	args := []string{"run", "-p", pattern, "-l", language, "--json"}
+	if dir := optionalString(m, "dir"); dir != "" {
+		args = append(args, dir)
+	}
+	return args, nil
+}
+
+// buildReplaceArgs validates the replace arguments and constructs the ast-grep
+// command line for an in-place rewrite. The rewrite must be present and a
+// string, but an empty rewrite is allowed: it deletes the matched node.
+func buildReplaceArgs(m map[string]any) ([]string, error) {
+	pattern, err := requiredString(m, "pattern")
+	if err != nil {
+		return nil, err
+	}
+	rewrite, ok := m["rewrite"].(string)
+	if !ok {
+		return nil, fmt.Errorf("rewrite is required")
+	}
+	language, err := requiredString(m, "language")
+	if err != nil {
+		return nil, err
+	}
+	args := []string{"run", "-p", pattern, "-r", rewrite, "-l", language, "--update-all"}
+	if dir := optionalString(m, "dir"); dir != "" {
+		args = append(args, dir)
+	}
+	return args, nil
+}
+
 func runSgCommand(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "sg", args...)
+	cmd := exec.CommandContext(ctx, astGrepBinary, args...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		// sg returns exit code 1 if no matches are found, which is not strictly an error.
-		// However, for standard execution errors we want to return stderr.
-		if stderr.Len() > 0 {
-			return "", fmt.Errorf("sg command failed: %v\nstderr: %s", err, stderr.String())
+	err := cmd.Run()
+	if err != nil {
+		// The binary could not be started at all (e.g. ast-grep not on PATH).
+		// This must always be reported; otherwise it is indistinguishable from
+		// a search that found nothing.
+		var execErr *exec.Error
+		if errors.As(err, &execErr) {
+			return "", fmt.Errorf("%s command failed: %w", astGrepBinary, err)
 		}
-		// If stderr is empty and exit code is 1, it might just mean no matches.
+		// ast-grep ran but exited non-zero. `ast-grep run` exits 0 even when it
+		// finds no matches, so a non-zero exit carrying stderr diagnostics is a
+		// real error (e.g. a pattern parse error).
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf("%s command failed: %v\nstderr: %s", astGrepBinary, err, stderr.String())
+		}
 	}
 	return stdout.String(), nil
 }
@@ -46,18 +120,9 @@ func main() {
 		if !ok {
 			return mcp.NewToolResultError("arguments must be a map"), nil
 		}
-		pattern, ok := argsMap["pattern"].(string)
-		if !ok || pattern == "" {
-			return mcp.NewToolResultError("pattern is required"), nil
-		}
-		language, ok := argsMap["language"].(string)
-		if !ok || language == "" {
-			return mcp.NewToolResultError("language is required"), nil
-		}
-
-		args := []string{"run", "-p", pattern, "-l", language, "--json"}
-		if dir, ok := argsMap["dir"].(string); ok && dir != "" {
-			args = append(args, dir)
+		args, err := buildSearchArgs(argsMap)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
 
 		output, err := runSgCommand(ctx, args...)
@@ -85,22 +150,9 @@ func main() {
 		if !ok {
 			return mcp.NewToolResultError("arguments must be a map"), nil
 		}
-		pattern, ok := argsMap["pattern"].(string)
-		if !ok || pattern == "" {
-			return mcp.NewToolResultError("pattern is required"), nil
-		}
-		rewrite, ok := argsMap["rewrite"].(string)
-		if !ok || rewrite == "" {
-			return mcp.NewToolResultError("rewrite is required"), nil
-		}
-		language, ok := argsMap["language"].(string)
-		if !ok || language == "" {
-			return mcp.NewToolResultError("language is required"), nil
-		}
-
-		args := []string{"run", "-p", pattern, "-r", rewrite, "-l", language, "--update-all"}
-		if dir, ok := argsMap["dir"].(string); ok && dir != "" {
-			args = append(args, dir)
+		args, err := buildReplaceArgs(argsMap)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
 
 		output, err := runSgCommand(ctx, args...)
