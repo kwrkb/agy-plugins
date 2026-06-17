@@ -37,7 +37,7 @@
 
 ## フェーズ3: github / gitlab プラグインへスキル追加（PR #9・完了）
 
-agy 1.0.8 では `rules/` が非機能（LESSONS #22）なため、プラグインからエージェントへ知識を渡す唯一の手段が `skills/<name>/SKILL.md`。両プラグインにスキルが無く、エージェントが引数フォーマット・プロジェクトパス規約を知らずに操作する懸念があった。
+agy 1.0.8／1.0.9 では `rules/` が非機能（LESSONS #22/#35）なため、プラグインからエージェントへ知識を渡す唯一の手段が `skills/<name>/SKILL.md`。両プラグインにスキルが無く、エージェントが引数フォーマット・プロジェクトパス規約を知らずに操作する懸念があった。
 
 - [x] `github/skills/github/SKILL.md` 作成（`gh_command` の args 配列規則・CWD 非定常で `-R` 必須・`--json` フィールド必須・頻出パターン）
 - [x] `gitlab/skills/gitlab/SKILL.md` 作成（`glab_*` の args/flags/limit/offset 形式・プロジェクト指定の制約・カテゴリ別ツールマップ）
