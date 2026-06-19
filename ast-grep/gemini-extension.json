@@ -4,7 +4,7 @@
   "description": "ast-grep (sg) MCP server for structural codebase refactoring.",
   "mcpServers": {
     "ast-grep": {
-      "command": "${extensionPath}${/}ast-grep"
+      "command": "${extensionPath}${/}bin${/}ast-grep"
     }
   }
 }

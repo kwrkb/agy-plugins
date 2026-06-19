@@ -1,5 +1,16 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-20: 全 Go プラグインを macOS(arm64) 対応化・src/bin 再編
+
+### 学んだこと
+
+#### 40. 単一 `command` でも OS 分岐 dispatcher（shebang sh）で Linux/macOS/Windows を全カバーできる — #37 の「darwin 非対応」を解消
+
+#37 は「`command` は1本の文字列パスで OS 別バイナリを選べない＝darwin 非対応」と結論したが、それは **`command` を Go の ELF/Mach-O バイナリ直指定**にしていた前提の話。`command` 先を**ネイティブではなく POSIX sh スクリプト（dispatcher）**にすれば、テキスト＝OS 非依存で単一パスが全 OS をさばける。
+- **構成**: `src/`（ソース）＋ `bin/`（配布物）。`bin/` に `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe`（ネイティブ）と拡張子なし dispatcher `bin/<name>`（`#!/bin/sh` + `uname -s/-m` で対応ネイティブを `exec`）。`command` は `${extensionPath}${/}bin${/}<name>`。dispatcher は `$0` から `$dir` を解決し PWD 相対呼び出しでも壊れない／エラーのみ stderr。
+- **macOS arm64 実機検証 = 全 PASS**: **V1** agy が `${extensionPath}${/}bin${/}<name>` を絶対パスに解決し shebang dispatcher を MCP `command` として exec → darwin ネイティブ起動、`agy -p` で `gh_command` 実行・MCP キャッシュに `gh_command.json` のみ（#25）。**V2** `validator/bin/validator --hook`（PWD 相対）でも hook 発火（実 payload で runHook が C5 を stderr 出力）。**V4** `git archive`／`agy plugin install` コピーとも +x（`100755`）保持（`git update-index --chmod=+x` でコミット）。**Windows** は agy が `.exe` 補完で `bin/<name>.exe` 直起動＝dispatcher 非経由（#10）。
+- **ルール**: 同梱バイナリ参照プラグインは **src/bin ＋ dispatcher** を標準構成に。`build.sh`/`build.ps1` は `src/` でビルドし `bin/<name>-<os>-<arch>` を出力（dispatcher は手書きでビルド対象外）。CI は `bin/` の3ネイティブを diff・`working-directory` は `<plugin>/src`。README の「darwin 非対応」は撤回し対応 OS を3つ明記（#37 を本項で更新）。
+
 ## 2026-06-19: retro-status 追加・validator フック再導入の Codex レビュー対応（PR #13）
 
 ### 学んだこと
