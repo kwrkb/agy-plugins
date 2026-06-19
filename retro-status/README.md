@@ -19,6 +19,8 @@
 agy plugin install https://github.com/kwrkb/agy-plugins/retro-status
 ```
 
+> **対応 OS**: Linux / Windows。同梱バイナリは `retro-status`（Linux）/ `retro-status.exe`（Windows）で、darwin バイナリは同梱していないため macOS は非対応です。
+
 ## ステータスマッピングの仕組み
 
 - **レベル (LV)**: 総コミット数とコード行数 (LOC) に基づいて上昇します。

@@ -44,14 +44,14 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 # 引数なし（./build.sh / ./build.ps1）で全プラグイン
 ```
 
-> **対応 OS**: validator は Linux / Windows 両方のバイナリを同梱します。`command` の参照先は OS に応じて `validator`（Linux/macOS）/ `validator.exe`（Windows）を使い分けてください。同梱バイナリは `git` に明示コミットしています（URL install で確実に clone されるよう `.gitignore` 対象外）。
+> **対応 OS**: validator は Linux / Windows 両方のバイナリを同梱します。`command` の参照先は OS に応じて `validator`（Linux）/ `validator.exe`（Windows）を使い分けてください。darwin バイナリは同梱していないため macOS は非対応です。同梱バイナリは `git` に明示コミットしています（URL install で確実に clone されるよう `.gitignore` 対象外）。
 
 ## マニフェスト形式（このキット自身）
 
 native `plugin.json` を採用。キットは MCP サーバーを持たないため `${extensionPath}` 置換が不要で、
 copy-only で問題ありません（自身が C1 を踏まない）。
 
-## `hooks.json` の自動バリデーション（agy 1.0.9〜、Linux/macOS）
+## `hooks.json` の自動バリデーション（agy 1.0.9〜、Linux）
 
 `hooks.json` を同梱し、**マニフェスト（`plugin.json` / `gemini-extension.json` / `mcp_config.json` /
 `hooks.json`）を編集すると validator が自動で走り**、見つかった問題を stderr に助言として出します
@@ -63,9 +63,10 @@ copy-only で問題ありません（自身が C1 を踏まない）。
   反応し、マニフェスト basename 以外は無音）。matcher にツール名を書かない（agy のツール名は
   新規作成=`write_to_file` / 既存編集=`replace_file_content` と版で異なるため）。
 
-> **Linux/macOS のみ**: `command` は1本の文字列で、agy は `${extensionPath}` を置換しないため
-> OS 別バイナリ（`validator` / `validator.exe`）の呼び分けができない。Windows ユーザーは従来どおり
-> `/agy-plugin-kit:validate` / `:doctor` を手動で使う。
+> **Linux のみ**: フックが起動する `validator/validator` は Linux バイナリ（ELF）で、darwin
+> バイナリは同梱していない。加えて `command` は1本の文字列で agy は `${extensionPath}` を置換しない
+> ため OS 別バイナリ（`validator` / `validator.exe`）の呼び分けもできない。Windows / macOS ユーザーは
+> 従来どおり `/agy-plugin-kit:validate` / `:doctor` を手動で使う。
 
 ### 経緯（1.0.8 では非機能 → 1.0.9 で再導入）
 
