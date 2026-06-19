@@ -47,6 +47,42 @@ var extToWeapon = map[string]string{
 	".c":    "Cの直剣 (C Straight Sword)",
 }
 
+// devTool は「開発者が入れていそうな」CLI ツールと、RPG 風の表示名・効果。
+type devTool struct {
+	bin    string // exec.LookPath で探すバイナリ名
+	name   string // 表示名（日本語 + 英名）
+	effect string // 効果説明
+}
+
+// detectableTools はモダン開発 CLI の curated list（PATH に存在すれば持ち物に並ぶ）。
+var detectableTools = []devTool{
+	{"rg", "鷹の目 (rg)", "高速索敵"},
+	{"fd", "韋駄天の靴 (fd)", "探索速度+"},
+	{"bat", "灯火の書 (bat)", "視認性+"},
+	{"eza", "千里眼の地図 (eza)", "全体把握"},
+	{"jq", "賢者の宝珠 (jq)", "JSON錬成"},
+	{"fzf", "選定の羅針盤 (fzf)", "瞬間選択"},
+	{"gh", "ハブの紋章 (gh)", "遠隔交信"},
+	{"delta", "差分の眼鏡 (delta)", "diff看破"},
+	{"zoxide", "瞬間移動の靴 (zoxide)", "ワープ移動"},
+	{"tmux", "多重影分身 (tmux)", "分身展開"},
+	{"docker", "次元の箱舟 (docker)", "召喚"},
+	{"kubectl", "艦隊の指揮杖 (kubectl)", "艦隊指揮"},
+	{"nvim", "達人の刃 (nvim)", "高速編集"},
+}
+
+// detectTools は detectableTools のうち実行マシンの PATH 上に存在するものを返す。
+// 対象はリポジトリではなく「サーバーを動かしているマシンの環境」である点に注意（演出用）。
+func detectTools() []devTool {
+	found := make([]devTool, 0, len(detectableTools))
+	for _, t := range detectableTools {
+		if _, err := exec.LookPath(t.bin); err == nil {
+			found = append(found, t)
+		}
+	}
+	return found
+}
+
 // stringWidth returns the visible width of a string.
 // Assuming ASCII is 1 and others (Japanese, borders) are 2.
 func stringWidth(s string) int {
@@ -88,6 +124,7 @@ type ScanResult struct {
 	HasLinter     bool
 	CommitCount   int
 	RecentCommits int
+	Tools         []devTool
 }
 
 // RPGStats holds computed RPG-themed values.
@@ -110,8 +147,15 @@ type RPGStats struct {
 	Shield     string   `json:"shield"`
 	Armor      string   `json:"armor"`
 	Helm       string   `json:"helm"`
-	Accessory  string   `json:"accessory"`
-	Skills     []string `json:"skills"`
+	Accessory  string          `json:"accessory"`
+	Skills     []string        `json:"skills"`
+	Inventory  []InventoryItem `json:"inventory"`
+}
+
+// InventoryItem は検出した開発 CLI を持ち物として表す（JSON 出力にも乗る）。
+type InventoryItem struct {
+	Name   string `json:"name"`
+	Effect string `json:"effect"`
 }
 
 // Helper to run commands
@@ -167,11 +211,14 @@ func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 		result.RecentCommits = len(strings.Split(strings.TrimSpace(recentCommitStr), "\n"))
 	}
 
-	// 2. Ripgrep check for TODOs
+	// 2. 開発 CLI の検出（持ち物表示）。rg があれば TODO 数え方にも流用する。
+	result.Tools = detectTools()
 	hasRg := false
-	rgPath, err := exec.LookPath("rg")
-	if err == nil && rgPath != "" {
-		hasRg = true
+	for _, t := range result.Tools {
+		if t.bin == "rg" {
+			hasRg = true
+			break
+		}
 	}
 
 	if hasRg {
@@ -381,6 +428,11 @@ func buildRPGStats(scan *ScanResult, repoPath string) *RPGStats {
 		skills = append(skills, "* なし (No special skill)")
 	}
 
+	inventory := make([]InventoryItem, 0, len(scan.Tools))
+	for _, t := range scan.Tools {
+		inventory = append(inventory, InventoryItem{Name: t.name, Effect: t.effect})
+	}
+
 	return &RPGStats{
 		RepoName:   scan.RepoName,
 		AuthorName: scan.AuthorName,
@@ -402,6 +454,7 @@ func buildRPGStats(scan *ScanResult, repoPath string) *RPGStats {
 		Helm:       helm,
 		Accessory:  accessory,
 		Skills:     skills,
+		Inventory:  inventory,
 	}
 }
 
@@ -428,6 +481,22 @@ func renderAA(stats *RPGStats) string {
 	buf.WriteString(drawLine(fmt.Sprintf("ARMOR : %s", stats.Armor), boxWidth))
 	buf.WriteString(drawLine(fmt.Sprintf("HELM  : %s", stats.Helm), boxWidth))
 	buf.WriteString(drawLine(fmt.Sprintf("ACCESS: %s", stats.Accessory), boxWidth))
+	buf.WriteString("╠" + strings.Repeat("═", boxWidth-2) + "╣\n")
+	buf.WriteString(drawLine("[INVENTORY / 開発者の秘宝]", boxWidth))
+	if len(stats.Inventory) == 0 {
+		buf.WriteString(drawLine("なし (手ぶら)", boxWidth))
+	} else {
+		// 名前幅をそろえてコロンを縦に整列させる
+		nameW := 0
+		for _, it := range stats.Inventory {
+			if w := stringWidth(it.Name); w > nameW {
+				nameW = w
+			}
+		}
+		for _, it := range stats.Inventory {
+			buf.WriteString(drawLine(fmt.Sprintf("%s : %s", padRight(it.Name, nameW), it.Effect), boxWidth))
+		}
+	}
 	buf.WriteString("╠" + strings.Repeat("═", boxWidth-2) + "╣\n")
 	buf.WriteString(drawLine("[SPELLS & SKILLS]", boxWidth))
 	for _, sk := range stats.Skills {

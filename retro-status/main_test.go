@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -85,5 +86,51 @@ func TestBuildRPGStats(t *testing.T) {
 	}
 	if stats.Weapon != "Goの鋭いメス (Go Scalpel)" {
 		t.Errorf("expected Weapon 'Goの鋭いメス (Go Scalpel)', got %q", stats.Weapon)
+	}
+}
+
+// buildRPGStats は scan.Tools を持ち物（Inventory）へ順序どおり写すこと。
+func TestBuildRPGStatsInventory(t *testing.T) {
+	scan := &ScanResult{
+		LangLoc: map[string]int{".go": 100},
+		Tools: []devTool{
+			{"rg", "鷹の目 (rg)", "高速索敵"},
+			{"jq", "賢者の宝珠 (jq)", "JSON錬成"},
+		},
+	}
+	stats := buildRPGStats(scan, ".")
+	if len(stats.Inventory) != 2 {
+		t.Fatalf("expected 2 inventory items, got %d", len(stats.Inventory))
+	}
+	if stats.Inventory[0].Name != "鷹の目 (rg)" || stats.Inventory[0].Effect != "高速索敵" {
+		t.Errorf("unexpected first item: %+v", stats.Inventory[0])
+	}
+	if stats.Inventory[1].Name != "賢者の宝珠 (jq)" {
+		t.Errorf("unexpected second item: %+v", stats.Inventory[1])
+	}
+}
+
+// 持ち物が空でも renderAA が落ちず「手ぶら」を出すこと。
+func TestRenderAAEmptyInventory(t *testing.T) {
+	stats := buildRPGStats(&ScanResult{LangLoc: map[string]int{}}, ".")
+	out := renderAA(stats)
+	if !strings.Contains(out, "[INVENTORY / 開発者の秘宝]") {
+		t.Error("INVENTORY section missing")
+	}
+	if !strings.Contains(out, "なし (手ぶら)") {
+		t.Error("empty inventory should render 手ぶら")
+	}
+}
+
+// detectTools は curated list に無いバイナリを返さない（PATH 依存なので存在判定はしない）。
+func TestDetectToolsSubset(t *testing.T) {
+	known := make(map[string]bool, len(detectableTools))
+	for _, t := range detectableTools {
+		known[t.bin] = true
+	}
+	for _, got := range detectTools() {
+		if !known[got.bin] {
+			t.Errorf("detectTools returned unknown bin %q", got.bin)
+		}
 	}
 }

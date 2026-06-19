@@ -34,3 +34,4 @@ agy plugin install https://github.com/kwrkb/agy-plugins/retro-status
   - 兜: CI/CD設定 (`.github/workflows`, `.gitlab-ci.yml`)
   - アクセサリー: コンテナ設定 (`Dockerfile`)
 - **スキル/呪文**: テストがあると `ベホマ (自動テスト)`、CI/CDがあると `ルーラ (自動デプロイ)` などを習得します。
+- **持ち物 (INVENTORY)**: サーバーを動かしているマシンの `PATH` 上にあるモダン開発 CLI（`rg`/`fd`/`jq`/`gh`/`docker` など）を検出し、`鷹の目 (rg)` のような秘宝として並べます。リポジトリではなく実行環境を見るため、同じリポでもマシンが変われば中身が変わります。
