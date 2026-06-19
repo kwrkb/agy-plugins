@@ -1,0 +1,10 @@
+{
+  "name": "retro-status",
+  "version": "1.0.0",
+  "description": "Retro game style repository profiler.",
+  "mcpServers": {
+    "retro-status": {
+      "command": "${extensionPath}${/}retro-status"
+    }
+  }
+}

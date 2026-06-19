@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "validator/validator --hook",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

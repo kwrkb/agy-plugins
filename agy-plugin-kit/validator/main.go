@@ -5,8 +5,9 @@
 //
 // モード:
 //   validator <plugin-dir>        検査結果を表示。[ERROR] が1件でもあれば exit 1（/validate 用）。
-//   validator --hook              stdin の hook JSON({"file_path":...}) からプラグインルートを導出し
-//                                 マニフェスト編集時だけ検査。常に exit 0（助言的・非ブロッキング）。
+//   validator --hook              stdin の PostToolUse JSON から編集ファイルを取り出し（agy の
+//                                 toolCall.args.TargetFile / Claude の file_path 両対応）、マニフェスト
+//                                 編集時だけ検査。常に exit 0（助言的・非ブロッキング）。
 //   validator --fix-paths <dir>   #390 ワークアラウンド: plugin.json 形式の mcp_config.json に残る
 //                                 ${extensionPath} を <dir> の絶対パスへ書き換える。
 //
@@ -16,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,34 +88,51 @@ func runCLI(dir string) {
 	}
 }
 
-// runHook は PostToolUse stdin を読み、編集されたファイルがマニフェスト系のときだけ検査する。
-func runHook() {
-	// agy/Claude 互換: file_path はトップレベルか tool_input の下にある。両対応にする。
-	var payload struct {
+// resolveEditedFile は PostToolUse の stdin JSON から「編集されたファイルのパス」を取り出す。
+// agy と Claude Code で payload スキーマが違うので両対応する（解析不能・該当無しは ok=false）:
+//   - Claude Code: トップレベル file_path、または tool_input.file_path
+//   - agy 1.0.9 : toolCall.args.TargetFile。ファイル編集系ツールでのみ非 null になり、その時だけ
+//     TargetFile が入る（新規作成は write_to_file、既存編集は replace_file_content。実機検証 LESSONS #34）。
+//     非ファイルツールのステップでは toolCall が null で発火するため、TargetFile の有無でガードする
+//     （ツール名は版で変わりうるので name には依存しない。最終的な絞り込みは isManifestFile が担う）。
+func resolveEditedFile(r io.Reader) (string, bool) {
+	var p struct {
 		FilePath  string `json:"file_path"`
 		ToolName  string `json:"tool_name"`
 		ToolInput struct {
 			FilePath string `json:"file_path"`
 		} `json:"tool_input"`
+		ToolCall *struct {
+			Name string `json:"name"`
+			Args struct {
+				TargetFile string `json:"TargetFile"`
+			} `json:"args"`
+		} `json:"toolCall"`
 	}
-	if err := json.NewDecoder(os.Stdin).Decode(&payload); err != nil {
-		fmt.Fprintln(os.Stderr, "agy-plugin-kit hook: stdin JSON を解析できません:", err)
-		return // 0 終了（hook はブロックしない）
+	if err := json.NewDecoder(r).Decode(&p); err != nil {
+		return "", false // 解析不能でも hook はブロックしない（無音 return）
 	}
+	// Claude 形式を優先（後方互換）
+	if p.FilePath != "" {
+		return p.FilePath, true
+	}
+	if p.ToolInput.FilePath != "" {
+		return p.ToolInput.FilePath, true
+	}
+	// agy 形式: ファイル編集系ツール（TargetFile が入っている回）だけ採用
+	if p.ToolCall != nil && p.ToolCall.Args.TargetFile != "" {
+		return p.ToolCall.Args.TargetFile, true
+	}
+	return "", false
+}
 
-	fp := payload.FilePath
-	if fp == "" {
-		fp = payload.ToolInput.FilePath
+// runHook は PostToolUse stdin を読み、編集されたファイルがマニフェスト系のときだけ検査する。
+func runHook() {
+	fp, ok := resolveEditedFile(os.Stdin)
+	if !ok {
+		return // 編集ファイルを特定できない回は無音（非 write ステップ等）
 	}
-	if fp == "" {
-		return
-	}
-	base := strings.ToLower(filepath.Base(fp))
-	manifests := map[string]bool{
-		"plugin.json": true, "gemini-extension.json": true,
-		"mcp_config.json": true, "hooks.json": true,
-	}
-	if !manifests[base] {
+	if !isManifestFile(fp) {
 		return // マニフェスト以外の編集には反応しない（無音）
 	}
 	dir := filepath.Dir(fp)
@@ -123,6 +142,15 @@ func runHook() {
 		printFindings(os.Stderr, dir, findings)
 	}
 	// hook は常に 0 終了（ブロックしない）
+}
+
+// isManifestFile は basename が agy プラグインのマニフェスト系かを判定する。
+func isManifestFile(fp string) bool {
+	switch strings.ToLower(filepath.Base(fp)) {
+	case "plugin.json", "gemini-extension.json", "mcp_config.json", "hooks.json":
+		return true
+	}
+	return false
 }
 
 func printFindings(w *os.File, dir string, fs []finding) {
