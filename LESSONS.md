@@ -27,6 +27,11 @@
 - **macOS arm64 実機検証 = 全 PASS**: **V1** agy が `${extensionPath}${/}bin${/}<name>` を絶対パスに解決し shebang dispatcher を MCP `command` として exec → darwin ネイティブ起動、`agy -p` で `gh_command` 実行・MCP キャッシュに `gh_command.json` のみ（#25）。**V2** `validator/bin/validator --hook`（PWD 相対）でも hook 発火（実 payload で runHook が C5 を stderr 出力）。**V4** `git archive`／`agy plugin install` コピーとも +x（`100755`）保持（`git update-index --chmod=+x` でコミット）。**Windows** は agy が `.exe` 補完で `bin/<name>.exe` 直起動＝dispatcher 非経由（#10）。
 - **ルール**: 同梱バイナリ参照プラグインは **src/bin ＋ dispatcher** を標準構成に。`build.sh`/`build.ps1` は `src/` でビルドし `bin/<name>-<os>-<arch>` を出力（dispatcher は手書きでビルド対象外）。CI は `bin/` の3ネイティブを diff・`working-directory` は `<plugin>/src`。README の「darwin 非対応」は撤回し対応 OS を3つ明記（#37 を本項で更新）。
 
+#### 43. `build.ps1` の `$env:` は呼び出し元シェルを汚染する — 退避して finally で復元し build.sh と挙動を揃える（PR #14 レビュー対応）
+
+PowerShell の `$env:VAR` は**プロセス環境変数**を書き換える。`.ps1` は新プロセスを spawn せず現セッション内で走るため、対話セッションで `./build.ps1` を実行すると `Build` 関数が設定した `CGO_ENABLED`/`GOARCH`/`GOOS` が**完了後もセッションに残留**し、以降の `go build` 等に意図しないクロスコンパイル設定を持ち込む。対する `build.sh` はコマンド単位 env（`CGO_ENABLED=0 GOOS=... go build`）＋ subshell `( )` で**汚染しない**ため、ps1 だけが非対称な副作用を持っていた（gemini-code-assist の指摘をコードトレースで真と確認）。
+- **ルール**: PowerShell スクリプトで `$env:` を一時変更する関数は、冒頭で旧値を退避し `finally` で必ず復元する（`$old = $env:X` → `try { $env:X='...' } finally { $env:X = $old }`）。`build.sh` との bit-identical 維持に加え、**シェル副作用の有無も build.sh / build.ps1 で揃える**。クロスコンパイル設定はコマンド単位 env が最も安全だが、PowerShell は構文上それができないため退避/復元が定石。
+
 ## 2026-06-19: retro-status 追加・validator フック再導入の Codex レビュー対応（PR #13）
 
 ### 学んだこと
