@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "retro-status": {
+      "command": "${extensionPath}${/}retro-status"
+    }
+  }
+}

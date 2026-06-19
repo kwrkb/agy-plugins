@@ -34,16 +34,18 @@ cd "$(dirname "$0")"
 
 target="${1:-all}"
 case "$target" in
-	github)    build github github ;;
-	validator) build agy-plugin-kit/validator validator ;;
-	ast-grep)  build ast-grep ast-grep ;;
+	github)       build github github ;;
+	validator)    build agy-plugin-kit/validator validator ;;
+	ast-grep)     build ast-grep ast-grep ;;
+	retro-status) build retro-status retro-status ;;
 	all)
 		build github github
 		build agy-plugin-kit/validator validator
 		build ast-grep ast-grep
+		build retro-status retro-status
 		;;
 	*)
-		echo "unknown target: $target (expected: github | validator | ast-grep | all)" >&2
+		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | all)" >&2
 		exit 2
 		;;
 esac
