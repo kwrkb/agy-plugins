@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "validator/validator --hook",
+            "command": "validator/bin/validator --hook",
             "timeout": 10000
           }
         ]

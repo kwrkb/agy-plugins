@@ -1,0 +1,14 @@
+#!/bin/sh
+# Platform dispatcher: exec the native binary for this OS/arch.
+# This file is plain text (OS-independent) and is committed to git so that
+# `agy plugin install` (which only copies files, no build) ships a single
+# `command` target that works on every Unix platform. Windows is unaffected:
+# agy appends `.exe` and runs `<base>.exe` directly, bypassing this script.
+# Keep stdout clean — MCP speaks NDJSON over stdout; errors go to stderr only.
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+base=github
+case "$(uname -s)/$(uname -m)" in
+  Darwin/arm64) exec "$dir/${base}-darwin-arm64" "$@" ;;
+  Linux/x86_64) exec "$dir/${base}-linux-amd64"  "$@" ;;
+  *) echo "agy-plugins: unsupported platform $(uname -s)/$(uname -m)" >&2; exit 1 ;;
+esac

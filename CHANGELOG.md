@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.4.0] - 2026-06-20
+
+### Added
+- **macOS (Apple Silicon / arm64) support** for all Go binary plugins (`github`, `ast-grep`,
+  `retro-status`, `agy-plugin-kit/validator`). Each plugin now ships a native `darwin-arm64` binary
+  alongside `linux-amd64` and `windows`.
+- **OS-dispatch shebang script** at `bin/<name>`: a POSIX `sh` dispatcher (OS-independent text) that
+  `exec`s the matching native binary by `uname`. Since a single fixed `command` string cannot switch
+  by OS (agy only resolves `${extensionPath}`), this folds all platforms into one install target.
+  Verified end-to-end on macOS arm64: MCP startup (V1), hook firing (V2), and `+x` preserved through
+  `agy plugin install` (V4). See LESSONS #40.
+
+### Changed
+- **Repository layout**: every Go plugin is split into `src/` (sources: `main.go`, `go.mod`[, `go.sum`])
+  and `bin/` (distribution: native binaries + dispatcher). Manifest `command` is now
+  `${extensionPath}${/}bin${/}<name>`; the validator hook is `validator/bin/validator --hook`.
+- **`build.sh` / `build.ps1`** build from `<plugin>/src/` and emit `<plugin>/bin/<name>-<os>-<arch>`
+  for three targets (linux-amd64 / darwin-arm64 / windows); the dispatcher is hand-written text, not a
+  build output.
+- **CI (`build-verify.yml`)** runs vet/test/govulncheck in `<plugin>/src` and diffs the three native
+  binaries under `<plugin>/bin/`.
+- **agy-plugin-kit** templates/skill/commands updated to the `src/`+`bin/`+dispatcher convention;
+  retracted the previous "Linux-only / macOS unsupported" notes.
+
 ## [0.3.0] - 2026-06-14
 
 ### Changed

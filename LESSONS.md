@@ -1,5 +1,32 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-20: agy 1.0.10 での hooks/rules 実機再検証
+
+### 学んだこと
+
+#### 41. agy 1.0.10 でプロジェクト固有ルール（.agents/AGENTS.md）が注入可能に — ただしプラグインルールは依然非機能
+
+1.0.10 において、プロジェクトのワークスペースルートに配置した `.agents/AGENTS.md` の中身が、エージェントセッションのシステムプロンプト `<user_rules>` 内に `<RULE[/path/to/.agents/AGENTS.md]>` の形式で正しく自動注入されるようになった（1.0.9 までの非機能バグが解消）。
+一方で、プラグイン固有のルール（プラグイン内 `rules/` の md ファイルや `plugin.json` 内の `"rules"` 定義）は引き続きシステムプロンプトに注入されない。
+- **ルール**: プロジェクト全体の規約は `.agents/AGENTS.md` で管理し、プラグイン固有の規約は `skills/<name>/SKILL.md` (スキル) に定義してエージェントに必要に応じて読み込ませる方針を継続する。
+
+#### 42. agy の hooks はアクティブなセッションへ動的にリロードされる
+
+`agy plugin install` で登録された hooks (PostToolUse) は、すでに起動している同一の対話セッション（親セッション）であっても、セッションの再起動を要さずに次のツール実行から動的かつ自動的に読み込まれて動作を開始する。
+- **検証テクニック**: フックの設定変更や検証の際は、わざわざ新しい agy セッションを起動し直さなくても、親セッションでダミーのツール（`run_command` や `write_to_file`）を実行するだけでフックが即座に適用され発火する。
+- **継続する制限**: `${extensionPath}` などの変数は依然として command 内で置換されない（空になる）。また `${/}` を含めるとシェルエラー (`Bad substitution`) でクラッシュするため、スクリプト呼び出しは PWD 相対（`python3 dump.py` など）で行い、変数を避けること。
+
+## 2026-06-20: 全 Go プラグインを macOS(arm64) 対応化・src/bin 再編
+
+### 学んだこと
+
+#### 40. 単一 `command` でも OS 分岐 dispatcher（shebang sh）で Linux/macOS/Windows を全カバーできる — #37 の「darwin 非対応」を解消
+
+#37 は「`command` は1本の文字列パスで OS 別バイナリを選べない＝darwin 非対応」と結論したが、それは **`command` を Go の ELF/Mach-O バイナリ直指定**にしていた前提の話。`command` 先を**ネイティブではなく POSIX sh スクリプト（dispatcher）**にすれば、テキスト＝OS 非依存で単一パスが全 OS をさばける。
+- **構成**: `src/`（ソース）＋ `bin/`（配布物）。`bin/` に `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe`（ネイティブ）と拡張子なし dispatcher `bin/<name>`（`#!/bin/sh` + `uname -s/-m` で対応ネイティブを `exec`）。`command` は `${extensionPath}${/}bin${/}<name>`。dispatcher は `$0` から `$dir` を解決し PWD 相対呼び出しでも壊れない／エラーのみ stderr。
+- **macOS arm64 実機検証 = 全 PASS**: **V1** agy が `${extensionPath}${/}bin${/}<name>` を絶対パスに解決し shebang dispatcher を MCP `command` として exec → darwin ネイティブ起動、`agy -p` で `gh_command` 実行・MCP キャッシュに `gh_command.json` のみ（#25）。**V2** `validator/bin/validator --hook`（PWD 相対）でも hook 発火（実 payload で runHook が C5 を stderr 出力）。**V4** `git archive`／`agy plugin install` コピーとも +x（`100755`）保持（`git update-index --chmod=+x` でコミット）。**Windows** は agy が `.exe` 補完で `bin/<name>.exe` 直起動＝dispatcher 非経由（#10）。
+- **ルール**: 同梱バイナリ参照プラグインは **src/bin ＋ dispatcher** を標準構成に。`build.sh`/`build.ps1` は `src/` でビルドし `bin/<name>-<os>-<arch>` を出力（dispatcher は手書きでビルド対象外）。CI は `bin/` の3ネイティブを diff・`working-directory` は `<plugin>/src`。README の「darwin 非対応」は撤回し対応 OS を3つ明記（#37 を本項で更新）。
+
 ## 2026-06-19: retro-status 追加・validator フック再導入の Codex レビュー対応（PR #13）
 
 ### 学んだこと

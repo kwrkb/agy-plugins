@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: github
+        working-directory: github/src
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -53,7 +53,7 @@ jobs:
         working-directory: .
       - name: Verify committed binaries are up to date
         run: |
-          if ! git diff --exit-code -- github/github github/github.exe; then
+          if ! git diff --exit-code -- github/bin/github-linux-amd64 github/bin/github-darwin-arm64 github/bin/github.exe; then
             echo "::error::Committed github binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh github and commit the result."
             exit 1
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: agy-plugin-kit/validator
+        working-directory: agy-plugin-kit/validator/src
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -81,7 +81,7 @@ jobs:
         working-directory: .
       - name: Verify committed binaries are up to date
         run: |
-          if ! git diff --exit-code -- agy-plugin-kit/validator/validator agy-plugin-kit/validator/validator.exe; then
+          if ! git diff --exit-code -- agy-plugin-kit/validator/bin/validator-linux-amd64 agy-plugin-kit/validator/bin/validator-darwin-arm64 agy-plugin-kit/validator/bin/validator.exe; then
             echo "::error::Committed validator binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh validator and commit the result."
             exit 1
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ast-grep
+        working-directory: ast-grep/src
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -109,7 +109,7 @@ jobs:
         working-directory: .
       - name: Verify committed binaries are up to date
         run: |
-          if ! git diff --exit-code -- ast-grep/ast-grep ast-grep/ast-grep.exe; then
+          if ! git diff --exit-code -- ast-grep/bin/ast-grep-linux-amd64 ast-grep/bin/ast-grep-darwin-arm64 ast-grep/bin/ast-grep.exe; then
             echo "::error::Committed ast-grep binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh ast-grep and commit the result."
             exit 1
@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: retro-status
+        working-directory: retro-status/src
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -137,7 +137,7 @@ jobs:
         working-directory: .
       - name: Verify committed binaries are up to date
         run: |
-          if ! git diff --exit-code -- retro-status/retro-status retro-status/retro-status.exe; then
+          if ! git diff --exit-code -- retro-status/bin/retro-status-linux-amd64 retro-status/bin/retro-status-darwin-arm64 retro-status/bin/retro-status.exe; then
             echo "::error::Committed retro-status binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh retro-status and commit the result."
             exit 1

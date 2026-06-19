@@ -16,16 +16,21 @@ set -eu
 # 決定論フラグ（CI ゲートと一致させる唯一の定義箇所）
 FLAGS="-trimpath -buildvcs=false -ldflags=-buildid="
 
-# build <module-dir> <output-basename>
-# <dir> 内で linux/windows amd64 のバイナリ（<base> と <base>.exe）を生成する。
+# build <plugin-dir> <output-basename>
+# <plugin-dir>/src/ のソースから、ネイティブバイナリを <plugin-dir>/bin/ に生成する。
+#   <base>-linux-amd64   <base>-darwin-arm64   <base>.exe
+# 拡張子なしの <base>（OS 分岐 dispatcher）は build.sh では触らない（git 追跡の
+# テキストスクリプト。write_dispatcher() 参照）。Windows の agy は <base>.exe を
+# 直接起動するため dispatcher を経由しない。
 build() {
 	dir="$1"
 	base="$2"
-	echo "==> building $base (linux, windows) in $dir/  [$(go version | awk '{print $3}')]"
+	echo "==> building $base (linux-amd64, darwin-arm64, windows) from $dir/src/  [$(go version | awk '{print $3}')]"
 	(
-		cd "$dir"
-		CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $FLAGS -o "$base"     .
-		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $FLAGS -o "$base.exe" .
+		cd "$dir/src"
+		CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $FLAGS -o "../bin/$base-linux-amd64"  .
+		CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build $FLAGS -o "../bin/$base-darwin-arm64" .
+		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $FLAGS -o "../bin/$base.exe"          .
 	)
 }
 

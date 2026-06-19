@@ -4,7 +4,7 @@
   "description": "GitHub MCP server wrapping the gh CLI.",
   "mcpServers": {
     "github": {
-      "command": "${extensionPath}${/}github"
+      "command": "${extensionPath}${/}bin${/}github"
     }
   }
 }
