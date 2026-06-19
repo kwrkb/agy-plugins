@@ -383,7 +383,6 @@ func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 			if err != nil {
 				return nil
 			}
-			defer file.Close()
 
 			loc := 0
 			isTestFile := strings.Contains(filename, "_test.go") ||
@@ -401,6 +400,8 @@ func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 					}
 				}
 			}
+			// WalkDir のコールバック内なので defer に頼らず即 close（多ファイルでも fd を溜めない）
+			file.Close()
 
 			result.TotalLoc += loc
 			result.LangLoc[ext] += loc
@@ -635,9 +636,11 @@ func main() {
 	)
 
 	s.AddTool(retroStatusTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		argsMap, ok := request.Params.Arguments.(map[string]any)
-		if !ok {
-			return mcp.NewToolResultError("arguments must be a map"), nil
+		// 引数は全て任意。省略時 Arguments は nil なので空マップとして扱い、
+		// 既定値（path="."、format="text"）にフォールバックさせる。
+		argsMap, _ := request.Params.Arguments.(map[string]any)
+		if argsMap == nil {
+			argsMap = map[string]any{}
 		}
 
 		repoPath := "."
