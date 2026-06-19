@@ -17,9 +17,10 @@ GitHub CLI (`gh`) を利用して、GitHub の各種操作（Issues, Pull Reques
 
 | ファイル | 役割 |
 | :--- | :--- |
-| `gemini-extension.json` | プラグインマニフェスト。`${extensionPath}` でビルドされたバイナリの絶対パスを解決する |
-| `main.go` / `go.mod` / `go.sum` | `gh` コマンドを呼び出す MCP サーバーのソースコード |
-| `github` / `github.exe` | コンパイル済みの MCP サーバーバイナリ |
+| `gemini-extension.json` | プラグインマニフェスト。`command` は `${extensionPath}${/}bin${/}github` を絶対パスへ解決する |
+| `src/main.go` / `src/go.mod` / `src/go.sum` | `gh` コマンドを呼び出す MCP サーバーのソースコード |
+| `bin/github-linux-amd64` / `bin/github-darwin-arm64` / `bin/github.exe` | コンパイル済みの MCP サーバーネイティブバイナリ（各 OS×arch） |
+| `bin/github` | OS 分岐 dispatcher（shebang sh）。`uname` で実機を判定し対応ネイティブを `exec`（Windows は agy が `bin/github.exe` を直接起動） |
 | `skills/github/SKILL.md` | エージェント向け使用ガイド（呼び出し時ロード）。`gh_command` の引数規則・`-R` 必須・`--json` フィールド指定・頻出パターン |
 
 ## 必要条件
@@ -49,13 +50,17 @@ gh auth login
 agy plugin install https://github.com/kwrkb/agy-plugins/github
 ```
 
-> **注意**: ソースコード (`main.go`) を変更したら、下記コマンドで両 OS 分のバイナリを再ビルドしてコミットしてください（`agy plugin install` はビルドせず**コミット済みバイナリをコピー**するため、再ビルドを忘れると stale バイナリが配布されます）。
+> **注意**: ソースコード (`src/main.go`) を変更したら、下記コマンドで全 OS 分のバイナリを再ビルドしてコミットしてください（`agy plugin install` はビルドせず**コミット済みバイナリをコピー**するため、再ビルドを忘れると stale バイナリが配布されます）。
 
 ### バイナリの再ビルド
 
 リポジトリルートのビルドスクリプトを使います（**Go 1.26.4**。決定論フラグはスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求し、Go のバージョンがずれると fail します）。
 
 ```bash
-./build.sh github    # github のバイナリ（linux/windows）を再ビルド。Windows は ./build.ps1 github
+./build.sh github    # github のネイティブバイナリ（linux-amd64/darwin-arm64/windows）を再ビルド。Windows は ./build.ps1 github
 # 引数なし（./build.sh / ./build.ps1）で全プラグイン
 ```
+
+> **ビルドする OS によってスクリプトを使い分ける**: macOS / Linux は `./build.sh`、Windows は `./build.ps1`。
+> どちらも `CGO_ENABLED=0` のクロスコンパイルで **3 OS 分のネイティブを 1 台で一括生成**し、Go 1.26.4 固定なら
+> ホスト OS に依らず bit-identical（各 OS で実機ビルドする必要はない）。

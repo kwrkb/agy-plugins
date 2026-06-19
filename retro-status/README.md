@@ -19,7 +19,10 @@
 agy plugin install https://github.com/kwrkb/agy-plugins/retro-status
 ```
 
-> **対応 OS**: Linux / Windows。同梱バイナリは `retro-status`（Linux）/ `retro-status.exe`（Windows）で、darwin バイナリは同梱していないため macOS は非対応です。
+> **対応 OS（Linux / macOS / Windows）**: ソースは `src/`、配布物は `bin/` に分離。`bin/` に
+> `retro-status-linux-amd64` / `retro-status-darwin-arm64` / `retro-status.exe`（ネイティブ）と、拡張子なしの
+> OS 分岐 dispatcher `bin/retro-status`（shebang sh・`uname` で実機ネイティブを `exec`）を同梱。`command` は
+> `${extensionPath}${/}bin${/}retro-status` で 3 OS を単一指定でカバーする（Windows は agy が `.exe` を直接起動）。
 
 ## ステータスマッピングの仕組み
 
