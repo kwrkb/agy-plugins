@@ -1,5 +1,26 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-19: retro-status 追加・validator フック再導入の Codex レビュー対応（PR #13）
+
+### 学んだこと
+
+#### 37. 同梱バイナリは manifest の単一 `command` パスで OS 別に切り替えられない＝darwin 非対応。README に対応 OS を明記する
+
+`gemini-extension.json` / `hooks.json` の `command` は **1本の文字列パス**（`${extensionPath}${/}retro-status` や相対 `validator/validator`）で、agy は `${extensionPath}` も置換しないため（#20/#34）、**OS ごとに別バイナリ名を選ぶ術がない**。`build.sh` は `GOOS=linux`（拡張子なし＝ELF）と `GOOS=windows`（`.exe`）のみを生成し、拡張子なしファイルが Linux ELF 固定なので **macOS では exec フォーマットエラーで起動失敗**する。Codex が「README が Linux/macOS を謳うが darwin バイナリが無い」と指摘し、実態（Linux 対応・Windows は `.exe`・macOS 非対応）に doc を訂正した。
+- **ルール**: 同梱バイナリ参照プラグインの README には**対応 OS を明記**し、darwin バイナリを `build.sh` で生成・コミットしていない限り **macOS 対応を謳わない**。「Linux/Windows」など実際に同梱した GOOS のみ書く。
+
+#### 38. 新規プラグイン追加は `build-verify.yml` の stale ゲート更新とセットにする
+
+retro-status を `build.sh`/`build.ps1` にターゲット追加しただけでは、CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）の `paths` トリガにも per-plugin ジョブにも入らず、**`retro-status/**` の変更が `go vet`/`go test`/`govulncheck`/バイナリ diff チェック無しでマージできてしまう**（Codex 指摘）。`main.go` とコミット済みバイナリの乖離（#21）を検知できなくなる。
+- **ルール**: バイナリ同梱プラグインを新設したら、同 PR 内で `build-verify.yml` に **(1) `paths` トリガ（`<plugin>/**`）** と **(2) 既存ジョブを雛形にした per-plugin ジョブ（vet/test/govulncheck/`./build.sh <plugin>` 後の `git diff --exit-code`）** を必ず追加する。`build.sh` のターゲット追加だけで満足しない。
+
+#### 39. bot レビュー（Codex）は全件コードでトレースして真偽を分類する — 実バグ・doc 不一致・誤検知が混在する
+
+PR #13 で Codex の6指摘を全件トレースした結果、**実バグ3 / doc 不一致1 / 誤検知1 / 対応済み1** に分かれた。鵜呑みも全棄却もせず、1件ずつコードと突き合わせて初めて分類できた（#32 と同根）。具体例と再利用ルール:
+- **実バグ（採用）**: ①SSH remote `git@host:owner/repo.git` を `/` だけで split すると owner/repo にならず repo 名が壊れる→`:` を `/` に正規化してから末尾2要素を取る（自前の standalone 出力で再現確認できた＝**出力を実際に見る**のが効く）。②`filepath.WalkDir` のパスは Windows で `\` 区切り→`/.github/workflows/` の固定文字列一致が効かない→**`filepath.ToSlash(path)` で正規化**してから比較。③全任意引数の MCP ツールは引数省略時 `request.Params.Arguments == nil` で型アサーションが失敗→**nil を空マップ扱い**にして既定値へフォールバック。
+- **doc 不一致（コードを doc に合わせた）**: README が「MP=依存パッケージ数」と明記しているのに実装は Docker/CI フラグ依存だった→`go.mod`/`package.json` 等を数える実装に直した（doc を曲げるより、明記済みの仕様にコードを寄せる）。
+- **誤検知（棄却・ただし整理）**: 「`WalkDir` コールバック内の `defer file.Close()` で fd がリーク」は誤り。`defer` は**コールバック関数スコープ**で発火するのでファイルごとに閉じている。ただし再指摘ノイズを避けるため**明示 `file.Close()` に整理**した（機能不変）。
+
 ## 2026-06-17: agy 1.0.9 で hooks/rules を再検証（#18/#19/#22 の追跡更新）
 
 agy 1.0.8 → **1.0.9** で `agy changelog` に hooks/rules の変更記述はゼロだが、`reference_agy_rules_nonfunctional` メモリと changelog 1.0.4「`rules.json` の allowlist 無視を修正、`.md` rule を無条件 load」の矛盾を解消するため、`hook-test` を 1.0.9 に clean install して4トリガー＋rules 3パターンを実機再実測した。**hooks は部分的に機能するようになった一方、rules は依然非機能。**「changelog に記述が無くても挙動は変わりうる」＝バージョンアップ時は実機再検証する。
