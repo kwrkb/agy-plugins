@@ -40,13 +40,15 @@ switch ($Target) {
     'github' { Build 'github' 'github' }
     'validator' { Build 'agy-plugin-kit/validator' 'validator' }
     'ast-grep' { Build 'ast-grep' 'ast-grep' }
+    'retro-status' { Build 'retro-status' 'retro-status' }
     'all' {
         Build 'github' 'github'
         Build 'agy-plugin-kit/validator' 'validator'
         Build 'ast-grep' 'ast-grep'
+        Build 'retro-status' 'retro-status'
     }
     default {
-        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | all)"
+        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | all)"
         exit 2
     }
 }

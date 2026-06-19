@@ -44,40 +44,41 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 # 引数なし（./build.sh / ./build.ps1）で全プラグイン
 ```
 
-> **対応 OS**: validator は Linux / Windows 両方のバイナリを同梱します。`command` の参照先は OS に応じて `validator`（Linux/macOS）/ `validator.exe`（Windows）を使い分けてください。同梱バイナリは `git` に明示コミットしています（URL install で確実に clone されるよう `.gitignore` 対象外）。
+> **対応 OS**: validator は Linux / Windows 両方のバイナリを同梱します。`command` の参照先は OS に応じて `validator`（Linux）/ `validator.exe`（Windows）を使い分けてください。darwin バイナリは同梱していないため macOS は非対応です。同梱バイナリは `git` に明示コミットしています（URL install で確実に clone されるよう `.gitignore` 対象外）。
 
 ## マニフェスト形式（このキット自身）
 
 native `plugin.json` を採用。キットは MCP サーバーを持たないため `${extensionPath}` 置換が不要で、
 copy-only で問題ありません（自身が C1 を踏まない）。
 
-## なぜ `hooks.json` を同梱しないか（agy 1.0.8 実機検証）
+## `hooks.json` の自動バリデーション（agy 1.0.9〜、Linux）
 
-当初は「マニフェスト編集時に validator を自動実行する」`hooks.json` を同梱する構想でしたが、
-**agy 1.0.8 で対話セッションを起こして実機検証した結果、フックによる自動バリデーションは成立しない**
-と判明したため、同梱を取りやめました（確実な検査は `/agy-plugin-kit:validate` / `:doctor` コマンドを使用）。
+`hooks.json` を同梱し、**マニフェスト（`plugin.json` / `gemini-extension.json` / `mcp_config.json` /
+`hooks.json`）を編集すると validator が自動で走り**、見つかった問題を stderr に助言として出します
+（非ブロッキング・常に exit 0）。仕組み:
 
-実機検証で確認した事実:
+- `PostToolUse` の `matcher: ".*"`、`command: "validator/validator --hook"`（PWD=install 先の相対パス。
+  `${extensionPath}`/`${/}` は使わない＝C10/C2 を踏まない）。
+- ツール種別の選別は **validator 側のコードで** 行う（`toolCall.args.TargetFile` が入る編集系ステップだけ
+  反応し、マニフェスト basename 以外は無音）。matcher にツール名を書かない（agy のツール名は
+  新規作成=`write_to_file` / 既存編集=`replace_file_content` と版で異なるため）。
 
-- **発火は対話セッションのみ**。`agy -p`（print mode）では発火しない。
-- **発火が不安定**。セッション内の最初の編集（特定の `stepIdx`）でのみ発火し、2 回目以降の `Edit` では
-  発火しないことがある。「編集ごとに必ず検査」という用途には信頼できない。
-- **agy のフック stdin payload に編集ファイル情報が無い**。実際に送られるのは
-  `{"artifactDirectoryPath": "...", "conversationId": "...", "error": null, "stepIdx": 0, "toolCall": null, "transcriptPath": "...", "workspacePaths": []}`
-  で、Claude Code 流の `file_path` / `tool_input` が存在せず `toolCall` も `null`。validator の `--hook` は
-  `file_path` を前提に編集対象を特定するため、**発火しても対象を特定できず常に無音 no-op** になる。
-- 発火時の `PWD` は**プラグインのインストール先**（`~/.gemini/config/plugins/<name>/`）。相対パスで同梱
-  バイナリは呼べるが、上記のとおり対象ファイルを取得できないため意味を成さない。
-- `hooks.json` 内の `${extensionPath}` / `${/}` は**実行時に一切置換されず literal のまま残る**。Linux では
-  `/bin/sh` が `${/}` を `Bad substitution` と見なし hook 起動に失敗する（C10 で検出。トークン非展開は
-  MCP 側と同根で agy upstream [#390](https://github.com/google-antigravity/antigravity-cli/issues/390)）。
+> **Linux のみ**: フックが起動する `validator/validator` は Linux バイナリ（ELF）で、darwin
+> バイナリは同梱していない。加えて `command` は1本の文字列で agy は `${extensionPath}` を置換しない
+> ため OS 別バイナリ（`validator` / `validator.exe`）の呼び分けもできない。Windows / macOS ユーザーは
+> 従来どおり `/agy-plugin-kit:validate` / `:doctor` を手動で使う。
 
-> **upstream tracking**: 上記のうち payload に編集ファイル情報が無い件・発火が不安定な件は agy 本体へ
-> [#395](https://github.com/google-antigravity/antigravity-cli/issues/395) として報告済み。`rules/` が
-> 機能しない件（プラグインの知識は `skills/` で渡す）は [#396](https://github.com/google-antigravity/antigravity-cli/issues/396)。
+### 経緯（1.0.8 では非機能 → 1.0.9 で再導入）
 
-将来 agy のフック payload が編集ファイルを露出するようになれば（#395 の解消）、`validator/main.go` の
-`runHook` をその実 payload（`transcriptPath` 解析等）に対応させたうえで再導入を検討する。
+当初の `hooks.json` は **agy 1.0.8 で実機検証した結果フックが成立せず**（payload に編集ファイルが無い
+＝`toolCall: null`、発火が不安定、`agy -p` 非発火）、一度同梱を取りやめた（agy upstream
+[#395](https://github.com/google-antigravity/antigravity-cli/issues/395)）。
+**agy 1.0.9 で再検証した結果、payload に `toolCall.args.TargetFile`（編集ファイル絶対パス）が入り、
+2 回目以降の編集・`agy -p` でも発火、自前バイナリを PWD 相対で呼べる**ようになったため再導入した
+（#395 は解決済みでクローズ／詳細はリポジトリ LESSONS #34、`hook-investigation-report.md` §5）。
+なお `${extensionPath}` 非置換（[#390](https://github.com/google-antigravity/antigravity-cli/issues/390)）と
+`rules/` 非機能（[#396](https://github.com/google-antigravity/antigravity-cli/issues/396)・知識は `skills/` で渡す）は
+1.0.9 でも未解決で継続。
 
 ## ライセンス
 

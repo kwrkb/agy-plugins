@@ -86,11 +86,11 @@ Pythonで取得した `os.getcwd()` の結果は以下の通りだった。
 - 自動バリデーションの夢は一旦捨て、確実なコマンドトリガー（`/agy-plugin-kit:validate` や `:doctor`）に依存する設計を標準とする。
 - 将来のアップデートで、フックのペイロードに `toolCall` や `file_path` が格納されるようになり、変数置換バグが修正されたタイミングで再導入を検討する。
 
-**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。
-- [ ] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）
-- [ ] `hooks.json` 内の `${extensionPath}` / `${/}` が実行時に置換されるようになったか（§2 事実2）
-- [ ] フックが対話セッションで安定発火するようになったか（§2 事実4）
-- [ ] `rules/`（プラグイン内 / `plugin.json` / グローバル）がシステムプロンプトに注入されるようになったか（§4）
+**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 実施結果を反映＝§5）**
+- [x] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）→ **✅ 1.0.9 で解消**（`toolCall.args.TargetFile`）
+- [ ] `hooks.json` 内の `${extensionPath}` / `${/}` が実行時に置換されるようになったか（§2 事実2）→ **❌ 1.0.9 でも未置換**（`${/}` は未再検証）
+- [x] フックが対話セッションで安定発火するようになったか（§2 事実4）→ **✅ 1.0.9 で改善**（2回目以降の編集・`-p` でも発火、n=2）
+- [ ] `rules/`（プラグイン内 / `plugin.json` / グローバル）がシステムプロンプトに注入されるようになったか（§4）→ **❌ 1.0.9 でも3パターン全滅**
 
 ---
 
@@ -111,3 +111,42 @@ Pythonで取得した `os.getcwd()` の結果は以下の通りだった。
 ### ルール機能の結論
 現状の `agy 1.0.8` では、**ファイルベースのルール機能は完全に機能していない（未実装または不具合）**。
 プラグインからエージェントに固有の知識や規約を渡したい場合、`rules/` に頼ることはできず、**必ず `skills/`（スキル）として定義して適宜呼び出させる**設計にする必要がある。
+
+---
+
+## 5. 追記: agy 1.0.9 での再検証（2026-06-17）
+
+**対象:** agy 1.0.9。`hook-test` を clean install（旧 `~/.gemini/config/plugins/hook-test` 削除後に `agy plugin install`）し、§3 の再評価トリガー4項目を再実測した。**結論: hooks は部分的に機能化、rules は依然非機能。**
+
+### 5.1 hooks — payload に編集ファイルパスが入った（事実1 解消）
+
+`dump.py` を1呼び出し1レコードの追記式に変更し、対話セッションで2ファイル（`rvfire1.txt`/`rvfire2.txt`）を連続作成させたところ **4回発火**。`write_to_file` のステップ（stepIdx 3/6）で `toolCall` が **populated** になっていた（実証 payload）:
+
+```json
+{"stepIdx":3,"toolCall":{"name":"write_to_file","args":{"TargetFile":"/home/yugosasaki/code/agy-plugins/rvfire1.txt","CodeContent":"fire1\n","Overwrite":true,"Description":"Create rvfire1.txt with content 'fire1'","toolAction":"Creating rvfire1.txt","toolSummary":"File creation"}},"conversationId":"4cfd84b2-...","transcriptPath":".../transcript_full.jsonl","workspacePaths":["/home/yugosasaki/code/agy-plugins"],"error":""}
+```
+
+- **編集ファイルの絶対パスが `toolCall.args.TargetFile` で取得可能**（1.0.8 の事実1「特定不可」を覆す）。
+- 非 write のステップ（stepIdx 1/4）は従来どおり `toolCall:null` → ハンドラは **null / `name!="write_to_file"` を即 no-op** とガードする必要あり。
+
+### 5.2 hooks — 発火安定性の改善（事実4 改善）
+
+- 同一セッションの **2回目の編集（rvfire2）でも発火**（1.0.8 の「最初の編集のみ」を覆す、実測 n=2）。
+- **`agy -p`（print mode）でも発火**（1.0.8 の「-p 非発火」を覆す。print mode でも `toolCall.args.TargetFile` が入る）。
+- `command:"python3 dump.py REL"`（相対）が `cwd`=`~/.gemini/config/plugins/hook-test` で実行され、argv=`['dump.py','REL']` を確認 → **自前同梱バイナリを `${extensionPath}` 無しで PWD 相対に呼べる**。
+
+### 5.3 hooks — 未解決のまま（事実2）
+
+`${extensionPath}` は依然 literal/空で未置換（argv に展開値が出ない）。`${/}` の `Bad substitution` は今回の `hooks.json` に含めず**未再検証**だが、PWD 相対呼び出しで回避可能なため実害なし。payload も **agy 独自スキーマ**（`toolCall.args.TargetFile`）で Claude Code 形式（`tool_input.file_path`）ではない＝Claude 流 validator はそのままでは動かず agy アダプタが要る。
+
+### 5.4 rules — 依然全パターン非機能（§4 再確認）＋ changelog 矛盾の解消
+
+3パターンに一意 marker を仕込み、対話セッションで `<user_rules>` を逐語出力させた結果、セクション（`<RULE[user_global]>`）に載るのは **"Gemini Added Memories"（UI 設定）のみ**で marker は未注入＝ §4 の結論不変。
+
+changelog 1.0.4「`rules.json` の allowlist 無視を修正し `.md` rule を load」と本結論の矛盾は **agy バイナリの strings 解析で解消**した: `<user_rules>` は `UserRulesSection.formatMemoriesAsPrompt`（Memories 由来）、`rules.json` は `agents.txt`/`skills.txt` と並ぶ `customizations` サブシステムのディスカバリ・マニフェストで**別系統**。「rule の discover/load ≠ `<user_rules>` 注入」。
+
+### 5.5 帰結と今後
+
+- **「保存した編集ファイルを validator にかける」フック用途は 1.0.9 で初めて成立しうる**（編集ファイル絶対パス＋自前バイナリ PWD 相対呼び出し＋発火安定性が揃った）。
+- ただし再導入は **agy 独自 payload スキーマ用のハンドラ実装＝設計変更**であり、本検証のスコープ外。**follow-up Issue として切り出す**。
+- rules は引き続き非機能のため、知識は `skills/` で渡す方針を維持。

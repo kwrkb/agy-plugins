@@ -10,6 +10,7 @@ on:
       - 'github/**'
       - 'agy-plugin-kit/validator/**'
       - 'ast-grep/**'
+      - 'retro-status/**'
       - 'build.sh'
       - 'build.ps1'
       - '.github/workflows/build-verify.yml'
@@ -19,6 +20,7 @@ on:
       - 'github/**'
       - 'agy-plugin-kit/validator/**'
       - 'ast-grep/**'
+      - 'retro-status/**'
       - 'build.sh'
       - 'build.ps1'
       - '.github/workflows/build-verify.yml'
@@ -110,6 +112,34 @@ jobs:
           if ! git diff --exit-code -- ast-grep/ast-grep ast-grep/ast-grep.exe; then
             echo "::error::Committed ast-grep binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh ast-grep and commit the result."
+            exit 1
+          fi
+        working-directory: .
+
+  retro-status:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: retro-status
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: go vet ./...
+      - run: go test ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Deterministic rebuild
+        run: ./build.sh retro-status
+        working-directory: .
+      - name: Verify committed binaries are up to date
+        run: |
+          if ! git diff --exit-code -- retro-status/retro-status retro-status/retro-status.exe; then
+            echo "::error::Committed retro-status binaries differ from a deterministic rebuild."
+            echo "::error::Run ./build.sh retro-status and commit the result."
             exit 1
           fi
         working-directory: .
