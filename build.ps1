@@ -24,6 +24,12 @@ function Build([string]$dir, [string]$base) {
     $ver = (go version) -split ' ' | Select-Object -Index 2
     Write-Host "==> building $base (linux-amd64, darwin-arm64, windows) from $dir/src/  [$ver]"
     Push-Location "$dir/src"
+    # $env: はプロセス環境を書き換えるため、対話セッションで ./build.ps1 を
+    # 実行すると呼び出し元シェルを汚染する。退避し finally で必ず復元する
+    # （build.sh はコマンド単位 env + subshell なので汚染しない。それと挙動を揃える）。
+    $oldCgo = $env:CGO_ENABLED
+    $oldArch = $env:GOARCH
+    $oldOs = $env:GOOS
     try {
         $env:CGO_ENABLED = '0'
         $env:GOARCH = 'amd64'
@@ -39,7 +45,12 @@ function Build([string]$dir, [string]$base) {
         go build @Flags -o "../bin/$base.exe" .
         if ($LASTEXITCODE -ne 0) { throw "go build failed ($dir, windows)" }
     }
-    finally { Pop-Location }
+    finally {
+        $env:CGO_ENABLED = $oldCgo
+        $env:GOARCH = $oldArch
+        $env:GOOS = $oldOs
+        Pop-Location
+    }
 }
 
 # スクリプトの位置をリポジトリルートとして扱う
