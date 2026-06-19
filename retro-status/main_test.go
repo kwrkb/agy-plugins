@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,6 +61,7 @@ func TestBuildRPGStats(t *testing.T) {
 		HasLinter:     true,
 		CommitCount:   150,
 		RecentCommits: 45,
+		DepCount:      7,
 	}
 
 	stats := buildRPGStats(scan, ".")
@@ -78,7 +81,7 @@ func TestBuildRPGStats(t *testing.T) {
 	if stats.MaxHP != 130 { // 100 + 1520/50 = 100 + 30 = 130
 		t.Errorf("expected MaxHP 130, got %d", stats.MaxHP)
 	}
-	if stats.MaxMP != 120 { // 5 (default) + 3 (Docker) + 4 (GitHubCI) = 12 * 10 = 120
+	if stats.MaxMP != 120 { // (5 base + 7 deps) * 10 = 120
 		t.Errorf("expected MaxMP 120, got %d", stats.MaxMP)
 	}
 	if stats.Gold != 1500 {
@@ -119,6 +122,44 @@ func TestRenderAAEmptyInventory(t *testing.T) {
 	}
 	if !strings.Contains(out, "なし (手ぶら)") {
 		t.Error("empty inventory should render 手ぶら")
+	}
+}
+
+// parseRepoName は SSH / HTTPS 双方の remote URL から owner/repo を取り出す。
+func TestParseRepoName(t *testing.T) {
+	cases := map[string]string{
+		"git@github.com:kwrkb/agy-plugins.git": "kwrkb/agy-plugins",
+		"https://github.com/owner/repo.git":    "owner/repo",
+		"https://github.com/owner/repo":        "owner/repo",
+		"git@gitlab.com:group/sub/repo.git":    "sub/repo",
+		"ssh://git@github.com/owner/repo.git":  "owner/repo",
+		"single":                               "single",
+	}
+	for in, want := range cases {
+		if got := parseRepoName(in); got != want {
+			t.Errorf("parseRepoName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// countDependencies はルートの go.mod / package.json から依存数を合算する。
+func TestCountDependencies(t *testing.T) {
+	dir := t.TempDir()
+	goMod := "module x\n\ngo 1.26\n\nrequire (\n\tgithub.com/a/b v1.0.0\n\tgithub.com/c/d v2.0.0 // indirect\n)\n\nrequire github.com/e/f v0.1.0\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pkg := `{"dependencies":{"react":"^18"},"devDependencies":{"vite":"^5","eslint":"^9"}}`
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// go.mod: 3 (block 2 + single 1), package.json: 3 → 計 6
+	if got := countDependencies(dir); got != 6 {
+		t.Errorf("countDependencies = %d, want 6", got)
+	}
+	// マニフェスト皆無なら 0
+	if got := countDependencies(t.TempDir()); got != 0 {
+		t.Errorf("countDependencies(empty) = %d, want 0", got)
 	}
 }
 

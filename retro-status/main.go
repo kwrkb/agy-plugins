@@ -124,29 +124,30 @@ type ScanResult struct {
 	HasLinter     bool
 	CommitCount   int
 	RecentCommits int
+	DepCount      int
 	Tools         []devTool
 }
 
 // RPGStats holds computed RPG-themed values.
 type RPGStats struct {
-	RepoName   string   `json:"repo_name"`
-	AuthorName string   `json:"author_name"`
-	Class      string   `json:"class"`
-	Level      int      `json:"level"`
-	Depth      string   `json:"depth"`
-	Monsters   int      `json:"monsters"`
-	HP         int      `json:"hp"`
-	MaxHP      int      `json:"max_hp"`
-	MP         int      `json:"mp"`
-	MaxMP      int      `json:"max_mp"`
-	ATK        int      `json:"atk"`
-	DEF        int      `json:"def"`
-	SPD        int      `json:"spd"`
-	Gold       int      `json:"gold"`
-	Weapon     string   `json:"weapon"`
-	Shield     string   `json:"shield"`
-	Armor      string   `json:"armor"`
-	Helm       string   `json:"helm"`
+	RepoName   string          `json:"repo_name"`
+	AuthorName string          `json:"author_name"`
+	Class      string          `json:"class"`
+	Level      int             `json:"level"`
+	Depth      string          `json:"depth"`
+	Monsters   int             `json:"monsters"`
+	HP         int             `json:"hp"`
+	MaxHP      int             `json:"max_hp"`
+	MP         int             `json:"mp"`
+	MaxMP      int             `json:"max_mp"`
+	ATK        int             `json:"atk"`
+	DEF        int             `json:"def"`
+	SPD        int             `json:"spd"`
+	Gold       int             `json:"gold"`
+	Weapon     string          `json:"weapon"`
+	Shield     string          `json:"shield"`
+	Armor      string          `json:"armor"`
+	Helm       string          `json:"helm"`
 	Accessory  string          `json:"accessory"`
 	Skills     []string        `json:"skills"`
 	Inventory  []InventoryItem `json:"inventory"`
@@ -170,6 +171,111 @@ func runCommand(ctx context.Context, dir string, name string, args ...string) (s
 	return strings.TrimSpace(out.String()), nil
 }
 
+// parseRepoName は git remote URL から "owner/repo" を取り出す。
+// SSH 形式(git@host:owner/repo.git) と HTTPS 形式(https://host/owner/repo.git) の双方に対応する。
+func parseRepoName(remoteURL string) string {
+	s := strings.TrimSuffix(strings.TrimSpace(remoteURL), ".git")
+	// SSH の host:owner/repo は ':' で owner と区切られるので '/' に正規化してから分割する。
+	s = strings.ReplaceAll(s, ":", "/")
+	parts := strings.Split(s, "/")
+	if len(parts) >= 2 {
+		return parts[len(parts)-2] + "/" + parts[len(parts)-1]
+	}
+	return strings.TrimSpace(remoteURL)
+}
+
+// countDependencies はリポジトリルートの代表的なマニフェストから依存パッケージ数を数える。
+// MP（魔力）の算出に使う。見つからないマニフェストは 0 として扱う。
+func countDependencies(repoPath string) int {
+	n := 0
+	n += countGoModDeps(filepath.Join(repoPath, "go.mod"))
+	n += countPackageJSONDeps(filepath.Join(repoPath, "package.json"))
+	n += countCargoDeps(filepath.Join(repoPath, "Cargo.toml"))
+	n += countRequirementsDeps(filepath.Join(repoPath, "requirements.txt"))
+	return n
+}
+
+// countGoModDeps は go.mod の require エントリ（ブロック・単行の両形式、indirect 含む）を数える。
+func countGoModDeps(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	n, inBlock := 0, false
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		switch {
+		case line == "" || strings.HasPrefix(line, "//"):
+			continue
+		case strings.HasPrefix(line, "require ("):
+			inBlock = true
+		case inBlock && line == ")":
+			inBlock = false
+		case inBlock:
+			n++
+		case strings.HasPrefix(line, "require "):
+			n++
+		}
+	}
+	return n
+}
+
+// countPackageJSONDeps は package.json の dependencies + devDependencies の数を返す。
+func countPackageJSONDeps(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	var pkg struct {
+		Dependencies    map[string]any `json:"dependencies"`
+		DevDependencies map[string]any `json:"devDependencies"`
+	}
+	if json.Unmarshal(data, &pkg) != nil {
+		return 0
+	}
+	return len(pkg.Dependencies) + len(pkg.DevDependencies)
+}
+
+// countCargoDeps は Cargo.toml の [dependencies] / [dev-dependencies] セクション内の行を数える。
+func countCargoDeps(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	n, inDeps := 0, false
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.HasPrefix(line, "[") {
+			inDeps = line == "[dependencies]" || line == "[dev-dependencies]"
+			continue
+		}
+		if inDeps {
+			n++
+		}
+	}
+	return n
+}
+
+// countRequirementsDeps は requirements.txt の非空・非コメント行を数える。
+func countRequirementsDeps(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
 // scanRepository performs the scanning logic.
 func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 	absPath, err := filepath.Abs(repoPath)
@@ -184,12 +290,7 @@ func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 	// 1. Git Info
 	repoName, err := runCommand(ctx, absPath, "git", "config", "--get", "remote.origin.url")
 	if err == nil && repoName != "" {
-		parts := strings.Split(repoName, "/")
-		if len(parts) >= 2 {
-			result.RepoName = strings.TrimSuffix(parts[len(parts)-2]+"/"+parts[len(parts)-1], ".git")
-		} else {
-			result.RepoName = repoName
-		}
+		result.RepoName = parseRepoName(repoName)
 	} else {
 		result.RepoName = filepath.Base(absPath)
 	}
@@ -210,6 +311,9 @@ func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 	if err == nil && recentCommitStr != "" {
 		result.RecentCommits = len(strings.Split(strings.TrimSpace(recentCommitStr), "\n"))
 	}
+
+	// 1.5 依存パッケージ数（MP の素）
+	result.DepCount = countDependencies(absPath)
 
 	// 2. 開発 CLI の検出（持ち物表示）。rg があれば TODO 数え方にも流用する。
 	result.Tools = detectTools()
@@ -262,7 +366,7 @@ func scanRepository(ctx context.Context, repoPath string) (*ScanResult, error) {
 			result.HasLinter = true
 		}
 
-		if strings.Contains(path, "/.github/workflows/") && (strings.HasSuffix(filename, ".yml") || strings.HasSuffix(filename, ".yaml")) {
+		if strings.Contains(filepath.ToSlash(path), "/.github/workflows/") && (strings.HasSuffix(filename, ".yml") || strings.HasSuffix(filename, ".yaml")) {
 			result.HasGitHubCI = true
 		}
 
@@ -344,16 +448,11 @@ func buildRPGStats(scan *ScanResult, repoPath string) *RPGStats {
 	depth := fmt.Sprintf("地下 %d 階 (B%dF) ＋ %d 歩", depthF, depthF, depthSteps)
 
 	maxHP := 100 + (scan.TotalLoc / 50)
-	depCount := 5
-	if scan.HasDocker {
-		depCount += 3
-	}
-	if scan.HasGitHubCI || scan.HasGitLabCI {
-		depCount += 4
-	}
-	maxMP := depCount * 10
+	// MP（魔力）は依存パッケージ数（go.mod / package.json など）に見立てる。
+	// 5 は素の魔力。依存が多いほど MP が伸びる。
+	maxMP := (5 + scan.DepCount) * 10
 
-	atk := scan.RecentCommits * 3 + 10
+	atk := scan.RecentCommits*3 + 10
 	if atk > 999 {
 		atk = 999
 	}
