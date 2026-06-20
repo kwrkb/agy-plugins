@@ -1,5 +1,26 @@
 # LESSONS（実装知見ログ）
 
+## 2026-06-20: settings-advisor の bot レビュー対応（PR #16）
+
+### 学んだこと
+
+#### 45. テストが通っていてもバグはカバーされていない場合がある — 「なぜ通るのか」をトレースし、修正条件を単独で再現する回帰テストを足す
+
+settings-advisor の tier 判定に `else if lines<30000 || langs<=2`（本来 `&&`）のバグがあり、「大規模・単一言語リポジトリが heavy に到達しない」状態だった。だが既存テスト `Heavy workspace`（40000行/3言語）は**緑のまま**だった。理由を追うと、そのケースの `task_hint` が `"Refactoring architecture"` で `heavyKeywords`（refactor/architecture）に一致し、**tier 判定式とは別経路の override で heavy になっていた**＝バグのある式を一度も実行していなかった。バグ修正（`||`→`&&`）後も全テストが緑のままなのは、テストが修正点を触っていない証拠でしかない。
+- **ルール**: 条件式のバグを直す前に、**その式を実際に通す最小入力で失敗する回帰テストを先に書く**（ここでは `{100000行, 1言語, task_hint=""}` → `heavy` 期待。override が効かない空 hint が肝）。修正後に既存テストが緑でも安心せず、「**追加したテストが修正前に赤だったか**」で初めてカバレッジを証明する。
+- **ルール**: De Morgan で意味を確認してから直す。`mid = (lines<30000 && langs<=2)` は `heavy = (lines>=30000 || langs>=3)`＝「大規模 **または** 多言語」。`&&` への変更は最小かつ正しい定義であり、「小規模・多言語が heavy になる」のは副作用ではなく意図した分類（bot 提案を redesign せずそのまま採る根拠になる）。
+
+#### 46. `bufio.Scanner`(64KB 行長制限) を `bufio.Reader.ReadSlice` に置換する時は、末尾改行なしの最終行を取りこぼさない
+
+`bufio.Scanner` は既定で 1 行 64KB 上限があり、ミニファイ JS・巨大 JSON 等の長い行で `bufio.ErrTooLong` により**そのファイルのカウントが途中停止**する。`bufio.Reader.ReadSlice('\n')` 化で行長制限を外せる（`ErrBufferFull` は「改行未到達」として継続）。ただし bot 提案そのままの実装には**末尾に改行が無い最終行を数えない**落とし穴がある（`Scanner` は数える）。`ReadSlice` は EOF 時に**残データを返す**ので、`io.EOF` 分岐で `len(line) > 0` なら `count++` してから break する必要がある。
+- **ルール**: `Scanner`→`ReadSlice` 置換時は `err == io.EOF` 分岐で `if len(line) > 0 { count++ }` を入れ、改行で終わらないファイルでも `Scanner` と同じ行数になることをテスト/手計算で確認する。bot のサンプルコードを鵜呑みにせず境界（EOF・バッファ満杯）の挙動を自分で詰める。
+
+#### 47. 単一値の推奨キーで複数条件が競合する時は、より安全/厳格な分岐を `if` の先頭に置く
+
+`toolPermission` は**単一値**なのに、`HasCI`（→`proceed-in-sandbox`）と `HasProdConfig`（→`strict`）が独立に立ちうる。元コードは `if HasCI {...} else if HasProdConfig {...}` の順で、**CI と本番設定が共存するリポジトリでは緩い `proceed-in-sandbox` が勝ち、本番検出時の `strict` が出なかった**（CI ファイルは本番リポジトリにも普通に存在するため実害が大きい）。
+- **ルール**: 単一値キーに複数の検出条件がマップされる場合、`if/else if` の**評価順 = 優先順位**であることを意識し、**より厳格・安全側（ここでは `strict`）を先に判定**する。「どちらも真のとき何が出るべきか」を必ず1ケース書いてテストで固定する。
+- **メモ**: Windows パスで `.github/workflows` を `strings.Contains` 一致できないバグ（#39②）が、**新規プラグイン settings-advisor で再発**した。既知の LESSON は新コードに自動適用されない。バイナリ同梱プラグインを新設したら `filepath.ToSlash`・nil 引数フォールバック（#39③）等の既存教訓を**着手前チェックリストとして当てる**。
+
 ## 2026-06-20: agy 1.0.10 での hooks/rules 実機再検証
 
 ### 学んだこと
