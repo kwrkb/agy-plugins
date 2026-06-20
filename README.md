@@ -10,6 +10,7 @@
 | **[gitlab](./gitlab/README.md)** | GitLab の Issues / MR / プロジェクト等を操作する MCP サーバー |
 | **[agy-plugin-kit](./agy-plugin-kit/README.md)** | agy プラグイン開発メタ・ヘルパー（雛形生成・静的検査・Issue #390 パス修正・doc 生成） |
 | **[ast-grep](./ast-grep/README.md)** | `ast-grep` (`sg`) を利用してコード構造の検索・安全なリファクタリングを行う MCP サーバー |
+| **[retro-status](./retro-status/README.md)** | リポジトリをスキャンし、RPGのレトロステータス画面風のAA（アスキーアート）で出力する MCP サーバー |
 | **[settings-advisor](./settings-advisor/README.md)** | ワークスペースの規模・言語・機密/CI/本番設定を解析し、最適なモデル・サンドボックス・許可モードを控えめに提案する MCP サーバー |
 
 ## インストール方法
@@ -47,6 +48,8 @@ agy plugin install https://github.com/kwrkb/agy-plugins/settings-advisor
 | ast-grep | `ast-grep`（CLI, PATH 上） | 不要 |
 
 ### 同梱プラットフォームと self-build
+
+✅ **全プラグインの Windows ネイティブ動作検証済み**
 
 Go 製プラグイン（`github` / `ast-grep` / `retro-status` / `settings-advisor` / `agy-plugin-kit` の validator）は **`linux/amd64` / `darwin/arm64`（Apple Silicon）/ `windows/amd64`** のネイティブバイナリを `bin/` に同梱しています。`bin/<name>` の OS 分岐 dispatcher が `uname` から `<name>-<goos>-<goarch>` を算出して exec します（Windows は agy が `.exe` を直接起動）。
 
