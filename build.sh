@@ -43,14 +43,16 @@ case "$target" in
 	validator)    build agy-plugin-kit/validator validator ;;
 	ast-grep)     build ast-grep ast-grep ;;
 	retro-status) build retro-status retro-status ;;
+	settings-advisor) build settings-advisor settings-advisor ;;
 	all)
 		build github github
 		build agy-plugin-kit/validator validator
 		build ast-grep ast-grep
 		build retro-status retro-status
+		build settings-advisor settings-advisor
 		;;
 	*)
-		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | all)" >&2
+		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | settings-advisor | all)" >&2
 		exit 2
 		;;
 esac
