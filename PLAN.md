@@ -108,3 +108,12 @@ macOS 予備検証（§6 旧版）を Linux で厳密再現し、機構を確定
 - [x] upstream **#396** をスコープ縮小コメントで更新（project `.agents/AGENTS.md` 解消・plugin/global 3経路は継続非注入／[comment](https://github.com/google-antigravity/antigravity-cli/issues/396#issuecomment-4755551315)）
   > #390（`${extensionPath}`/`${/}` 置換）は今回見送り。1.0.10 でも再現する事実は §6.1／LESSONS #42 に記録済み。
 
+## フェーズ7: 設定アドバイザー (settings-advisor) プラグインの追加（完了）
+
+- [x] `settings-advisor/gemini-extension.json` の作成
+- [x] `settings-advisor/models.json` によるモデル仕様の定義
+- [x] `settings-advisor/skills/settings-advisor-gemini/SKILL.md` の作成（AI別接尾辞 `-gemini` ルール準拠）
+- [x] `settings-advisor/src/main.go` / `main_test.go` / `go.mod` / `go.sum` 実装およびテストパス確認
+- [x] dispatcher `settings-advisor/bin/settings-advisor` 作成および実行ビット `100755` 設定
+- [x] 全体ビルドスクリプト (`build.sh`, `build.ps1`) への追加と決定論ビルド成功確認
+

@@ -1,0 +1,12 @@
+{
+  "models": [
+    {"id": "gemini-3.5-flash-low",      "name": "Gemini 3.5 Flash (Low)",        "tier": "light", "traits": ["fast", "cheap"]},
+    {"id": "gemini-3.5-flash-medium",   "name": "Gemini 3.5 Flash (Medium)",     "tier": "light", "traits": ["fast", "balanced"]},
+    {"id": "gemini-3.5-flash-high",     "name": "Gemini 3.5 Flash (High)",       "tier": "mid",   "traits": ["accurate", "cost-effective"]},
+    {"id": "gemini-3.1-pro-low",        "name": "Gemini 3.1 Pro (Low)",          "tier": "mid",   "traits": ["accurate", "context-long"]},
+    {"id": "gemini-3.1-pro-high",       "name": "Gemini 3.1 Pro (High)",         "tier": "heavy", "traits": ["most-accurate", "context-long"]},
+    {"id": "claude-sonnet-4.6",         "name": "Claude Sonnet 4.6 (Thinking)",  "tier": "mid",   "traits": ["instruction-following", "format-strict"]},
+    {"id": "claude-opus-4.6",           "name": "Claude Opus 4.6 (Thinking)",    "tier": "heavy", "traits": ["deep-reasoning", "multi-perspective"]},
+    {"id": "gpt-oss-120b",             "name": "GPT-OSS 120B (Medium)",          "tier": "mid",   "traits": ["open-source", "quota-independent"]}
+  ]
+}
