@@ -131,6 +131,39 @@ func TestGenerateRecommendations(t *testing.T) {
 		}
 	})
 
+	// テストケース 2b: 大規模・単一言語（task_hint なし）→ heavy
+	// 旧 `||` ロジックでは len(Languages)<=2 が真のため誤って mid に落ちていた回帰防止。
+	t.Run("Large monolingual workspace reaches heavy", func(t *testing.T) {
+		metrics := WorkspaceMetrics{
+			TotalLines: 100000,
+			Languages:  []string{"go"},
+		}
+		rec := generateRecommendations(metrics, modelCfg, "")
+		if rec.ModelTier != "heavy" {
+			t.Errorf("Expected tier 'heavy' for large monolingual repo, got '%s'", rec.ModelTier)
+		}
+	})
+
+	// テストケース 2c: 本番設定と CI が共存 → strict を優先
+	t.Run("Prod config takes precedence over CI", func(t *testing.T) {
+		metrics := WorkspaceMetrics{
+			TotalLines:    1000,
+			Languages:     []string{"go"},
+			HasCI:         true,
+			HasProdConfig: true,
+		}
+		rec := generateRecommendations(metrics, modelCfg, "")
+		var perm string
+		for _, s := range rec.Settings {
+			if s.Key == "toolPermission" {
+				perm, _ = s.Suggested.(string)
+			}
+		}
+		if perm != "strict" {
+			t.Errorf("Expected toolPermission='strict' when prod config present, got '%s'", perm)
+		}
+	})
+
 	// テストケース 3: 特化キーワード (Sonnet)
 	t.Run("Specialized task - Sonnet", func(t *testing.T) {
 		metrics := WorkspaceMetrics{

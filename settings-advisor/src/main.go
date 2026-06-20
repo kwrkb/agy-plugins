@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -140,7 +141,10 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // エラーは無視して走査を続ける
+			if path == root {
+				return err // ルートパス自体のエラー（存在しない/権限なし）は呼び出し元に伝播
+			}
+			return nil // 走査中の個別エラーは無視して続行
 		}
 
 		if info.IsDir() {
@@ -159,8 +163,9 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 			metrics.HasEnv = true
 		}
 
-		// CI/CD 検知
-		if strings.Contains(path, ".github/workflows") {
+		// CI/CD 検知。Windows では filepath.Walk が "\" 区切りを返すため、
+		// スラッシュ正規化してから判定する。
+		if strings.Contains(filepath.ToSlash(path), ".github/workflows") {
 			metrics.HasCI = true
 		}
 
@@ -217,12 +222,30 @@ func countLines(filePath string) (int, error) {
 		return 0, nil
 	}
 
-	scanner := bufio.NewScanner(file)
+	// bufio.Scanner は既定 64KB の行長制限があり、ミニファイ JS/巨大 JSON 等の長い行で
+	// ErrTooLong により途中停止する。ReadSlice はバッファ満杯を継続扱いにでき、行長制限なしで
+	// 安全かつ低割り当てに行数をカウントできる。
+	r := bufio.NewReader(file)
 	count := 0
-	for scanner.Scan() {
-		count++
+	for {
+		line, err := r.ReadSlice('\n')
+		if err == nil {
+			count++
+			continue
+		}
+		if err == bufio.ErrBufferFull {
+			continue // 1行がバッファを超過。改行はまだなのでカウントせず継続
+		}
+		if err == io.EOF {
+			// 末尾に改行が無い最終行を取りこぼさない（Scanner と同じ数え方）
+			if len(line) > 0 {
+				count++
+			}
+			break
+		}
+		return count, err
 	}
-	return count, scanner.Err()
+	return count, nil
 }
 
 func loadModelsConfig() (ModelConfig, error) {
@@ -232,6 +255,10 @@ func loadModelsConfig() (ModelConfig, error) {
 	exePath, err := os.Executable()
 	var searchPaths []string
 	if err == nil {
+		// dispatcher 等の symlink 経由起動でも実体から相対解決できるよう実パスに正規化
+		if evalPath, evalErr := filepath.EvalSymlinks(exePath); evalErr == nil {
+			exePath = evalPath
+		}
 		// bin/settings-advisor の親の親に models.json がある想定
 		pluginRoot := filepath.Dir(filepath.Dir(exePath))
 		searchPaths = append(searchPaths, filepath.Join(pluginRoot, "models.json"))
@@ -284,7 +311,9 @@ func generateRecommendations(metrics WorkspaceMetrics, modelCfg ModelConfig, tas
 	tier := "light"
 	if metrics.TotalLines < 5000 && len(metrics.Languages) <= 1 {
 		tier = "light"
-	} else if metrics.TotalLines < 30000 || len(metrics.Languages) <= 2 {
+	} else if metrics.TotalLines < 30000 && len(metrics.Languages) <= 2 {
+		// mid = 小規模 かつ 少言語。これにより heavy = 大規模 または 多言語（>=3）となり、
+		// 大規模な単一言語リポジトリも正しく heavy に分類される。
 		tier = "mid"
 	} else {
 		tier = "heavy"
@@ -375,19 +404,20 @@ func generateRecommendations(metrics WorkspaceMetrics, modelCfg ModelConfig, tas
 		})
 	}
 
-	// Permissions
-	if metrics.HasCI {
-		result.Settings = append(result.Settings, RecommendedSetting{
-			Key:       "toolPermission",
-			Suggested: "proceed-in-sandbox",
-			Reason:    "CI/CD 設定ファイル変更の可能性",
-			Command:   "/settings",
-		})
-	} else if metrics.HasProdConfig {
+	// Permissions（toolPermission は単一値のため、より厳格な strict を優先。
+	// CI と本番設定が共存するリポジトリでも本番検出時は strict を提示する）
+	if metrics.HasProdConfig {
 		result.Settings = append(result.Settings, RecommendedSetting{
 			Key:       "toolPermission",
 			Suggested: "strict",
 			Reason:    "本番設定ファイル検出",
+			Command:   "/settings",
+		})
+	} else if metrics.HasCI {
+		result.Settings = append(result.Settings, RecommendedSetting{
+			Key:       "toolPermission",
+			Suggested: "proceed-in-sandbox",
+			Reason:    "CI/CD 設定ファイル変更の可能性",
 			Command:   "/settings",
 		})
 	}
