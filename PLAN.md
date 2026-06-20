@@ -116,4 +116,57 @@ macOS 予備検証（§6 旧版）を Linux で厳密再現し、機構を確定
 - [x] `settings-advisor/src/main.go` / `main_test.go` / `go.mod` / `go.sum` 実装およびテストパス確認
 - [x] dispatcher `settings-advisor/bin/settings-advisor` 作成および実行ビット `100755` 設定
 - [x] 全体ビルドスクリプト (`build.sh`, `build.ps1`) への追加と決定論ビルド成功確認
+- [x] PR #16 レビュー指摘対応（行カウント/tier判定/Windowsパス/権限優先）・squash マージ完了
+  > bot（gemini/codex）10指摘を現コードへトレースし採用6・stale 2に分類。tier の `||`→`&&` バグと Windows パス検知失敗（実機で再現→解消）を修正、回帰テスト2件追加。Go 1.26.4 で全 OS 再ビルドし CI 4チェック pass。LESSONS #45（テスト緑≠カバー）/#46（Scanner→ReadSlice の末尾行）/#47（単一値キーの優先順位）。
 
+## フェーズ8: Codex Security リポジトリスキャン（完了）
+
+### 目的
+
+- `C:\Users\kiwar\Code\agy-plugins` 全体を対象に Codex Security の repository-wide scan を実施し、脅威モデル、発見、検証、attack-path 分析、最終レポートを成果物として残す。
+
+### 変更対象ファイル
+
+- `PLAN.md`
+- スキャン成果物: `C:\tmp\codex-security-scans\agy-plugins\085d813_20260617-002836\`
+
+### 主要ステップ
+
+- [x] スキャンスキル、成果物パス規約、hard rules を確認
+- [x] サブエージェント利用承認を取得
+- [x] Codex goal を作成
+- [x] threat-model フェーズ
+- [x] finding-discovery フェーズ
+- [x] validation フェーズ
+- [x] attack-path-analysis フェーズ
+- [x] final markdown / HTML report 作成
+
+### 確認方法
+
+- 各フェーズの成果物が規定パスに存在すること
+- coverage ledger が対象ファイルまたは worklist row を `reportable` / `suppressed` / `not_applicable` / `deferred` のいずれかで閉じていること
+- candidate ledger が discovery / validation / attack-path receipt を持つこと
+- `report.md` と `report.html` が作成されていること
+
+### 想定リスク（影響範囲）
+
+- 既存未追跡ファイル `github/mcpServers/` はユーザー作業として扱い、巻き戻さない。
+- スキャン成果物はリポジトリ外 `C:\tmp\codex-security-scans\agy-plugins\...` に保存し、ソースツリーへの変更は `PLAN.md` の進捗更新に限定する。
+- repository-wide scan はファイル数に応じて時間がかかるため、coverage ledger に明示的な deferred closure が必要になる可能性がある。
+
+### 結果
+
+- repository-wide Codex Security scan 完了。
+- 最終レポート:
+  - `C:\tmp\codex-security-scans\agy-plugins\085d813_20260617-002836\report.md`
+  - `C:\tmp\codex-security-scans\agy-plugins\085d813_20260617-002836\report.html`
+- Reportable findings:
+  - `FD-KITVAL-001`: validator `--fix-paths` が symlinked `mcp_config.json` を辿り、選択 plugin 外の config を書き換え可能（medium / P2）。
+  - `FD-KITCMD-001`: `/agy-plugin-kit:doc` が対象 plugin の CLI `--help` 実行を trust/confirmation gate なしで指示する（medium / P2）。
+- `rank_input.csv` / `deep_review_input.csv` は 15 行、`work_ledger.jsonl` は 15 receipt。
+- `report.md` は Codex Security report validator 通過済み。`report.html` 生成済み。
+
+### 未解決事項
+
+- `github/mcpServers/` はスキャン前から未追跡の既存作業として残した。
+- スキャンは report 生成まで完了。修正実装は未実施。
