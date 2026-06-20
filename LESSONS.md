@@ -6,9 +6,9 @@
 
 #### 41. agy 1.0.10 でプロジェクト固有ルール（.agents/AGENTS.md）が注入可能に — ただしプラグインルールは依然非機能
 
-1.0.10 において、プロジェクトのワークスペースルートに配置した `.agents/AGENTS.md` の中身が、エージェントセッションのシステムプロンプト `<user_rules>` 内に `<RULE[/path/to/.agents/AGENTS.md]>` の形式で正しく自動注入されるようになった（1.0.9 までの非機能バグが解消）。
-一方で、プラグイン固有のルール（プラグイン内 `rules/` の md ファイルや `plugin.json` 内の `"rules"` 定義）は引き続きシステムプロンプトに注入されない。
-- **ルール**: プロジェクト全体の規約は `.agents/AGENTS.md` で管理し、プラグイン固有の規約は `skills/<name>/SKILL.md` (スキル) に定義してエージェントに必要に応じて読み込ませる方針を継続する。
+1.0.10 において、プロジェクトのワークスペースルートに配置した `.agents/AGENTS.md` の中身が、エージェントセッションのシステムプロンプト `<user_rules>` 内に `<RULE[/path/to/.agents/AGENTS.md]>` の形式で正しく自動注入されるようになった（1.0.9 までの非機能バグが解消）。**Linux・clean install・新規対話セッションで 4経路に一意 marker を仕込んで再現確認済み**: `.agents/AGENTS.md`（✅注入）／プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules/*.md`（いずれも ❌非注入で継続）。
+- **機構（strings 解析）**: `customizations.agentsCustomization` が **2つの Customization Root**（Global Customizations Root の `AGENTS.md`／Workspace Customizations Root ＝ `<project-root>/.agents/`）から `AGENTS.md` を discover し、`mixins.UserRulesSection`（`formatMemoriesAsPrompt`）が `<RULE[%s]>` 形式で `<user_rules>` に整形注入する。1.0.9 では `<user_rules>` は Memories 専用で customizations discovery は別系統だった（#35「discover ≠ inject」）が、**1.0.10 で `agentsCustomization` の `AGENTS.md` が初めて `UserRulesSection` に配線された**。プラグイン rules/ 等は Customization Root の `AGENTS.md` に該当しない＝discover 対象外なので非注入のまま。changelog に rules/`.agents` の記述はゼロ（実機再検証が必須＝#35 再々確認）。
+- **ルール**: プロジェクト全体の規約は `.agents/AGENTS.md` で管理できるが、**プラグインの知識を `skills/` から `rules/` へ移行することは依然できない**。プラグイン固有の規約は `skills/<name>/SKILL.md` に定義してエージェントに必要に応じて読み込ませる方針を継続する（#22/#35）。
 
 #### 42. agy の hooks はアクティブなセッションへ動的にリロードされる
 

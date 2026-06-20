@@ -95,3 +95,16 @@ agy 1.0.9 から 1.0.10 へのアップデートに伴い、フック（hooks）
 - [x] 検証結果を `hook-investigation-report.md` に追記
 - [x] `PLAN.md` と `LESSONS.md` の更新
 
+### フェーズ6 追補: Linux 実機再現・機構解析・全伝播（2026-06-20）
+
+macOS 予備検証（§6 旧版）を Linux で厳密再現し、機構を確定して全ドキュメントへ伝播した。
+
+- [x] **Linux・4経路 marker・clean install・新規セッション**で `<user_rules>` を逐語ダンプ再現
+  > `.agents/AGENTS.md`=✅注入／プラグイン `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules`=❌全滅。出力は `RULE-AGENTS-110-OK` のみ。
+- [x] **strings 機構解析**: `customizations.agentsCustomization`（Global / Workspace=`.agents/` の2 Customization Root から `AGENTS.md` discover）→ `mixins.UserRulesSection` が `<RULE[%s]>` 整形。1.0.9 の「discover ≠ inject」が `AGENTS.md` 経路のみ配線された（`hook-investigation-report.md` §6.3）。
+- [x] 確定見出しを全 doc/memory へ伝播（CLAUDE.md / README.md / agy-plugin-kit/README.md / LESSONS #41-42 / メモリ3件 + MEMORY.md）
+  > 見出し: **rules が使えるのは project `.agents/AGENTS.md` だけ。プラグイン rules/ は依然不可＝skills/ 維持。**
+- [x] 検証フィクスチャ（使い捨てプラグイン・グローバル rule・ルート `.agents/AGENTS.md`）を撤去（リポジトリ常設せず）
+- [x] upstream **#396** をスコープ縮小コメントで更新（project `.agents/AGENTS.md` 解消・plugin/global 3経路は継続非注入／[comment](https://github.com/google-antigravity/antigravity-cli/issues/396#issuecomment-4755551315)）
+  > #390（`${extensionPath}`/`${/}` 置換）は今回見送り。1.0.10 でも再現する事実は §6.1／LESSONS #42 に記録済み。
+
