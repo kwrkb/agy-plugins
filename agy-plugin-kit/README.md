@@ -83,9 +83,11 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 **agy 1.0.9 で再検証した結果、payload に `toolCall.args.TargetFile`（編集ファイル絶対パス）が入り、
 2 回目以降の編集・`agy -p` でも発火、自前バイナリを PWD 相対で呼べる**ようになったため再導入した
 （#395 は解決済みでクローズ／詳細はリポジトリ LESSONS #34、`hook-investigation-report.md` §5）。
-なお `${extensionPath}` 非置換（[#390](https://github.com/google-antigravity/antigravity-cli/issues/390)）と
-`rules/` 非機能（[#396](https://github.com/google-antigravity/antigravity-cli/issues/396)・知識は `skills/` で渡す）は
-1.0.9 でも未解決で継続。
+**agy 1.0.10 ではフックの動的リロードを確認**（install 後、親セッションに次ツール実行から自動適用＝再起動不要、LESSONS #42／§6.1）。
+なお `${extensionPath}` 非置換（[#390](https://github.com/google-antigravity/antigravity-cli/issues/390)）は 1.0.10 でも継続。
+`rules/` はプラグイン経路（プラグイン内 `rules/`・`plugin.json "rules"`・グローバル `~/.gemini/rules`）が
+[#396](https://github.com/google-antigravity/antigravity-cli/issues/396) で**依然非機能**（知識は `skills/` で渡す）。
+ただし **1.0.10 でプロジェクトルートの `.agents/AGENTS.md` のみ注入されるようになった**（LESSONS #41／§6）。
 
 ## ライセンス
 

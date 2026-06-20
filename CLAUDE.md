@@ -55,8 +55,8 @@ ls ~/.gemini/antigravity-cli/mcp/github/   # 新サーバーなら gh_command.js
 - **`${extensionPath}` 解決条件**: ソースに `gemini-extension.json` があり `plugin.json` が**無い**時のみ解決（#1）。同梱バイナリ参照プラグインは前者構成。
 - **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。
 - **検証は MCP キャッシュのツール名で**: mtime 更新だけでなく中身（ツール名）で新サーバーを別人確認（#25）。
-- **agy の `rules/` は非機能**（1.0.8／**1.0.9 でも再確認** #35）。プラグインからエージェントへ渡す知識は `skills/` で（#22）。
-- **agy の hooks は 1.0.9 で部分的に機能化**: `PostToolUse` payload の `toolCall.args.TargetFile` に編集ファイル絶対パスが入り、2回目以降の編集・`agy -p` でも発火、自前バイナリは PWD 相対で呼べる（#34）。ただし payload は agy 独自スキーマ／`${extensionPath}` 未置換は不変。1.0.8 では全面非機能だった（#18-21）。
+- **agy の `rules/` は非機能（プラグイン経路）／プロジェクト `.agents/AGENTS.md` は 1.0.10 で機能化**（#41）。1.0.10 でワークスペースルート `.agents/AGENTS.md` は `<user_rules>` に `<RULE[...]>` 注入される（`customizations.agentsCustomization`→`UserRulesSection`、Linux 再現済み）が、**プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules` は依然非注入**（1.0.8/1.0.9 #22/#35）。**プラグインからエージェントへ渡す知識は引き続き `skills/` で**（`rules/` への移行は不可）。
+- **agy の hooks は 1.0.9 で部分機能化・1.0.10 で動的リロード確認**: `PostToolUse` payload の `toolCall.args.TargetFile` に編集ファイル絶対パスが入り、2回目以降の編集・`agy -p` でも発火、自前バイナリは PWD 相対で呼べる（#34）。1.0.10 では install したフックが**親セッションに次ツール実行から動的適用**される（再起動不要 #42）。ただし payload は agy 独自スキーマ／`${extensionPath}` 未置換・`${/}` は `Bad substitution` 継続は不変。1.0.8 では全面非機能だった（#18-21）。
 
 ## ドキュメント地図
 

@@ -86,11 +86,11 @@ Pythonで取得した `os.getcwd()` の結果は以下の通りだった。
 - 自動バリデーションの夢は一旦捨て、確実なコマンドトリガー（`/agy-plugin-kit:validate` や `:doctor`）に依存する設計を標準とする。
 - 将来のアップデートで、フックのペイロードに `toolCall` や `file_path` が格納されるようになり、変数置換バグが修正されたタイミングで再導入を検討する。
 
-**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 実施結果を反映＝§5）**
-- [x] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）→ **✅ 1.0.9 で解消**（`toolCall.args.TargetFile`）
-- [ ] `hooks.json` 内の `${extensionPath}` / `${/}` が実行時に置換されるようになったか（§2 事実2）→ **❌ 1.0.9 でも未置換**（`${/}` は未再検証）
-- [x] フックが対話セッションで安定発火するようになったか（§2 事実4）→ **✅ 1.0.9 で改善**（2回目以降の編集・`-p` でも発火、n=2）
-- [ ] `rules/`（プラグイン内 / `plugin.json` / グローバル）がシステムプロンプトに注入されるようになったか（§4）→ **❌ 1.0.9 でも3パターン全滅**
+**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 ＝§5、2026-06-20 / agy 1.0.10 ＝§6）**
+- [x] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）→ **✅ 1.0.9 で解消**（`toolCall.args.TargetFile`）／1.0.10 不変
+- [ ] `hooks.json` 内の `${extensionPath}` / `${/}` が実行時に置換されるようになったか（§2 事実2）→ **❌ 1.0.9／1.0.10 とも未置換**（`${/}` は `Bad substitution` でクラッシュ継続）
+- [x] フックが対話セッションで安定発火するようになったか（§2 事実4）→ **✅ 1.0.9 で改善**（n=2）／**1.0.10 で動的リロード確認**（親セッションに次ツール実行から自動適用＝§6.1）
+- [~] `rules/`（プラグイン内 / `plugin.json` / グローバル）がシステムプロンプトに注入されるか（§4）→ **❌ 3経路は 1.0.9／1.0.10 とも全滅**。ただし **1.0.10 でプロジェクト `.agents/AGENTS.md`（Workspace Customizations Root）のみ ✅ 注入**（§6.2／機構は §6.3）
 
 ---
 
@@ -164,10 +164,40 @@ changelog 1.0.4「`rules.json` の allowlist 無視を修正し `.md` rule を l
 - **変数置換バグの継続**: `${extensionPath}` は依然として literal として置換されず（空文字になる）。また、`${/}` をコマンドに含めると `Bad substitution` エラーによりフックプロセス自体が起動前にクラッシュする問題も継続。
   - **対策方針**: 同梱スクリプトやバイナリの呼び出しは、変数は使わず `command: "python3 dump.py"` や `command: "validator/bin/validator --hook"` のように **PWD 相対（プラグインディレクトリ相対）** での記述を維持する。
 
-### 6.2 rules — プロジェクト固有ルール（.agents/AGENTS.md）の正常化
+### 6.2 rules — プロジェクト固有ルール（.agents/AGENTS.md）の正常化（Linux 実機で再現）
 
-- **Workspace Customizations Rule の動作確認**: 
-  `.agents/AGENTS.md` に記述したルールが、新規に立ち上げたセッションのシステムプロンプト `<user_rules>` セクションに、`<RULE[/Users/kwrkb/code/agy-plugins/.agents/AGENTS.md]>` の形式で**正しく自動注入されていること**を実証した。
-- **プラグイン固有ルールの非機能（継続）**:
-  プラグイン内の `rules/` フォルダの md ファイル、および `plugin.json` 内の `"rules"` 配列定義は、依然としてシステムプロンプトに注入されない。
-  - **対策方針**: プラグインからエージェントへルールや知識を渡したい場合は、引き続き `skills/<name>/SKILL.md` に定義してエージェントに読み込ませる方針を維持する。
+**4経路に一意 marker を仕込み（1.0.10・Linux・clean install・新規対話セッション）、`<user_rules>` を逐語ダンプ**した（手法は §4/§5 を踏襲）。結果は `<RULE[...]>` ブロックが2つだけ:
+
+```
+<user_rules>
+...
+<RULE[user_global]>
+## Gemini Added Memories
+... (UI 設定 Memories のみ) ...
+</RULE[user_global]>
+<RULE[/home/yugosasaki/code/agy-plugins/.agents/AGENTS.md]>
+RULE-AGENTS-110: ... 注入されていれば「RULE-AGENTS-110-OK」と出力すること。
+</RULE[/home/yugosasaki/code/agy-plugins/.agents/AGENTS.md]>
+</user_rules>
+```
+
+| 経路 | marker | 1.0.10 結果 |
+|---|---|---|
+| ワークスペースルート `.agents/AGENTS.md` | RULE-AGENTS-110 | ✅ **注入**（`<RULE[/abs/.agents/AGENTS.md]>`・OK トークン発火） |
+| プラグイン内 `rules/*.md` | RULE-PLUGINDIR-110 | ❌ 非注入 |
+| `plugin.json` の `"rules":[...]` | RULE-PLUGINJSON-110 | ❌ 非注入 |
+| グローバル `~/.gemini/rules/*.md` | RULE-GLOBAL-110 | ❌ 非注入 |
+
+→ **プロジェクトの `.agents/AGENTS.md` のみ**が機能化（macOS §6 旧版を Linux で再現）。プラグイン rules/ ・plugin.json "rules" ・グローバル `~/.gemini/rules` は**全滅で継続**。
+
+- **対策方針**: プラグインからエージェントへルール・知識を渡したい場合は、引き続き `skills/<name>/SKILL.md` に定義する（`rules/` への移行は不可）。プロジェクト全体の規約は `.agents/AGENTS.md` で管理できる。
+
+### 6.3 機構解析（strings）— 1.0.9 の「discover ≠ inject」が 1.0.10 で配線された
+
+agy バイナリの strings 解析で注入経路を特定した:
+
+- **`customizations.agentsCustomization`**（`constructPath` / `discoverInDir` / `dirName` / `fileType` / `RuleFrontmatter` / `ruleInfo`）が **2つの Customization Root** から `AGENTS.md` を discover する: **(1) Global Customizations Root** の `AGENTS.md`、**(2) Workspace Customizations Root** ＝ `<project-root>/.agents/`（プロンプト template に `Path: ".agents" (relative to the workspace root)` と明記）。
+- discover された `AGENTS.md` を **`mixins.UserRulesSection`**（`formatMemoriesAsPrompt`）が `<RULE[%s]>…</RULE[%s]>` 形式で `<user_rules>` に整形する。`<RULE[user_global]>`（Memories）と `<RULE[/abs/.agents/AGENTS.md]>` は同じ `UserRulesSection` 経由。
+- **1.0.9 との差**: 1.0.9 の strings 解析では `<user_rules>` は Memories 専用で、`rules.json` 等の customizations discovery は別マニフェスト系統で**プロンプトに到達しなかった**（§5.4「discover ≠ inject」）。1.0.10 は `agentsCustomization` の `AGENTS.md` が初めて `UserRulesSection` に**配線**された。
+- **プラグイン rules/ 等が依然非注入の理由**: それらは Customization Root の `AGENTS.md` ではない（プラグイン `rules/*.md` / `plugin.json "rules"` / `~/.gemini/rules/*.md` はいずれも customization root の `AGENTS.md` に該当しない）ため `agentsCustomization` の discover 対象外。
+- **changelog 上の記述はゼロ**: 1.0.10 changelog に rules/`.agents` の明示なし（#35「changelog に記述が無くても挙動は変わりうる＝実機再検証」を再々確認）。
