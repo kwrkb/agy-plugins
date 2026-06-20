@@ -7,8 +7,19 @@
 # bypassing this script. Keep stdout clean — errors go to stderr only.
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 base=validator
-case "$(uname -s)/$(uname -m)" in
-  Darwin/arm64) exec "$dir/${base}-darwin-arm64" "$@" ;;
-  Linux/x86_64) exec "$dir/${base}-linux-amd64"  "$@" ;;
-  *) echo "agy-plugins: unsupported platform $(uname -s)/$(uname -m)" >&2; exit 1 ;;
+# Compute Go GOOS/GOARCH from uname; the binary name matches build.sh output.
+case "$(uname -s)" in
+  Linux)  goos=linux  ;;
+  Darwin) goos=darwin ;;
+  *) echo "agy-plugins: unsupported OS $(uname -s)" >&2; exit 1 ;;
 esac
+case "$(uname -m)" in
+  x86_64|amd64)  goarch=amd64 ;;
+  aarch64|arm64) goarch=arm64 ;;
+  *) echo "agy-plugins: unsupported arch $(uname -m)" >&2; exit 1 ;;
+esac
+# Platforms whose binary is not committed (e.g. linux/arm64, darwin/amd64)
+# self-serve: build natively and the dispatcher picks it up — no edit needed.
+bin="$dir/${base}-${goos}-${goarch}"
+[ -x "$bin" ] || { echo "agy-plugins: no prebuilt binary for ${goos}/${goarch}; build natively with ./build.sh (see README)" >&2; exit 1; }
+exec "$bin" "$@"

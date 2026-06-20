@@ -42,6 +42,17 @@ agy plugin install https://github.com/kwrkb/agy-plugins/ast-grep
 | agy-plugin-kit | （任意）`go` ※validator 再ビルド時のみ。`.exe` 同梱なので通常不要 | 不要 |
 | ast-grep | `ast-grep`（CLI, PATH 上） | 不要 |
 
+### 同梱プラットフォームと self-build
+
+Go 製プラグイン（`github` / `ast-grep` / `retro-status` / `agy-plugin-kit` の validator）は **`linux/amd64` / `darwin/arm64`（Apple Silicon）/ `windows/amd64`** のネイティブバイナリを `bin/` に同梱しています。`bin/<name>` の OS 分岐 dispatcher が `uname` から `<name>-<goos>-<goarch>` を算出して exec します（Windows は agy が `.exe` を直接起動）。
+
+**それ以外のプラットフォーム（例: `linux/arm64`〔Raspberry Pi・ARM サーバ〕/ `darwin/amd64`〔Intel Mac〕）は同梱しません**が、その実機上で native ビルドすれば dispatcher が自動で拾います（スクリプト編集不要）:
+
+```sh
+cd <plugin>/src && CGO_ENABLED=0 go build -o "../bin/<name>-$(go env GOOS)-$(go env GOARCH)" .
+# 例: retro-status を ARM Linux で → retro-status/bin/retro-status-linux-arm64
+```
+
 ## ライセンス・帰属
 
 各プラグインは公式 MCP 実装のラッパーであり、ラップ対象のライセンスに準拠します。
