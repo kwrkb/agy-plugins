@@ -10,6 +10,7 @@
 | **[gitlab](./gitlab/README.md)** | GitLab の Issues / MR / プロジェクト等を操作する MCP サーバー |
 | **[agy-plugin-kit](./agy-plugin-kit/README.md)** | agy プラグイン開発メタ・ヘルパー（雛形生成・静的検査・Issue #390 パス修正・doc 生成） |
 | **[ast-grep](./ast-grep/README.md)** | `ast-grep` (`sg`) を利用してコード構造の検索・安全なリファクタリングを行う MCP サーバー |
+| **[settings-advisor](./settings-advisor/README.md)** | ワークスペースの規模・言語・機密/CI/本番設定を解析し、最適なモデル・サンドボックス・許可モードを控えめに提案する MCP サーバー |
 
 ## インストール方法
 
@@ -25,6 +26,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 
 # ast-grep プラグイン
 agy plugin install https://github.com/kwrkb/agy-plugins/ast-grep
+
+# settings-advisor プラグイン
+agy plugin install https://github.com/kwrkb/agy-plugins/settings-advisor
 ```
 
 各プラグインの前提条件（PATH に入れるバイナリ / 認証設定）については、各ディレクトリの README を参照してください。
@@ -44,7 +48,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/ast-grep
 
 ### 同梱プラットフォームと self-build
 
-Go 製プラグイン（`github` / `ast-grep` / `retro-status` / `agy-plugin-kit` の validator）は **`linux/amd64` / `darwin/arm64`（Apple Silicon）/ `windows/amd64`** のネイティブバイナリを `bin/` に同梱しています。`bin/<name>` の OS 分岐 dispatcher が `uname` から `<name>-<goos>-<goarch>` を算出して exec します（Windows は agy が `.exe` を直接起動）。
+Go 製プラグイン（`github` / `ast-grep` / `retro-status` / `settings-advisor` / `agy-plugin-kit` の validator）は **`linux/amd64` / `darwin/arm64`（Apple Silicon）/ `windows/amd64`** のネイティブバイナリを `bin/` に同梱しています。`bin/<name>` の OS 分岐 dispatcher が `uname` から `<name>-<goos>-<goarch>` を算出して exec します（Windows は agy が `.exe` を直接起動）。
 
 **それ以外のプラットフォーム（例: `linux/arm64`〔Raspberry Pi・ARM サーバ〕/ `darwin/amd64`〔Intel Mac〕）は同梱しません**が、その実機上で native ビルドすれば dispatcher が自動で拾います（スクリプト編集不要）:
 

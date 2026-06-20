@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -163,13 +164,21 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 			metrics.HasCI = true
 		}
 
-		// 本番設定ファイル検知
-		if strings.Contains(fileName, "prod") && (strings.HasSuffix(fileName, ".json") || strings.HasSuffix(fileName, ".yaml") || strings.HasSuffix(fileName, ".yml") || strings.HasSuffix(fileName, ".toml")) {
-			metrics.HasProdConfig = true
+		ext := filepath.Ext(fileName)
+
+		// 本番設定ファイル検知。"product.json" / "reproduce.yaml" 等の誤検知を避けるため、
+		// 拡張子を除いた名前を区切り（. - _）でトークン化し "prod"/"production" 単独一致のみ採る。
+		if ext == ".json" || ext == ".yaml" || ext == ".yml" || ext == ".toml" {
+			base := strings.TrimSuffix(fileName, ext)
+			for _, tok := range strings.FieldsFunc(base, isNameSeparator) {
+				if tok == "prod" || tok == "production" {
+					metrics.HasProdConfig = true
+					break
+				}
+			}
 		}
 
 		// ターゲット言語の行数カウント
-		ext := filepath.Ext(fileName)
 		if targetExts[ext] {
 			langMap[ext] = true
 			lines, err := countLines(path)
@@ -184,8 +193,15 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 	for lang := range langMap {
 		metrics.Languages = append(metrics.Languages, strings.TrimPrefix(lang, "."))
 	}
+	// map 由来の順序揺れを除き、出力・推奨理由を決定論的にする。
+	sort.Strings(metrics.Languages)
 
 	return metrics, err
+}
+
+// isNameSeparator はファイル名トークン分割に使う区切り文字を判定する。
+func isNameSeparator(r rune) bool {
+	return r == '.' || r == '-' || r == '_'
 }
 
 func countLines(filePath string) (int, error) {

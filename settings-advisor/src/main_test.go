@@ -1,8 +1,69 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 )
+
+func TestScanWorkspace(t *testing.T) {
+	root := t.TempDir()
+
+	writeFile := func(rel, body string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeFile("main.go", "package main\nfunc main() {}\n")        // go
+	writeFile("app.ts", "export const x = 1\n")                  // ts
+	writeFile(".env", "SECRET=1\n")                              // → HasEnv
+	writeFile(".github/workflows/ci.yml", "on: push\n")         // → HasCI
+	writeFile("config.production.json", "{}\n")                  // → HasProdConfig（トークン一致）
+	writeFile("product.json", "{}\n")                            // 誤検知してはいけない
+	writeFile("reproduce.yaml", "k: v\n")                        // 誤検知してはいけない
+	writeFile("node_modules/pkg/index.js", "skip me\n")         // SkipDir 対象
+
+	m, err := scanWorkspace(root)
+	if err != nil {
+		t.Fatalf("scanWorkspace error: %v", err)
+	}
+
+	if !m.HasEnv {
+		t.Error("expected HasEnv=true (.env)")
+	}
+	if !m.HasCI {
+		t.Error("expected HasCI=true (.github/workflows)")
+	}
+	if !m.HasProdConfig {
+		t.Error("expected HasProdConfig=true (config.production.json)")
+	}
+	// node_modules はスキップされるので js は言語に含まれない。決定論的にソート済み。
+	if want := []string{"go", "ts"}; !reflect.DeepEqual(m.Languages, want) {
+		t.Errorf("Languages = %v, want %v (sorted, node_modules excluded)", m.Languages, want)
+	}
+}
+
+func TestScanWorkspaceProdFalsePositive(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"product.json", "reproduce.yaml", "productivity.toml"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("{}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m, err := scanWorkspace(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.HasProdConfig {
+		t.Error("expected HasProdConfig=false for product/reproduce/productivity files")
+	}
+}
 
 func TestGenerateRecommendations(t *testing.T) {
 	// テスト用モデル定義
