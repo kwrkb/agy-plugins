@@ -1,0 +1,25 @@
+#!/bin/sh
+# Platform dispatcher: exec the native binary for this OS/arch.
+# This file is plain text (OS-independent) and is committed to git so that
+# `agy plugin install` (which only copies files, no build) ships a single
+# `command` target that works on every Unix platform. Windows is unaffected:
+# agy appends `.exe` and runs `<base>.exe` directly, bypassing this script.
+# Keep stdout clean — MCP speaks NDJSON over stdout; errors go to stderr only.
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+base=settings-advisor
+# Compute Go GOOS/GOARCH from uname; the binary name matches build.sh output.
+case "$(uname -s)" in
+  Linux)  goos=linux  ;;
+  Darwin) goos=darwin ;;
+  *) echo "agy-plugins: unsupported OS $(uname -s)" >&2; exit 1 ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64)  goarch=amd64 ;;
+  aarch64|arm64) goarch=arm64 ;;
+  *) echo "agy-plugins: unsupported arch $(uname -m)" >&2; exit 1 ;;
+esac
+# Platforms whose binary is not committed (e.g. linux/arm64, darwin/amd64)
+# self-serve: build natively and the dispatcher picks it up — no edit needed.
+bin="$dir/${base}-${goos}-${goarch}"
+[ -x "$bin" ] || { echo "agy-plugins: no prebuilt binary for ${goos}/${goarch}; build natively with ./build.sh (see README)" >&2; exit 1; }
+exec "$bin" "$@"

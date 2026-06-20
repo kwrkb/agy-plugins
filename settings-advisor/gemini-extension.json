@@ -1,0 +1,10 @@
+{
+  "name": "settings-advisor",
+  "version": "1.0.0",
+  "description": "Agy settings advisor MCP plugin.",
+  "mcpServers": {
+    "settings-advisor": {
+      "command": "${extensionPath}${/}bin${/}settings-advisor"
+    }
+  }
+}
