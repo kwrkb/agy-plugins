@@ -201,3 +201,19 @@ agy バイナリの strings 解析で注入経路を特定した:
 - **1.0.9 との差**: 1.0.9 の strings 解析では `<user_rules>` は Memories 専用で、`rules.json` 等の customizations discovery は別マニフェスト系統で**プロンプトに到達しなかった**（§5.4「discover ≠ inject」）。1.0.10 は `agentsCustomization` の `AGENTS.md` が初めて `UserRulesSection` に**配線**された。
 - **プラグイン rules/ 等が依然非注入の理由**: それらは Customization Root の `AGENTS.md` ではない（プラグイン `rules/*.md` / `plugin.json "rules"` / `~/.gemini/rules/*.md` はいずれも customization root の `AGENTS.md` に該当しない）ため `agentsCustomization` の discover 対象外。
 - **changelog 上の記述はゼロ**: 1.0.10 changelog に rules/`.agents` の明示なし（#35「changelog に記述が無くても挙動は変わりうる＝実機再検証」を再々確認）。
+
+---
+
+## 7. 追記: agy 1.0.15 での再検証（2026-07-02）
+
+**対象:** agy 1.0.15
+**結論: 1.0.10時点からの進展なし。変数置換バグ、ルール未注入バグともに継続。**
+
+### 7.1 hooks — 変数置換バグの継続
+- `${extensionPath}` は依然として空文字に置換（または未置換）されます。
+- `${/}` を含めると `Bad substitution` となりフックプロセスが起動前にクラッシュする問題も継続しています。
+- 対話セッションでのフックの動的発火は確認できましたが、コマンドのパス解決には依然として **PWD 相対パス**（例: `python3 dump.py`）を使用する必要があります。
+
+### 7.2 rules — プロンプト注入バグの継続
+- サブエージェントのシステムプロンプト内の `<user_rules>` セクションをダンプし、ルールの注入状況を調査しました。
+- 1.0.10と同様に、**プロジェクトルール（`.agents/AGENTS.md`）のみ**が注入され、プラグイン内のルール（`rules/*.md`）やグローバルルール（`~/.gemini/rules/*.md`）は一切読み込まれない状態が継続しています。
