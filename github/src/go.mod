@@ -1,6 +1,6 @@
 module github.com/kwrkb/agy-plugins/github
 
-go 1.26.4
+go 1.26.5
 
 require github.com/mark3labs/mcp-go v0.54.1
 

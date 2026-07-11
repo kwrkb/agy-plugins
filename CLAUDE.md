@@ -20,13 +20,13 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 # テスト・静的解析（モジュール別。ソースは <plugin>/src/ 配下）
 cd github/src && go vet ./... && go test ./...
 cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
-# バイナリ再ビルド（go 1.26.4。Windows は ./build.ps1）
+# バイナリ再ビルド（go 1.26.5。Windows は ./build.ps1）
 ./build.sh                                    # 全プラグイン
 ./build.sh github                             # github だけ
 ./build.sh validator                          # validator だけ
 ```
 
-**ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に集約され、Go 1.26.4 固定で bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
+**ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に集約され、Go 1.26.5 固定で bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
 
 ## 実機検証（tmux + agy）
 

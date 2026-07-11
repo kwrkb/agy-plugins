@@ -8,7 +8,7 @@
 #   ./build.sh github     # github プラグインのみ
 #   ./build.sh validator  # agy-plugin-kit の validator のみ
 #
-# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.4）。
+# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.5）。
 #       バージョンを上げる時は全バイナリを再ビルドしてコミットすること。
 # Windows ネイティブで実行する場合は WSL または git-bash を使う。
 set -eu
