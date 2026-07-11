@@ -26,8 +26,8 @@ type LSPClient struct {
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 
-	idGen  int64
-	mu     sync.Mutex
+	idGen   int64
+	mu      sync.Mutex
 	pending map[int64]chan []byte
 
 	rootPath    string
@@ -59,11 +59,11 @@ func NewLSPClient(rootPath string) (*LSPClient, error) {
 	}
 
 	client := &LSPClient{
-		cmd:     cmd,
-		stdin:   stdin,
-		stdout:  stdout,
-		stderr:  stderr,
-		pending: make(map[int64]chan []byte),
+		cmd:      cmd,
+		stdin:    stdin,
+		stdout:   stdout,
+		stderr:   stderr,
+		pending:  make(map[int64]chan []byte),
 		rootPath: rootPath,
 	}
 
@@ -216,6 +216,16 @@ func (c *LSPClient) Notify(method string, params any) error {
 	return nil
 }
 
+// escapeDriveLetter prefixes a Windows drive-letter path (e.g. "C:/Users/...")
+// with a leading slash so net/url doesn't mistake the drive letter for a
+// host when building a file:// URI: "file:///C:/...", not "file://C:/...".
+func escapeDriveLetter(slashed string) string {
+	if len(slashed) > 1 && slashed[1] == ':' {
+		return "/" + slashed
+	}
+	return slashed
+}
+
 func pathToURI(p string) string {
 	abs, err := filepath.Abs(p)
 	if err != nil {
@@ -223,7 +233,7 @@ func pathToURI(p string) string {
 	}
 	u := url.URL{
 		Scheme: "file",
-		Path:   filepath.ToSlash(abs),
+		Path:   escapeDriveLetter(filepath.ToSlash(abs)),
 	}
 	return u.String()
 }
@@ -309,18 +319,13 @@ func (c *LSPClient) Close() {
 }
 
 var (
-	client   *LSPClient
-	clientMu sync.Mutex
+	// clients holds one LSPClient per resolved workspace root, so requests
+	// against different `dir` values don't silently reuse an unrelated root.
+	clients   = make(map[string]*LSPClient)
+	clientsMu sync.Mutex
 )
 
 func getLSPClient(ctx context.Context, dir string) (*LSPClient, error) {
-	clientMu.Lock()
-	defer clientMu.Unlock()
-
-	if client != nil {
-		return client, nil
-	}
-
 	rootPath := dir
 	if rootPath == "" {
 		cwd, err := os.Getwd()
@@ -329,20 +334,38 @@ func getLSPClient(ctx context.Context, dir string) (*LSPClient, error) {
 		}
 		rootPath = cwd
 	}
+	if abs, err := filepath.Abs(rootPath); err == nil {
+		rootPath = abs
+	}
 
-	var err error
-	client, err = NewLSPClient(rootPath)
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+
+	if c, ok := clients[rootPath]; ok {
+		return c, nil
+	}
+
+	c, err := NewLSPClient(rootPath)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := client.Initialize(ctx); err != nil {
-		client.Close()
-		client = nil
+	if err := c.Initialize(ctx); err != nil {
+		c.Close()
 		return nil, err
 	}
 
-	return client, nil
+	clients[rootPath] = c
+	return c, nil
+}
+
+func closeAllLSPClients() {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+	for _, c := range clients {
+		c.Close()
+	}
+	clients = make(map[string]*LSPClient)
 }
 
 func requiredString(m map[string]any, key string) (string, error) {
@@ -700,13 +723,7 @@ func main() {
 		return mcp.NewToolResultText(string(hover.Contents)), nil
 	})
 
-	defer func() {
-		clientMu.Lock()
-		if client != nil {
-			client.Close()
-		}
-		clientMu.Unlock()
-	}()
+	defer closeAllLSPClients()
 
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
