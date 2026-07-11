@@ -1,4 +1,4 @@
-module github.com/kwrkb/agy-plugins/settings-advisor
+module github.com/kwrkb/agy-plugins/go-lsp
 
 go 1.26.5
 

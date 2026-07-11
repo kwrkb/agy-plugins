@@ -8,7 +8,7 @@
 #   ./build.sh github     # github プラグインのみ
 #   ./build.sh validator  # agy-plugin-kit の validator のみ
 #
-# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.4）。
+# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.5）。
 #       バージョンを上げる時は全バイナリを再ビルドしてコミットすること。
 # Windows ネイティブで実行する場合は WSL または git-bash を使う。
 set -eu
@@ -44,15 +44,17 @@ case "$target" in
 	ast-grep)     build ast-grep ast-grep ;;
 	retro-status) build retro-status retro-status ;;
 	settings-advisor) build settings-advisor settings-advisor ;;
+	go-lsp)       build go-lsp go-lsp ;;
 	all)
 		build github github
 		build agy-plugin-kit/validator validator
 		build ast-grep ast-grep
 		build retro-status retro-status
 		build settings-advisor settings-advisor
+		build go-lsp go-lsp
 		;;
 	*)
-		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | settings-advisor | all)" >&2
+		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | all)" >&2
 		exit 2
 		;;
 esac

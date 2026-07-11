@@ -32,27 +32,27 @@ settings-advisor の tier 判定に `else if lines<30000 || langs<=2`（本来 `
 - **ルール**: 単一値キーに複数の検出条件がマップされる場合、`if/else if` の**評価順 = 優先順位**であることを意識し、**より厳格・安全側（ここでは `strict`）を先に判定**する。「どちらも真のとき何が出るべきか」を必ず1ケース書いてテストで固定する。
 - **メモ**: Windows パスで `.github/workflows` を `strings.Contains` 一致できないバグ（#39②）が、**新規プラグイン settings-advisor で再発**した。既知の LESSON は新コードに自動適用されない。バイナリ同梱プラグインを新設したら `filepath.ToSlash`・nil 引数フォールバック（#39③）等の既存教訓を**着手前チェックリストとして当てる**。
 
-## 2026-06-20: agy 1.0.10 での hooks/rules 実機再検証
+## 2026-06-20: agy 1.0.10 / 1.0.11 での hooks/rules 実機再検証
 
 ### 学んだこと
 
-#### 41. agy 1.0.10 でプロジェクト固有ルール（.agents/AGENTS.md）が注入可能に — ただしプラグインルールは依然非機能
+#### 41. agy 1.0.10 / 1.0.11 でプロジェクト固有ルール（.agents/AGENTS.md）が注入可能に — ただしプラグインルールは依然非機能
 
-1.0.10 において、プロジェクトのワークスペースルートに配置した `.agents/AGENTS.md` の中身が、エージェントセッションのシステムプロンプト `<user_rules>` 内に `<RULE[/path/to/.agents/AGENTS.md]>` の形式で正しく自動注入されるようになった（1.0.9 までの非機能バグが解消）。**Linux・clean install・新規対話セッションで 4経路に一意 marker を仕込んで再現確認済み**: `.agents/AGENTS.md`（✅注入）／プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules/*.md`（いずれも ❌非注入で継続）。
-- **機構（strings 解析）**: `customizations.agentsCustomization` が **2つの Customization Root**（Global Customizations Root の `AGENTS.md`／Workspace Customizations Root ＝ `<project-root>/.agents/`）から `AGENTS.md` を discover し、`mixins.UserRulesSection`（`formatMemoriesAsPrompt`）が `<RULE[%s]>` 形式で `<user_rules>` に整形注入する。1.0.9 では `<user_rules>` は Memories 専用で customizations discovery は別系統だった（#35「discover ≠ inject」）が、**1.0.10 で `agentsCustomization` の `AGENTS.md` が初めて `UserRulesSection` に配線された**。プラグイン rules/ 等は Customization Root の `AGENTS.md` に該当しない＝discover 対象外なので非注入のまま。changelog に rules/`.agents` の記述はゼロ（実機再検証が必須＝#35 再々確認）。
+1.0.10 において、プロジェクトのワークスペースルートに配置した `.agents/AGENTS.md` の中身が、エージェントセッションのシステムプロンプト `<user_rules>` 内に `<RULE[/path/to/.agents/AGENTS.md]>` の形式で正しく自動注入されるようになった（1.0.9 までの非機能バグが解消）。**1.0.11 でもこの挙動（主要3経路非注入）が継続していることを確認済み**: `.agents/AGENTS.md`（✅注入）／プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules/*.md`（いずれも ❌非注入で継続）。
+- **機構（strings 解析）**: `customizations.agentsCustomization` が **2つの Customization Root**（Global Customizations Root の `AGENTS.md`／Workspace Customizations Root ＝ `<project-root>/.agents/`）から `AGENTS.md` を discover し、`mixins.UserRulesSection`（`formatMemoriesAsPrompt`）が `<RULE[%s]>` 形式で `<user_rules>` に整形注入する。1.0.9 では `<user_rules>` は Memories 専用で customizations discovery は別系統だった（#35「discover ≠ inject」）が、1.0.10 で `agentsCustomization` の `AGENTS.md` が初めて `UserRulesSection` に配線された。プラグイン rules/ 等は Customization Root の `AGENTS.md` に該当しない＝discover 対象外なので非注入のまま。
 - **ルール**: プロジェクト全体の規約は `.agents/AGENTS.md` で管理できるが、**プラグインの知識を `skills/` から `rules/` へ移行することは依然できない**。プラグイン固有の規約は `skills/<name>/SKILL.md` に定義してエージェントに必要に応じて読み込ませる方針を継続する（#22/#35）。
 
 #### 42. agy の hooks はアクティブなセッションへ動的にリロードされる
 
 `agy plugin install` で登録された hooks (PostToolUse) は、すでに起動している同一の対話セッション（親セッション）であっても、セッションの再起動を要さずに次のツール実行から動的かつ自動的に読み込まれて動作を開始する。
 - **検証テクニック**: フックの設定変更や検証の際は、わざわざ新しい agy セッションを起動し直さなくても、親セッションでダミーのツール（`run_command` や `write_to_file`）を実行するだけでフックが即座に適用され発火する。
-- **継続する制限**: `${extensionPath}` などの変数は依然として command 内で置換されない（空になる）。また `${/}` を含めるとシェルエラー (`Bad substitution`) でクラッシュするため、スクリプト呼び出しは PWD 相対（`python3 dump.py` など）で行い、変数を避けること。
+- **継続する制限**: `${extensionPath}` などの変数は依然として command 内で置換されない（空になる）。また `${/}` を含めるとシェルエラー (`Bad substitution`) でクラッシュするため、スクリプト呼び出しは PWD 相対（`python3 dump.py` など）で行い、変数を避けること。1.0.11 でもこれらの制限が未修正で継続していることを確認。
 
 #### 44. プラットフォーム制約が解除されたら「制約を前提にしたガイド」を全 consumer 監査する — 実挙動とガイドの自己矛盾を防ぐ
 
 agy 1.0.10 で hooks/rules の挙動が変わった伝播作業中、`agy-plugin-kit/skills/agy-plugin-authoring/SKILL.md` が **1.0.8 時代の「`hooks.json` は非推奨・利用不可能」のまま**残っているのを発見した。ところが本キット自身は 1.0.9 で payload が解消したのを受けて **validator フックを再同梱済み（PR #13）／README は「1.0.9〜 自動バリデーション」と謳っている**。＝**ツールの実挙動（フックを同梱して動かす）とオーサリング SKILL（フックは使うな）が真っ向から矛盾**していた。バージョンゲートされた事実（「X はこの版では動かない」）を LESSONS / report / README に書いても、**エージェントへ実際にロードされる SKILL に伝播し忘れると、誤った前提のままプラグインが量産される**。
 - **ルール**: プラットフォーム（agy 等）のバージョン制約が解除・変化したら、その制約を根拠に書いた記述を **全 consumer で grep して洗い出す**（`grep -rnE "1\.0\.[89]|非推奨|非機能|使わない"`）。特に **`skills/*/SKILL.md`（＝エージェントに注入される実ガイド）と、自リポジトリが実際に同梱している成果物（hooks.json 等）の整合**を最優先で確認する。LESSONS/report だけ直して SKILL を放置しない。
-- **ルール**: 制約を書くときは必ず**版番号を添える**（「1.0.8 制約」ではなく「1.0.8〜1.0.10 で継続」「1.0.9 で解消」と範囲で書く）。版を書かない断定（「rules は使わない」）は、解除時に stale 化したことに気づけない。
+- **ルール**: 制約を書くときは必ず**版番号を添える**（「1.0.8 制約」ではなく「1.0.8〜1.0.11 で継続」「1.0.9 で解消」と範囲で書く）。版を書かない断定（「rules は使わない」）は、解除時に stale 化したことに気づけない。
 
 ## 2026-06-20: 全 Go プラグインを macOS(arm64) 対応化・src/bin 再編
 

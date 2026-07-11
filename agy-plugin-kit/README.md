@@ -37,7 +37,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 ```
 
-`validator/bin/` のネイティブバイナリ（`validator-linux-amd64` / `validator-darwin-arm64` / `validator.exe`）は `validator/src/main.go` から `go build` した成果物を**全 OS 分とも同梱**（コミット済み）。再ビルドはリポジトリルートのビルドスクリプトを使います（**Go 1.26.4**。決定論フラグはスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求し、Go のバージョンがずれると fail します）。
+`validator/bin/` のネイティブバイナリ（`validator-linux-amd64` / `validator-darwin-arm64` / `validator.exe`）は `validator/src/main.go` から `go build` した成果物を**全 OS 分とも同梱**（コミット済み）。再ビルドはリポジトリルートのビルドスクリプトを使います（**Go 1.26.5**。決定論フラグはスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求し、Go のバージョンがずれると fail します）。
 
 ```bash
 ./build.sh validator    # validator のネイティブバイナリ（linux-amd64/darwin-arm64/windows）を再ビルド。Windows は ./build.ps1 validator

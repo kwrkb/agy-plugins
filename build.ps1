@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 # build.sh の Windows(PowerShell) 版。決定論フラグ・対象は build.sh と完全に揃える。
-# 同一 Go バージョン(1.26.4) + 同一フラグ + CGO 無効のため、build.sh と bit-identical な
+# 同一 Go バージョン(1.26.5) + 同一フラグ + CGO 無効のため、build.sh と bit-identical な
 # バイナリを生成する（CI の検証ゲートはどちらでビルドしても通る）。
 #
 # 使い方:
@@ -8,7 +8,7 @@
 #   ./build.ps1 github     # github プラグインのみ
 #   ./build.ps1 validator  # agy-plugin-kit の validator のみ
 #
-# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.4）。
+# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.5）。
 param([string]$Target = 'all')
 $ErrorActionPreference = 'Stop'
 
@@ -62,15 +62,17 @@ switch ($Target) {
     'ast-grep' { Build 'ast-grep' 'ast-grep' }
     'retro-status' { Build 'retro-status' 'retro-status' }
     'settings-advisor' { Build 'settings-advisor' 'settings-advisor' }
+    'go-lsp' { Build 'go-lsp' 'go-lsp' }
     'all' {
         Build 'github' 'github'
         Build 'agy-plugin-kit/validator' 'validator'
         Build 'ast-grep' 'ast-grep'
         Build 'retro-status' 'retro-status'
         Build 'settings-advisor' 'settings-advisor'
+        Build 'go-lsp' 'go-lsp'
     }
     default {
-        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | all)"
+        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | all)"
         exit 2
     }
 }
