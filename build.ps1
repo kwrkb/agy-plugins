@@ -62,15 +62,17 @@ switch ($Target) {
     'ast-grep' { Build 'ast-grep' 'ast-grep' }
     'retro-status' { Build 'retro-status' 'retro-status' }
     'settings-advisor' { Build 'settings-advisor' 'settings-advisor' }
+    'go-lsp' { Build 'go-lsp' 'go-lsp' }
     'all' {
         Build 'github' 'github'
         Build 'agy-plugin-kit/validator' 'validator'
         Build 'ast-grep' 'ast-grep'
         Build 'retro-status' 'retro-status'
         Build 'settings-advisor' 'settings-advisor'
+        Build 'go-lsp' 'go-lsp'
     }
     default {
-        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | all)"
+        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | all)"
         exit 2
     }
 }

@@ -235,6 +235,81 @@ func TestRespondToServerRequest(t *testing.T) {
 	}
 }
 
+// TestReadLoopClosesPendingChannelsOnExit guards against Call() hanging
+// forever when gopls exits or the pipe breaks: readLoop must close every
+// outstanding pending channel (and clear the map) once its read loop ends.
+func TestReadLoopClosesPendingChannelsOnExit(t *testing.T) {
+	c := &LSPClient{
+		stdout:  io.NopCloser(strings.NewReader("")),
+		pending: make(map[int64]chan []byte),
+	}
+	ch := make(chan []byte, 1)
+	c.pending[1] = ch
+
+	c.readLoop()
+
+	select {
+	case _, ok := <-ch:
+		if ok {
+			t.Fatal("pending channel received a value, want it closed with no value")
+		}
+	default:
+		t.Fatal("pending channel not closed after readLoop returned")
+	}
+	if len(c.pending) != 0 {
+		t.Fatalf("pending map has %d entries after readLoop returned, want 0", len(c.pending))
+	}
+}
+
+// TestCallReturnsErrorWhenConnectionCloses guards against Call() unmarshaling
+// a nil response (and hanging until the context deadline) when the
+// connection closes while a call is in flight: it must observe the closed
+// channel and return an error immediately instead.
+func TestCallReturnsErrorWhenConnectionCloses(t *testing.T) {
+	pr, pw := io.Pipe()
+	c := &LSPClient{
+		stdin:   &syncBuffer{},
+		stdout:  io.NopCloser(pr),
+		pending: make(map[int64]chan []byte),
+	}
+	go c.readLoop()
+
+	result := make(chan error, 1)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := c.Call(ctx, "textDocument/definition", nil)
+		result <- err
+	}()
+
+	// Wait until Call has registered its pending entry before closing the
+	// pipe, so the test deterministically exercises the close path instead
+	// of racing it against the ctx timeout.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		c.mu.Lock()
+		n := len(c.pending)
+		c.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Call did not register a pending entry in time")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	pw.Close()
+
+	select {
+	case err := <-result:
+		if err == nil || !strings.Contains(err.Error(), "LSP connection closed") {
+			t.Fatalf("Call() error = %v, want an \"LSP connection closed\" error", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Call did not return after the gopls connection closed")
+	}
+}
+
 // findPosition returns the 0-indexed LSP line/character of needle's first
 // occurrence in src.
 func findPosition(t *testing.T, src, needle string) (line, character int) {

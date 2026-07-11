@@ -86,6 +86,18 @@ func NewLSPClient(rootPath string) (*LSPClient, error) {
 }
 
 func (c *LSPClient) readLoop() {
+	// If gopls exits or the pipe breaks, any Call() still waiting on a
+	// pending channel would otherwise hang until its context times out.
+	// Close every pending channel so those callers unblock immediately.
+	defer func() {
+		c.mu.Lock()
+		for id, ch := range c.pending {
+			close(ch)
+			delete(c.pending, id)
+		}
+		c.mu.Unlock()
+	}()
+
 	reader := bufio.NewReader(c.stdout)
 	for {
 		contentLength := 0
@@ -245,7 +257,10 @@ func (c *LSPClient) Call(ctx context.Context, method string, params any) ([]byte
 	}
 
 	select {
-	case res := <-ch:
+	case res, ok := <-ch:
+		if !ok {
+			return nil, fmt.Errorf("LSP connection closed")
+		}
 		return res, nil
 	case <-ctx.Done():
 		c.mu.Lock()
