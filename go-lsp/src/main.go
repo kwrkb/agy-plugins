@@ -30,6 +30,11 @@ type LSPClient struct {
 	mu      sync.Mutex
 	pending map[int64]chan []byte
 
+	// writeMu serializes frame writes to stdin so concurrent Call/Notify
+	// calls (from concurrent MCP tool invocations) can't interleave their
+	// header+body writes and corrupt the LSP stream.
+	writeMu sync.Mutex
+
 	rootPath    string
 	initialized bool
 }
@@ -116,10 +121,23 @@ func (c *LSPClient) readLoop() {
 		}
 
 		var msg struct {
-			ID *int64 `json:"id"`
+			ID     *int64          `json:"id"`
+			Method string          `json:"method"`
+			Params json.RawMessage `json:"params"`
 		}
 		if err := json.Unmarshal(body, &msg); err != nil {
 			fmt.Fprintf(os.Stderr, "error unmarshaling incoming message: %v\n", err)
+			continue
+		}
+
+		// A "method" field means this is a request or notification FROM
+		// gopls, not a response to one of our own Call()s (JSON-RPC
+		// responses never carry "method"). Requests (id != nil) must be
+		// answered or gopls can block waiting for a reply.
+		if msg.Method != "" {
+			if msg.ID != nil {
+				c.respondToServerRequest(*msg.ID, msg.Method, msg.Params)
+			}
 			continue
 		}
 
@@ -137,6 +155,40 @@ func (c *LSPClient) readLoop() {
 	}
 }
 
+// respondToServerRequest answers a request gopls sent to the client. This
+// client implements no client-side capabilities, so it acknowledges every
+// request with a minimally valid success result rather than leaving gopls
+// waiting indefinitely for a reply.
+func (c *LSPClient) respondToServerRequest(id int64, method string, params json.RawMessage) {
+	var result any
+	if method == "workspace/configuration" {
+		var p struct {
+			Items []any `json:"items"`
+		}
+		_ = json.Unmarshal(params, &p)
+		result = make([]any, len(p.Items))
+	}
+
+	resp := struct {
+		JSONRPC string `json:"jsonrpc"`
+		ID      int64  `json:"id"`
+		Result  any    `json:"result"`
+	}{
+		JSONRPC: "2.0",
+		ID:      id,
+		Result:  result,
+	}
+
+	body, err := json.Marshal(resp)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error marshaling response to %s: %v\n", method, err)
+		return
+	}
+	if err := c.writeFrame(body); err != nil {
+		fmt.Fprintf(os.Stderr, "error sending response to %s: %v\n", method, err)
+	}
+}
+
 type Request struct {
 	JSONRPC string `json:"jsonrpc"`
 	ID      int64  `json:"id"`
@@ -148,6 +200,22 @@ type Notification struct {
 	JSONRPC string `json:"jsonrpc"`
 	Method  string `json:"method"`
 	Params  any    `json:"params"`
+}
+
+// writeFrame writes a single LSP frame (Content-Length header + body) as one
+// critical section so concurrent callers can't interleave their bytes.
+func (c *LSPClient) writeFrame(body []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
+	if _, err := io.WriteString(c.stdin, header); err != nil {
+		return err
+	}
+	if _, err := c.stdin.Write(body); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *LSPClient) Call(ctx context.Context, method string, params any) ([]byte, error) {
@@ -169,14 +237,7 @@ func (c *LSPClient) Call(ctx context.Context, method string, params any) ([]byte
 	c.pending[id] = ch
 	c.mu.Unlock()
 
-	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
-	if _, err := io.WriteString(c.stdin, header); err != nil {
-		c.mu.Lock()
-		delete(c.pending, id)
-		c.mu.Unlock()
-		return nil, err
-	}
-	if _, err := c.stdin.Write(body); err != nil {
+	if err := c.writeFrame(body); err != nil {
 		c.mu.Lock()
 		delete(c.pending, id)
 		c.mu.Unlock()
@@ -206,14 +267,7 @@ func (c *LSPClient) Notify(method string, params any) error {
 		return err
 	}
 
-	header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
-	if _, err := io.WriteString(c.stdin, header); err != nil {
-		return err
-	}
-	if _, err := c.stdin.Write(body); err != nil {
-		return err
-	}
-	return nil
+	return c.writeFrame(body)
 }
 
 // escapeDriveLetter prefixes a Windows drive-letter path (e.g. "C:/Users/...")
