@@ -2,7 +2,7 @@
 
 agy (Google Antigravity CLI) 向け MCP プラグイン集。グローバル CLAUDE.md のルールに加え、本リポジトリ固有の事実のみをここに記す。
 
-## 構成（3プラグイン / 2 Go モジュール）
+## 構成（6プラグイン + gitlab / 6 Go モジュール）
 
 Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分離。`bin/` に各 OS のネイティブ
 `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe` と、拡張子なしの **OS 分岐 dispatcher**
@@ -10,7 +10,7 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 `command` は `${extensionPath}${/}bin${/}<name>`（Windows は agy が `.exe` を補完し `bin/<name>.exe` を直接起動＝dispatcher 非経由）。
 
 - `github/` — `gh` CLI を exec する自作 Go 製 MCP サーバー。module `github.com/kwrkb/agy-plugins/github`（`github/src/`）。
-- `ast-grep/` — `ast-grep` CLI を exec する Go 製 MCP サーバー。`retro-status/` — リポジトリ解析 Go 製 MCP サーバー。いずれも src/bin 構成。
+- `ast-grep/` — `ast-grep` CLI を exec。`retro-status/` — リポジトリ解析。`settings-advisor/` — Gemini の settings 助言。`go-lsp/` — `gopls` 経由の Go LSP（definition/references/hover）。いずれも Go 製 MCP サーバーで src/bin 構成、module パスは `github.com/kwrkb/agy-plugins/<name>`。
 - `gitlab/` — `glab mcp serve` を呼ぶ薄い設定のみ（`plugin.json` + `mcp_config.json`、Go バイナリ無し＝src/bin 非対象）。
 - `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/` `commands/` `templates/`。hook は `validator/bin/validator --hook`。
 
@@ -20,10 +20,12 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 # テスト・静的解析（モジュール別。ソースは <plugin>/src/ 配下）
 cd github/src && go vet ./... && go test ./...
 cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
+# 他プラグイン（ast-grep / retro-status / settings-advisor / go-lsp）も同じ流儀（<name>/src で go vet ./... && go test ./...）
 # バイナリ再ビルド（go 1.26.5。Windows は ./build.ps1）
 ./build.sh                                    # 全プラグイン
 ./build.sh github                             # github だけ
 ./build.sh validator                          # validator だけ
+# 他ターゲット: ast-grep | retro-status | settings-advisor | go-lsp
 ```
 
 **ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に集約され、Go 1.26.5 固定で bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
@@ -55,7 +57,7 @@ ls ~/.gemini/antigravity-cli/mcp/github/   # 新サーバーなら gh_command.js
 - **`${extensionPath}` 解決条件**: ソースに `gemini-extension.json` があり `plugin.json` が**無い**時のみ解決（#1）。同梱バイナリ参照プラグインは前者構成。
 - **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。
 - **検証は MCP キャッシュのツール名で**: mtime 更新だけでなく中身（ツール名）で新サーバーを別人確認（#25）。
-- **agy の `rules/` は非機能（プラグイン経路）／プロジェクト `.agents/AGENTS.md` は 1.0.10 で機能化**（#41）。1.0.10 でワークスペースルート `.agents/AGENTS.md` は `<user_rules>` に `<RULE[...]>` 注入される（`customizations.agentsCustomization`→`UserRulesSection`、Linux 再現済み）が、**プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules` は依然非注入**（1.0.8/1.0.9 #22/#35）。**プラグインからエージェントへ渡す知識は引き続き `skills/` で**（`rules/` への移行は不可）。
+- **agy の `rules/` は非機能（プラグイン経路）／プロジェクト `.agents/AGENTS.md` は 1.0.10 で機能化・1.0.15 でも進展なし**（#41 / #48）。1.0.10 でワークスペースルート `.agents/AGENTS.md` は `<user_rules>` に `<RULE[...]>` 注入される（`customizations.agentsCustomization`→`UserRulesSection`、Linux 再現済み）が、**プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules` は依然非注入**（1.0.8/1.0.9 #22/#35、1.0.15 でも #48 で再確認）。**プラグインからエージェントへ渡す知識は引き続き `skills/` で**（`rules/` への移行は不可）。
 - **agy の hooks は 1.0.9 で部分機能化・1.0.10 で動的リロード確認**: `PostToolUse` payload の `toolCall.args.TargetFile` に編集ファイル絶対パスが入り、2回目以降の編集・`agy -p` でも発火、自前バイナリは PWD 相対で呼べる（#34）。1.0.10 では install したフックが**親セッションに次ツール実行から動的適用**される（再起動不要 #42）。ただし payload は agy 独自スキーマ／`${extensionPath}` 未置換・`${/}` は `Bad substitution` 継続は不変。1.0.8 では全面非機能だった（#18-21）。
 
 ## ドキュメント地図
