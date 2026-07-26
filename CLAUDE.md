@@ -62,5 +62,5 @@ ls ~/.gemini/antigravity-cli/mcp/github/   # 新サーバーなら gh_command.js
 
 ## ドキュメント地図
 
-- `LESSONS.md` — 番号付き実装教訓（最重要・着手前に grep）
-- `PLAN.md` — タスク進捗 / `implementation-notes.md` — 意思決定ログ / `README.md` — 利用者向け
+- `LESSONS.md` — 番号付き実装教訓（最重要・着手前に grep）＋ 末尾に設計判断ログ（意思決定の経緯）
+- `PLAN.md` — タスク進捗 / `README.md` — 利用者向け
