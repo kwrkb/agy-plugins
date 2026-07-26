@@ -21,7 +21,7 @@ Go 製プラグインは原則として `<plugin>/src/` に独立した Go モ�
 1. `git status --short` で既存のユーザー変更を確認し、巻き戻さない。
 2. 変更対象の `README.md`、`src/main.go`、`src/main_test.go`、manifest、skill を読む。
 3. agy の manifest、path、hook、rule、install 動作に触れる場合は、先に `LESSONS.md` と `plugin-gotchas.md` を検索する。
-4. `PLAN.md` と `implementation-notes.md` は履歴資料を含むため、現行コードや manifest と矛盾する場合は現行ファイルを優先する。
+4. `PLAN.md` と `LESSONS.md` は履歴資料を含むため、現行コードや manifest と矛盾する場合は現行ファイルを優先する。
 
 ## Implementation Conventions
 
