@@ -1,42 +1,37 @@
-# retro-status — レトロステータス・プロファイラー
+# retro-status — Retro RPG Status Profiler
 
-リポジトリを解析し、その規模や開発の活発さをRPGのステータス（レベル、職業、HP/MP、攻撃力/防御力、装備、スキル）に見立てて出力する、遊び心にあふれたリポジトリ分析ツールです。
+A playful repository profiler that scans a codebase and formats its activity, scale, and health into a retro RPG character status screen (Level, Class, HP/MP, ATK/DEF, Equipment, Spells/Skills, and Inventory) rendered in Famicom-style ASCII art.
 
-## 提供するMCPツール
+## Provided Tools
 
 ### `retro_status`
 
-指定したパスのリポジトリをスキャンし、RPGのレトロステータス画面風のAA（アスキーアート）で出力します。
+Scans the repository at the specified path and outputs an RPG status screen in ASCII art or JSON.
 
-#### パラメータ
+#### Parameters
 
-- `path` (string, 任意): スキャンするリポジトリのパス。指定がない場合はカレントディレクトリ。
-- `format` (string, 任意): 出力形式。`text` (ファミコン風のAA) または `json`。デフォルトは `text`。
+- `path` (string, optional): Path to the repository to scan (default: `.`).
+- `format` (string, optional): Output format (`text` for ASCII art or `json`). Defaults to `text`.
 
-## インストール方法
+## Installation
 
 ```bash
 agy plugin install https://github.com/kwrkb/agy-plugins/retro-status
 ```
 
-> **対応 OS（Linux / macOS / Windows）**: ソースは `src/`、配布物は `bin/` に分離。`bin/` に
-> `retro-status-linux-amd64` / `retro-status-darwin-arm64` / `retro-status.exe`（ネイティブ）と、拡張子なしの
-> OS 分岐 dispatcher `bin/retro-status`（shebang sh・`uname` で実機ネイティブを `exec`）を同梱。`command` は
-> `${extensionPath}${/}bin${/}retro-status` で 3 OS を単一指定でカバーする（Windows は agy が `.exe` を直接起動）。
+## RPG Stat Mapping
 
-## ステータスマッピングの仕組み
-
-- **レベル (LV)**: 総コミット数とコード行数 (LOC) に基づいて上昇します。
-- **ダンジョンの深さ (DEPTH)**: リポジトリの総行数 (LOC) です。行数が増えるほど深くなります（B15F など）。
-- **残りモンスター数 (MONSTERS)**: リポジトリ内に残っている `TODO` コメントの数です。
-- **攻撃力 (ATK)**: 直近30日間のコミット頻度（開発の「攻め」の勢い）です。
-- **防御力 (DEF)**: テストファイルの行数、Linter、CI/CDの設定状況（バグに対する「守り」）です。
-- **MP (魔力)**: `go.mod` や `package.json` の依存パッケージの数です。
-- **装備 (Equipment)**:
-  - 武器: 主要開発言語（Go -> `Goの鋭いメス`、TS -> `TSの魔導書` など）
-  - 盾: パッケージロックファイル (`go.sum`, `package-lock.json` など)
-  - 鎧: Linter設定やテストコードの有無
-  - 兜: CI/CD設定 (`.github/workflows`, `.gitlab-ci.yml`)
-  - アクセサリー: コンテナ設定 (`Dockerfile`)
-- **スキル/呪文**: テストがあると `ベホマ (自動テスト)`、CI/CDがあると `ルーラ (自動デプロイ)` などを習得します。
-- **持ち物 (INVENTORY)**: サーバーを動かしているマシンの `PATH` 上にあるモダン開発 CLI（`rg`/`fd`/`jq`/`gh`/`docker` など）を検出し、`鷹の目 (rg)` のような秘宝として並べます。リポジトリではなく実行環境を見るため、同じリポでもマシンが変われば中身が変わります。
+- **Level (LV)**: Increases with total commits and Lines of Code (LOC).
+- **Dungeon Depth (DEPTH)**: Based on total LOC (deeper dungeon for larger codebases).
+- **Monsters (MONSTERS)**: Total number of remaining `TODO` comments.
+- **Attack Power (ATK)**: Commit frequency in the last 30 days (development velocity).
+- **Defense Power (DEF)**: Test LOC, linter presence, and CI/CD pipelines (bug resilience).
+- **Magic Points (MP)**: Number of external package dependencies in `go.mod`, `package.json`, etc.
+- **Equipment**:
+  - Weapon: Dominant programming language (e.g. Go -> `Go Scalpel`, TS -> `TS Grimoire`).
+  - Shield: Lockfile presence (`go.sum`, `package-lock.json`, etc.).
+  - Armor: Linters and automated test suites.
+  - Helm: CI/CD configurations (`.github/workflows`, `.gitlab-ci.yml`).
+  - Accessory: Containerization (`Dockerfile`).
+- **Spells & Skills**: Acquired through automated tests, deploy pipelines, and high commit bursts.
+- **Inventory**: Detects developer CLI tools installed on the host machine (`rg`, `fd`, `jq`, `gh`, `docker`, `nvim`, etc.).

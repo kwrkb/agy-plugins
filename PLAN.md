@@ -170,3 +170,11 @@ macOS 予備検証（§6 旧版）を Linux で厳密再現し、機構を確定
 
 - `github/mcpServers/` はスキャン前から未追跡の既存作業として残した。
 - スキャンは report 生成まで完了。修正実装は未実施。
+
+## フェーズ9: 全プラグインのメンテナンスと整合性・安全性向上（完了）
+
+- [x] validator の symlink パストラバーサル防止 (`FD-KITVAL-001`) と doc コマンドの安全ガード (`FD-KITCMD-001`) 実装およびテスト
+- [x] CI ワークフロー (`.github/workflows/build-verify.yml`) への `settings-advisor` ジョブ追加
+- [x] 各プラグインおよびルートのドキュメント整合性向上（`go-lsp` / `retro-status` の記載漏れ補完、`README.md` (EN) と `README_ja.md` (JA) の同期）
+- [x] 全プラグインのテスト・バリデーション・決定論ビルド検証
+

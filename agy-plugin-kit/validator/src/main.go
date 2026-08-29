@@ -4,12 +4,13 @@
 // install 前に機械的に検出する。agy 非依存で単体実行・テスト可能。
 //
 // モード:
-//   validator <plugin-dir>        検査結果を表示。[ERROR] が1件でもあれば exit 1（/validate 用）。
-//   validator --hook              stdin の PostToolUse JSON から編集ファイルを取り出し（agy の
-//                                 toolCall.args.TargetFile / Claude の file_path 両対応）、マニフェスト
-//                                 編集時だけ検査。常に exit 0（助言的・非ブロッキング）。
-//   validator --fix-paths <dir>   #390 ワークアラウンド: plugin.json 形式の mcp_config.json に残る
-//                                 ${extensionPath} を <dir> の絶対パスへ書き換える。
+//
+//	validator <plugin-dir>        検査結果を表示。[ERROR] が1件でもあれば exit 1（/validate 用）。
+//	validator --hook              stdin の PostToolUse JSON から編集ファイルを取り出し（agy の
+//	                              toolCall.args.TargetFile / Claude の file_path 両対応）、マニフェスト
+//	                              編集時だけ検査。常に exit 0（助言的・非ブロッキング）。
+//	validator --fix-paths <dir>   #390 ワークアラウンド: plugin.json 形式の mcp_config.json に残る
+//	                              ${extensionPath} を <dir> の絶対パスへ書き換える。
 //
 // stdout/stderr 方針: 検査結果は stdout（--hook 時は stderr）に人間可読で出す。MCP の NDJSON は流さない。
 package main
@@ -444,11 +445,36 @@ func runFixPaths(dir string) {
 		fmt.Fprintln(os.Stderr, "警告: --fix-paths は install 先のプラグインディレクトリ（~/.gemini/config/plugins/<name>）で実行してください。"+
 			"git 管理下のソースで実行すると開発機固有の絶対パスが mcp_config.json に焼き込まれ、配布できなくなります。")
 	}
+	if err := fixPaths(abs); err != nil {
+		fmt.Fprintln(os.Stderr, "validator --fix-paths:", err)
+		os.Exit(2)
+	}
+}
+
+// fixPaths replaces ${extensionPath} in mcp_config.json with absolute paths.
+// It verifies that mcp_config.json is not a symlink escaping outside the plugin directory.
+func fixPaths(abs string) error {
 	mcpPath := filepath.Join(abs, "mcp_config.json")
+	fi, err := os.Lstat(mcpPath)
+	if err != nil {
+		return fmt.Errorf("mcp_config.json が読めません: %w", err)
+	}
+
+	// Symlink escape check (FD-KITVAL-001)
+	if fi.Mode()&os.ModeSymlink != 0 {
+		realPath, err := filepath.EvalSymlinks(mcpPath)
+		if err != nil {
+			return fmt.Errorf("symlink の解決に失敗しました: %w", err)
+		}
+		relPath, err := filepath.Rel(abs, realPath)
+		if err != nil || strings.HasPrefix(relPath, "..") || filepath.IsAbs(relPath) {
+			return fmt.Errorf("セキュリティエラー: %s はプラグインディレクトリ外 (%s) を指すシンボリックリンクです。書き込みを中止します", mcpPath, realPath)
+		}
+	}
+
 	raw, err := os.ReadFile(mcpPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "validator --fix-paths: mcp_config.json が読めません:", err)
-		os.Exit(2)
+		return fmt.Errorf("mcp_config.json が読めません: %w", err)
 	}
 	sep := string(filepath.Separator)
 	// Windows の絶対パス（C:\Users\...）はバックスラッシュを含むため、JSON 文字列値に埋め込む前に
@@ -460,19 +486,18 @@ func runFixPaths(dir string) {
 	fixed = strings.ReplaceAll(fixed, "${/}", sepEsc)
 	if fixed == string(raw) {
 		fmt.Println("変更なし（${extensionPath} は見つかりませんでした）:", mcpPath)
-		return
+		return nil
 	}
 	// 置換後が valid JSON であることを確認してから書き込む（壊れた JSON を書かない保険）。
 	var chk any
 	if json.Unmarshal([]byte(fixed), &chk) != nil {
-		fmt.Fprintln(os.Stderr, "validator --fix-paths: 置換結果が不正な JSON になりました。書き込みを中止します。")
-		os.Exit(2)
+		return fmt.Errorf("置換結果が不正な JSON になりました。書き込みを中止します")
 	}
 	if err := os.WriteFile(mcpPath, []byte(fixed), 0o644); err != nil {
-		fmt.Fprintln(os.Stderr, "validator --fix-paths: 書き込み失敗:", err)
-		os.Exit(2)
+		return fmt.Errorf("書き込み失敗: %w", err)
 	}
 	fmt.Printf("Issue #390 ワークアラウンド適用: %s の ${extensionPath} を %q に置換しました。\n", mcpPath, abs)
+	return nil
 }
 
 // --- small helpers ---

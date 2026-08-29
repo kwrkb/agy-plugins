@@ -1,29 +1,28 @@
-# go-lsp プラグイン
+# go-lsp Plugin
 
-このプラグインは、Goの言語サーバーである [gopls](https://pkg.go.dev/golang.org/x/tools/gopls) を利用した MCP サーバーを提供します。
-Goコードベースでの定義元ジャンプ、参照元の検索、ホバーによるドキュメントや型情報の表示を正確に行うことができます。
+An MCP server leveraging the official Go language server [gopls](https://pkg.go.dev/golang.org/x/tools/gopls) to provide definition jumps, reference lookups, and hover documentation for Go codebases.
 
-## 必要な前提条件
+## Prerequisites
 
-このプラグインを実行するには、システムの `PATH` に `gopls` バイナリがインストールされている必要があります。
+The `gopls` binary must be installed on your `PATH`.
 
-**インストール例:**
+**Installation:**
 ```bash
 go install golang.org/x/tools/gopls@latest
 ```
 
-## インストール方法
+## Installation
 
 ```bash
 agy plugin install https://github.com/kwrkb/agy-plugins/go-lsp
 ```
 
-## 提供されるツール
+## Provided Tools
 
-* **`go_definition`**: 指定したGoソースファイルの位置にあるシンボルの定義元を検索します（1-indexed）。
-* **`go_references`**: 指定したGoソースファイルの位置にあるシンボルの参照元をすべて検索します（1-indexed）。
-* **`go_hover`**: 指定したGoソースファイルの位置にあるシンボルの型情報やホバー用のドキュメントを取得します（1-indexed）。
+* **`go_definition`**: Locates the symbol definition at the specified file position (1-indexed line and character).
+* **`go_references`**: Finds all references to the symbol at the specified file position (1-indexed line and character).
+* **`go_hover`**: Retrieves type information and documentation for the symbol at the specified file position (1-indexed line and character).
 
-## スキル (`SKILL.md`)
+## Skill (`SKILL.md`)
 
-このプラグインには、AIエージェントが Go LSP を使ってコード定義やドキュメントを検索し、Goコードの理解とナビゲーションを効率的に行うための `SKILL.md` が同梱されています。
+Bundles `skills/go-lsp-gemini/SKILL.md` to instruct AI agents on when and how to query Go symbol definitions, references, and type signatures.

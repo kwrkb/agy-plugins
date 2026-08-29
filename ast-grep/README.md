@@ -1,30 +1,29 @@
-# ast-grep プラグイン
+# ast-grep Plugin
 
-このプラグインは、[ast-grep (`sg`)](https://ast-grep.github.io/) CLI を利用した MCP サーバーを提供します。
-テキストベースの検索（正規表現など）では難しい、**抽象構文木（AST）に基づいた正確なコード構造の検索とリファクタリング**を可能にします。
+An MCP server leveraging [ast-grep (`sg`)](https://ast-grep.github.io/) to enable accurate, AST-based code search and refactoring directly from AI assistants.
 
-## 必要な前提条件
+## Prerequisites
 
-このプラグインを実行するには、システムの `PATH` に `ast-grep` バイナリがインストールされている必要があります（Linux では `sg` は `setgroups` コマンドと衝突するため、フルネームの `ast-grep` を使用します）。
+The `ast-grep` executable must be installed on your `PATH` (on Linux, use the full name `ast-grep` rather than the `sg` alias to avoid collision with `setgroups`).
 
-**インストール例（macOS / Linux）:**
+**Installation:**
 ```bash
 brew install ast-grep
-# または
+# or
 npm install -g @ast-grep/cli
 ```
 
-## インストール方法
+## Installation
 
 ```bash
 agy plugin install https://github.com/kwrkb/agy-plugins/ast-grep
 ```
 
-## 提供されるツール
+## Provided Tools
 
-* **`ast_search`**: 指定したディレクトリ内のファイルを対象に、ASTパターン検索を行います。マッチした結果（ファイル名や行番号、キャプチャされた変数）を JSON で返します。
-* **`ast_replace`**: 指定したディレクトリ内のファイルを対象に、ASTパターン検索と構造的置換を一括で行います（ファイルは直接上書き更新されます）。
+* **`ast_search`**: Performs AST pattern matching on files in the target directory and returns results in JSON.
+* **`ast_replace`**: Performs AST pattern matching and in-place rewriting on files in the target directory.
 
-## スキル (`SKILL.md`)
+## Skill (`SKILL.md`)
 
-このプラグインには、AIエージェントが `ast-grep` の独自のメタ変数（`$A` や `$$$ARGS` など）を正しく扱い、いきなり置換せずに検索から入るというワークフローを教え込むための `SKILL.md` が同梱されています。
+Bundles `skills/ast-grep/SKILL.md` to guide agents on `ast-grep` meta-variables (`$A`, `$$$ARGS`) and encourage a search-before-replace workflow.

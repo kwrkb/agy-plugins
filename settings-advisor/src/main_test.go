@@ -20,14 +20,14 @@ func TestScanWorkspace(t *testing.T) {
 		}
 	}
 
-	writeFile("main.go", "package main\nfunc main() {}\n")        // go
-	writeFile("app.ts", "export const x = 1\n")                  // ts
-	writeFile(".env", "SECRET=1\n")                              // → HasEnv
-	writeFile(".github/workflows/ci.yml", "on: push\n")         // → HasCI
-	writeFile("config.production.json", "{}\n")                  // → HasProdConfig（トークン一致）
-	writeFile("product.json", "{}\n")                            // 誤検知してはいけない
-	writeFile("reproduce.yaml", "k: v\n")                        // 誤検知してはいけない
-	writeFile("node_modules/pkg/index.js", "skip me\n")         // SkipDir 対象
+	writeFile("main.go", "package main\nfunc main() {}\n") // go
+	writeFile("app.ts", "export const x = 1\n")            // ts
+	writeFile(".env", "SECRET=1\n")                        // → HasEnv
+	writeFile(".github/workflows/ci.yml", "on: push\n")    // → HasCI
+	writeFile("config.production.json", "{}\n")            // → HasProdConfig（トークン一致）
+	writeFile("product.json", "{}\n")                      // 誤検知してはいけない
+	writeFile("reproduce.yaml", "k: v\n")                  // 誤検知してはいけない
+	writeFile("node_modules/pkg/index.js", "skip me\n")    // SkipDir 対象
 
 	m, err := scanWorkspace(root)
 	if err != nil {

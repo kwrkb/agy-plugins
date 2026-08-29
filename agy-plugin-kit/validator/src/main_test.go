@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -93,4 +95,51 @@ func TestIsManifestFile(t *testing.T) {
 			t.Errorf("isManifestFile(%q) = true, want false", p)
 		}
 	}
+}
+
+func TestFixPaths(t *testing.T) {
+	// 1. 正常な mcp_config.json のパス置換
+	t.Run("normal mcp_config.json", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		mcpPath := filepath.Join(tmpDir, "mcp_config.json")
+		content := `{"mcpServers":{"test":{"command":"${extensionPath}${/}bin${/}test"}}}`
+		if err := os.WriteFile(mcpPath, []byte(content), 0o644); err != nil {
+			t.Fatalf("failed to write mcp_config.json: %v", err)
+		}
+
+		if err := fixPaths(tmpDir); err != nil {
+			t.Fatalf("fixPaths failed: %v", err)
+		}
+
+		fixed, err := os.ReadFile(mcpPath)
+		if err != nil {
+			t.Fatalf("failed to read fixed mcp_config.json: %v", err)
+		}
+		if strings.Contains(string(fixed), "${extensionPath}") || strings.Contains(string(fixed), "${/}") {
+			t.Errorf("expected placeholders to be replaced, got: %s", string(fixed))
+		}
+	})
+
+	// 2. プラグイン外を指す symlink のブロック (FD-KITVAL-001)
+	t.Run("symlink escaping plugin directory", func(t *testing.T) {
+		outsideDir := t.TempDir()
+		outsideFile := filepath.Join(outsideDir, "target_config.json")
+		if err := os.WriteFile(outsideFile, []byte(`{"outside":true}`), 0o644); err != nil {
+			t.Fatalf("failed to write outside file: %v", err)
+		}
+
+		pluginDir := t.TempDir()
+		symlinkPath := filepath.Join(pluginDir, "mcp_config.json")
+		if err := os.Symlink(outsideFile, symlinkPath); err != nil {
+			t.Skipf("symlinks not supported on this platform: %v", err)
+		}
+
+		err := fixPaths(pluginDir)
+		if err == nil {
+			t.Fatal("expected fixPaths to fail on escaping symlink, but it succeeded")
+		}
+		if !strings.Contains(err.Error(), "セキュリティエラー") {
+			t.Errorf("expected security error message, got: %v", err)
+		}
+	})
 }

@@ -1,66 +1,53 @@
-# GitHub MCP Server プラグイン (Cross-Platform)
+# GitHub MCP Server Plugin (Cross-Platform)
 
-GitHub CLI (`gh`) を利用して、GitHub の各種操作（Issues, Pull Requests など）を AI アシスタントから実行できるようにする MCP サーバープラグインです。
+An MCP server plugin that empowers AI assistants to interact with GitHub (Issues, Pull Requests, Repositories, etc.) via the GitHub CLI (`gh`).
 
-> **対応 OS**: Linux / macOS / Windows 共通
+> **Supported OS**: Linux / macOS / Windows
 
-## 概要
+## Overview
 
-このプラグインは公式の `github/github-mcp-server` を使わず、**システムにインストールされた `gh` コマンド** を内部で呼び出す独自の MCP サーバー（Go 言語実装）として動作します。
-これにより、以下のメリットがあります：
+Unlike the official `github/github-mcp-server`, this plugin runs as an independent Go-based MCP server executing the **system-installed `gh` command**.
+This provides several key advantages:
 
-- 既に `gh` コマンドを使用している環境であれば、追加のトークン設定やラッパースクリプトが不要。
-- `gh auth login` による認証セッションをそのまま引き継いで動作するため、面倒な PAT (Personal Access Token) 管理が不要。
-- OS を問わず単一のプラグインとして動作。
+- Uses existing `gh` configuration without requiring separate token setups or wrapper scripts.
+- Inherits the active `gh auth login` session directly, eliminating the need to manage Personal Access Tokens (PAT).
+- Functions as a single unified plugin across all major operating systems.
 
-## 構成
+## Structure
 
-| ファイル | 役割 |
+| File | Purpose |
 | :--- | :--- |
-| `gemini-extension.json` | プラグインマニフェスト。`command` は `${extensionPath}${/}bin${/}github` を絶対パスへ解決する |
-| `src/main.go` / `src/go.mod` / `src/go.sum` | `gh` コマンドを呼び出す MCP サーバーのソースコード |
-| `bin/github-linux-amd64` / `bin/github-darwin-arm64` / `bin/github.exe` | コンパイル済みの MCP サーバーネイティブバイナリ（各 OS×arch） |
-| `bin/github` | OS 分岐 dispatcher（shebang sh）。`uname` で実機を判定し対応ネイティブを `exec`（Windows は agy が `bin/github.exe` を直接起動） |
-| `skills/github/SKILL.md` | エージェント向け使用ガイド（呼び出し時ロード）。`gh_command` の引数規則・`-R` 必須・`--json` フィールド指定・頻出パターン |
+| `gemini-extension.json` | Plugin manifest. Resolves `command` to absolute path `${extensionPath}${/}bin${/}github` |
+| `src/main.go` / `src/go.mod` / `src/go.sum` | MCP server Go source code interfacing with `gh` |
+| `bin/github-linux-amd64` / `bin/github-darwin-arm64` / `bin/github.exe` | Precompiled native binaries for each OS/architecture |
+| `bin/github` | OS dispatcher script (`#!/usr/bin/env sh`) executing native binary via `uname` |
+| `skills/github/SKILL.md` | Agent skill guide loaded on invocation (argument formatting, mandatory `-R`, `--json` field selection, frequent patterns) |
 
-## 必要条件
+## Prerequisites
 
-### 1. `gh` コマンドを PATH に追加
-[GitHub CLI](https://cli.github.com/) をインストールし、コマンドプロンプトやターミナルで `gh` コマンドが実行できる状態にしてください。
+### 1. GitHub CLI (`gh`) on PATH
+Install the [GitHub CLI](https://cli.github.com/) and ensure `gh` is accessible from your terminal/command prompt.
 
-### 2. GitHub 認証
-ターミナル上で以下を実行し、GitHub へのログインを済ませておいてください。
+### 2. GitHub Authentication
+Authenticate with GitHub:
 
 ```bash
 gh auth login
 ```
 
-これだけで設定は完了です。MCP サーバーは `gh` コマンドの認証をそのまま利用します。
+The MCP server will automatically utilize this active session.
 
-## 提供されるツール
+## Provided Tools
 
-- **`gh_command`**: 任意の `gh` サブコマンドを実行します。引数は**トークンごとに分割した文字列の配列** `args` で渡します（例: `["issue", "list", "--limit", "10"]`、`["pr", "view", "123"]`）。
-  - スペースを含む値（タイトル・本文・検索クエリなど）は**1要素**にまとめます（例: `["pr", "create", "--title", "My Title"]`）。文字列を空白分割する方式ではないため、クオートで囲む必要はありません。
+- **`gh_command`**: Runs an arbitrary `gh` subcommand. Arguments are passed as an array of string tokens in `args` (e.g. `["issue", "list", "--limit", "10"]`, `["pr", "view", "123"]`).
+  - Values with spaces (titles, bodies, queries) must be passed as a **single array element** (e.g. `["pr", "create", "--title", "My Title"]`). No internal shell escaping or manual quoting is needed.
 
-> ⚠️ **注意（任意コマンド実行）**: `gh_command` は `gh` の**あらゆるサブコマンドを実行できます**。読み取りだけでなく、`gh pr merge` / `gh issue close` / `gh repo delete` / `gh api`（任意の REST 呼び出し）といった**書き込み・破壊的操作も実行可能**で、`gh auth login` 済みアカウントの権限で動きます。エージェントに渡すタスクの範囲に注意し、信頼できる文脈でのみ利用してください。
+> ⚠️ **Warning (Arbitrary Command Execution)**: `gh_command` can execute **any** `gh` subcommand. Beyond read operations, it can perform destructive actions such as `gh pr merge`, `gh issue close`, `gh repo delete`, and arbitrary REST calls via `gh api` under the logged-in user's credentials. Ensure agent tasks are appropriately bounded and run within trusted environments.
 
-## インストール
+## Installation
 
 ```bash
 agy plugin install https://github.com/kwrkb/agy-plugins/github
 ```
 
-> **注意**: ソースコード (`src/main.go`) を変更したら、下記コマンドで全 OS 分のバイナリを再ビルドしてコミットしてください（`agy plugin install` はビルドせず**コミット済みバイナリをコピー**するため、再ビルドを忘れると stale バイナリが配布されます）。
-
-### バイナリの再ビルド
-
-リポジトリルートのビルドスクリプトを使います（**Go 1.26.5**。決定論フラグはスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求し、Go のバージョンがずれると fail します）。
-
-```bash
-./build.sh github    # github のネイティブバイナリ（linux-amd64/darwin-arm64/windows）を再ビルド。Windows は ./build.ps1 github
-# 引数なし（./build.sh / ./build.ps1）で全プラグイン
-```
-
-> **ビルドする OS によってスクリプトを使い分ける**: macOS / Linux は `./build.sh`、Windows は `./build.ps1`。
-> どちらも `CGO_ENABLED=0` のクロスコンパイルで **3 OS 分のネイティブを 1 台で一括生成**し、Go 1.26.5 固定なら
-> ホスト OS に依らず bit-identical（各 OS で実機ビルドする必要はない）。
+> **Note**: When modifying Go sources (`src/main.go`), rebuild and commit the native binaries for all platforms using `./build.sh github` (or `./build.ps1 github` on Windows). `agy plugin install` copies committed binaries rather than compiling them on install.
