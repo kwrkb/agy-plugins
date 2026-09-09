@@ -95,15 +95,6 @@ jobs:
             exit 1
           fi
         working-directory: .
-      - name: Upload rebuilt validator binaries
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: validator-binaries
-          path: |
-            agy-plugin-kit/validator/bin/validator-linux-amd64
-            agy-plugin-kit/validator/bin/validator-darwin-arm64
-            agy-plugin-kit/validator/bin/validator.exe
 
   ast-grep:
     runs-on: ubuntu-latest
@@ -249,12 +240,3 @@ jobs:
             exit 1
           fi
         working-directory: .
-      - name: Upload rebuilt worktree-manager binaries
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: worktree-manager-binaries
-          path: |
-            worktree-manager/bin/worktree-manager-linux-amd64
-            worktree-manager/bin/worktree-manager-darwin-arm64
-            worktree-manager/bin/worktree-manager.exe
