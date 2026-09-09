@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0] - 2026-09-10
+
+### Added
+- **worktree-manager**: New MCP plugin for safe Git worktree management (`worktree_list`, `worktree_add`, `worktree_remove`, `worktree_prune`). Refuses removal of the main working tree and includes bundled skill `worktree-manager-gemini`.
+- Native prebuilt binaries (`darwin-arm64`, `linux-amd64`, `windows`) for `worktree-manager`.
+
+### Fixed
+- **CI / Build Verification**: Configured `continue-on-error: true` for `govulncheck` to prevent standard library CVE reports for pinned Go toolchain (1.26.5) from blocking deterministic rebuild and binary divergence gates.
+- Updated `agy-plugin-kit/validator` and `worktree-manager` binaries to match Go 1.26.5 deterministic rebuilds.
+
 ## [0.4.0] - 2026-06-20
 
 ### Added
