@@ -45,6 +45,7 @@ case "$target" in
 	retro-status) build retro-status retro-status ;;
 	settings-advisor) build settings-advisor settings-advisor ;;
 	go-lsp)       build go-lsp go-lsp ;;
+	worktree-manager) build worktree-manager worktree-manager ;;
 	all)
 		build github github
 		build agy-plugin-kit/validator validator
@@ -52,9 +53,10 @@ case "$target" in
 		build retro-status retro-status
 		build settings-advisor settings-advisor
 		build go-lsp go-lsp
+		build worktree-manager worktree-manager
 		;;
 	*)
-		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | all)" >&2
+		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | all)" >&2
 		exit 2
 		;;
 esac

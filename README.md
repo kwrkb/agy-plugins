@@ -13,6 +13,7 @@ A collection of Model Context Protocol (MCP) plugins designed for AI assistants,
 | **[go-lsp](./go-lsp/README.md)** | MCP server utilizing `gopls` for Go definitions, references, and hover information |
 | **[retro-status](./retro-status/README.md)** | MCP server scanning repositories to render RPG-style retro status ASCII art |
 | **[settings-advisor](./settings-advisor/README.md)** | MCP server analyzing workspace scale, languages, and settings to recommend optimal models and sandbox configurations |
+| **[worktree-manager](./worktree-manager/README.md)** | MCP server providing safe git worktree operations (list, add, remove, prune) for isolated parallel workflows |
 
 ## Installation
 
@@ -37,6 +38,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/retro-status
 
 # settings-advisor plugin
 agy plugin install https://github.com/kwrkb/agy-plugins/settings-advisor
+
+# worktree-manager plugin
+agy plugin install https://github.com/kwrkb/agy-plugins/worktree-manager
 ```
 
 Please refer to the README in each plugin directory for specific prerequisites (required CLI binaries on PATH / authentication).
@@ -56,12 +60,13 @@ Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded upon too
 | go-lsp | `gopls` (on PATH) | None |
 | retro-status | `git` (recommended), `rg` (optional) | None |
 | settings-advisor | None (prebuilt binaries included) | None |
+| worktree-manager | `git` (on PATH) | None |
 
 ### Bundled Platforms & Self-Build
 
 ✅ **Windows native execution verified across all plugins**
 
-Go-based plugins (`github`, `ast-grep`, `go-lsp`, `retro-status`, `settings-advisor`, and `agy-plugin-kit` validator) include native binaries for **`linux/amd64`**, **`darwin/arm64` (Apple Silicon)**, and **`windows/amd64`** in `bin/`. The extensionless `bin/<name>` dispatcher script detects the platform via `uname` and executes `<name>-<goos>-<goarch>` (on Windows, agy directly invokes `<name>.exe`).
+Go-based plugins (`github`, `ast-grep`, `go-lsp`, `retro-status`, `settings-advisor`, `worktree-manager`, and `agy-plugin-kit` validator) include native binaries for **`linux/amd64`**, **`darwin/arm64` (Apple Silicon)**, and **`windows/amd64`** in `bin/`. The extensionless `bin/<name>` dispatcher script detects the platform via `uname` and executes `<name>-<goos>-<goarch>` (on Windows, agy directly invokes `<name>.exe`).
 
 **Other platforms (e.g. `linux/arm64` / `darwin/amd64`) are not bundled by default**, but can be built on the target machine without modifying any scripts:
 
@@ -83,5 +88,6 @@ Each plugin acts as a wrapper for existing tools/servers and complies with their
 | retro-status | Custom Go implementation | MIT |
 | settings-advisor | Custom Go implementation | MIT |
 | agy-plugin-kit | Custom Go implementation | MIT |
+| worktree-manager | `git` CLI | MIT |
 
 Plugins delegate execution to user-installed binaries/CLIs on PATH (no redistribution of external binaries).

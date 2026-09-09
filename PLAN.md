@@ -178,3 +178,10 @@ macOS 予備検証（§6 旧版）を Linux で厳密再現し、機構を確定
 - [x] 各プラグインおよびルートのドキュメント整合性向上（`go-lsp` / `retro-status` の記載漏れ補完、`README.md` (EN) と `README_ja.md` (JA) の同期）
 - [x] 全プラグインのテスト・バリデーション・決定論ビルド検証
 
+## フェーズ10: Git ワークツリー管理プラグイン (worktree-manager) の追加（完了）
+
+- [x] Go モジュール設計・実装（`worktree-manager/src/main.go`, `main_test.go`）
+- [x] プラグイン定義・設定（`gemini-extension.json`, `skills/.../SKILL.md`, `bin/worktree-manager` dispatcher）
+- [x] ドキュメント作成と同期（`worktree-manager/README.md`, `README_ja.md`, ルート README 同期）
+- [x] ビルドシステム統合（`build.sh`, `build.ps1`, `.github/workflows/build-verify.yml`）
+- [x] テスト・バリデーション・クロスビルド検証

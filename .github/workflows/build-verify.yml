@@ -13,6 +13,7 @@ on:
       - 'retro-status/**'
       - 'settings-advisor/**'
       - 'go-lsp/**'
+      - 'worktree-manager/**'
       - 'build.sh'
       - 'build.ps1'
       - '.github/workflows/build-verify.yml'
@@ -25,6 +26,7 @@ on:
       - 'retro-status/**'
       - 'settings-advisor/**'
       - 'go-lsp/**'
+      - 'worktree-manager/**'
       - 'build.sh'
       - 'build.ps1'
       - '.github/workflows/build-verify.yml'
@@ -200,6 +202,34 @@ jobs:
           if ! git diff --exit-code -- settings-advisor/bin/settings-advisor-linux-amd64 settings-advisor/bin/settings-advisor-darwin-arm64 settings-advisor/bin/settings-advisor.exe; then
             echo "::error::Committed settings-advisor binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh settings-advisor and commit the result."
+            exit 1
+          fi
+        working-directory: .
+
+  worktree-manager:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worktree-manager/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - run: go vet ./...
+      - run: go test ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+      - name: Deterministic rebuild
+        run: ./build.sh worktree-manager
+        working-directory: .
+      - name: Verify committed binaries are up to date
+        run: |
+          if ! git diff --exit-code -- worktree-manager/bin/worktree-manager-linux-amd64 worktree-manager/bin/worktree-manager-darwin-arm64 worktree-manager/bin/worktree-manager.exe; then
+            echo "::error::Committed worktree-manager binaries differ from a deterministic rebuild."
+            echo "::error::Run ./build.sh worktree-manager and commit the result."
             exit 1
           fi
         working-directory: .
