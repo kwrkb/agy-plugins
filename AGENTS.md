@@ -17,6 +17,12 @@
 
 Go 製プラグインは原則として `<plugin>/src/` に独立した Go モジュール、`<plugin>/bin/` に配布用バイナリを持ちます。validator のみ `agy-plugin-kit/validator/{src,bin}/` 配下です。
 
+## Permissions
+
+- `.gemini/settings.json`（`proceed-in-sandbox`）により、サンドボックス内の開発操作は自動承認。
+- **自動実行可**: サンドボックス内でのファイル編集、ビルド（`./build.sh`）、テスト・検証（`go test`, `go vet`, `gofmt`）、ローカル Git 参照（`status`, `diff`, `log`）、同梱 MCP ツールのローカル解析。
+- **要ユーザー承認**: 外部通信・リモート操作（`git push`, `gh`/`glab` による PR/MR 操作）、破壊的操作（`git reset --hard`, ワークツリー強制削除等）、ホームディレクトリ（`~/.gemini/` 等）への変更・キャッシュ操作、依存の新規追加。
+
 ## Before Editing
 
 1. `git status --short` で既存のユーザー変更を確認し、巻き戻さない。
