@@ -53,8 +53,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh github
         working-directory: .
@@ -82,8 +89,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh validator
         working-directory: .
@@ -111,8 +125,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh ast-grep
         working-directory: .
@@ -140,8 +161,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh retro-status
         working-directory: .
@@ -169,8 +197,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh go-lsp
         working-directory: .
@@ -198,8 +233,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh settings-advisor
         working-directory: .
@@ -227,8 +269,15 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...
-        continue-on-error: true
+          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
+          echo "$OUTPUT"
+          if [ "${STATUS:-0}" -ne 0 ]; then
+            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
+              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            else
+              exit "$STATUS"
+            fi
+          fi
       - name: Deterministic rebuild
         run: ./build.sh worktree-manager
         working-directory: .
@@ -240,3 +289,12 @@ jobs:
             exit 1
           fi
         working-directory: .
+      - name: Upload rebuilt worktree-manager binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: worktree-manager-binaries
+          path: |
+            worktree-manager/bin/worktree-manager-linux-amd64
+            worktree-manager/bin/worktree-manager-darwin-arm64
+            worktree-manager/bin/worktree-manager.exe

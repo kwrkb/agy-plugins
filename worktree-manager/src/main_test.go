@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -62,6 +64,26 @@ prunable gitdir file points to non-existent location
 	}
 }
 
+func TestParseWorktreePorcelainZ(t *testing.T) {
+	input := "worktree /path/to/main\x00HEAD 8c56d782989b0d3ee78b7e289bf4e321ad8383cf\x00branch refs/heads/master\x00\x00worktree /path/to/path\nwith\nnewlines\x00HEAD 1234567890abcdef1234567890abcdef12345678\x00branch refs/heads/feature-x\x00locked custom lock reason\x00\x00"
+
+	results := parseWorktreePorcelain(input)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 worktrees, got %d", len(results))
+	}
+
+	if !results[0].IsMain || results[0].Path != "/path/to/main" {
+		t.Errorf("expected 1st worktree to be main /path/to/main")
+	}
+
+	if results[1].IsMain || results[1].Path != "/path/to/path\nwith\nnewlines" {
+		t.Errorf("expected 2nd worktree to preserve newlines in path, got %q", results[1].Path)
+	}
+	if results[1].Locked != "custom lock reason" {
+		t.Errorf("expected locked reason, got %q", results[1].Locked)
+	}
+}
+
 func TestPathsEqual(t *testing.T) {
 	tempDir := t.TempDir()
 	p1 := filepath.Join(tempDir, "foo")
@@ -82,6 +104,19 @@ func TestPathsEqual(t *testing.T) {
 	}
 	if !pathsEqual(tempDir, tempDir+string(filepath.Separator)) {
 		t.Errorf("expected %s and %s to be equal", tempDir, tempDir+string(filepath.Separator))
+	}
+
+	// Case sensitivity check
+	pLower := filepath.Join(tempDir, "testcase")
+	pUpper := filepath.Join(tempDir, "TESTCASE")
+	if runtime.GOOS == "windows" {
+		if !pathsEqual(pLower, pUpper) {
+			t.Errorf("expected case-insensitive equality on Windows")
+		}
+	} else {
+		if pathsEqual(pLower, pUpper) {
+			t.Errorf("expected case-sensitive inequality on non-Windows")
+		}
 	}
 }
 
@@ -110,7 +145,7 @@ func TestGitWorktreeOperations(t *testing.T) {
 	}
 
 	// 1. List worktree (should be 1 main worktree)
-	out, err := runGitCommand(ctx, tempDir, "worktree", "list", "--porcelain")
+	out, err := runGitCommand(ctx, tempDir, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		t.Fatalf("worktree list failed: %v", err)
 	}
@@ -121,12 +156,12 @@ func TestGitWorktreeOperations(t *testing.T) {
 
 	// 2. Add a new worktree
 	wtPath := filepath.Join(tempDir, "wt-feature")
-	if _, err := runGitCommand(ctx, tempDir, "worktree", "add", "-b", "feature-branch", wtPath); err != nil {
+	if _, err := runGitCommand(ctx, tempDir, "worktree", "add", "-b", "feature-branch", "--", wtPath); err != nil {
 		t.Fatalf("worktree add failed: %v", err)
 	}
 
 	// List again
-	out, err = runGitCommand(ctx, tempDir, "worktree", "list", "--porcelain")
+	out, err = runGitCommand(ctx, tempDir, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		t.Fatalf("worktree list after add failed: %v", err)
 	}
@@ -135,7 +170,15 @@ func TestGitWorktreeOperations(t *testing.T) {
 		t.Fatalf("expected 2 worktrees, got %d", len(trees))
 	}
 
-	// 3. Verify main worktree removal is rejected
+	// 3. Verify main worktree resolution works from linked worktree
+	mainFromLinked, err := getMainWorktreePath(ctx, wtPath)
+	if err != nil {
+		t.Fatalf("failed to get main worktree path from linked worktree: %v", err)
+	}
+	if !pathsEqual(mainFromLinked, tempDir) {
+		t.Errorf("expected mainPath from linked (%s) to equal tempDir (%s)", mainFromLinked, tempDir)
+	}
+
 	mainPath, err := getMainWorktreePath(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("failed to get main worktree path: %v", err)
@@ -144,13 +187,17 @@ func TestGitWorktreeOperations(t *testing.T) {
 		t.Errorf("expected mainPath %s to equal tempDir %s", mainPath, tempDir)
 	}
 
-	// 4. Remove linked worktree
-	if _, err := runGitCommand(ctx, tempDir, "worktree", "remove", wtPath); err != nil {
-		t.Fatalf("worktree remove failed: %v", err)
+	// 4. Lock linked worktree and verify remove with double force succeeds
+	if _, err := runGitCommand(ctx, tempDir, "worktree", "lock", "--reason", "test locking", wtPath); err != nil {
+		t.Fatalf("worktree lock failed: %v", err)
+	}
+	// Verify removal with double force
+	if _, err := runGitCommand(ctx, tempDir, "worktree", "remove", "--force", "--force", "--", wtPath); err != nil {
+		t.Fatalf("worktree remove locked failed: %v", err)
 	}
 
 	// List again
-	out, err = runGitCommand(ctx, tempDir, "worktree", "list", "--porcelain")
+	out, err = runGitCommand(ctx, tempDir, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		t.Fatalf("worktree list after remove failed: %v", err)
 	}
@@ -159,10 +206,30 @@ func TestGitWorktreeOperations(t *testing.T) {
 		t.Fatalf("expected 1 worktree after removal, got %d", len(trees))
 	}
 
-	// 5. Prune
+	// 5. Add worktree, delete directory, and verify prune captures diagnostic output
+	wtPrunePath := filepath.Join(tempDir, "wt-prune")
+	if _, err := runGitCommand(ctx, tempDir, "worktree", "add", "-b", "prune-branch", "--", wtPrunePath); err != nil {
+		t.Fatalf("worktree add for prune failed: %v", err)
+	}
+	if err := os.RemoveAll(wtPrunePath); err != nil {
+		t.Fatalf("failed to remove prune worktree dir: %v", err)
+	}
+
 	pruneOut, err := runGitCommand(ctx, tempDir, "worktree", "prune", "-v")
 	if err != nil {
 		t.Fatalf("worktree prune failed: %v", err)
 	}
 	t.Logf("prune output: %s", pruneOut)
+	if !strings.Contains(pruneOut, "Removing") && !strings.Contains(pruneOut, "wt-prune") {
+		t.Errorf("expected prune output to report pruned worktree, got %q", pruneOut)
+	}
+
+	// 6. Test handling paths starting with a dash
+	dashPath := filepath.Join(tempDir, "-dash-tree")
+	if _, err := runGitCommand(ctx, tempDir, "worktree", "add", "-b", "dash-branch", "--", dashPath); err != nil {
+		t.Fatalf("worktree add with dash path failed: %v", err)
+	}
+	if _, err := runGitCommand(ctx, tempDir, "worktree", "remove", "--force", "--force", "--", dashPath); err != nil {
+		t.Fatalf("worktree remove with dash path failed: %v", err)
+	}
 }

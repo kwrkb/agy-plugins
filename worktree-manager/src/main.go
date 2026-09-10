@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -47,12 +48,25 @@ func runGitCommand(ctx context.Context, repoPath string, args ...string) (string
 		}
 		return "", err
 	}
-	return stdout.String(), nil
+
+	outStr := strings.TrimSpace(stdout.String())
+	errStr := strings.TrimSpace(stderr.String())
+	if outStr != "" && errStr != "" {
+		return outStr + "\n" + errStr, nil
+	} else if outStr != "" {
+		return outStr, nil
+	}
+	return errStr, nil
 }
 
-// parseWorktreePorcelain parses the output of `git worktree list --porcelain`.
+// parseWorktreePorcelain parses the output of `git worktree list --porcelain` (including -z).
 func parseWorktreePorcelain(output string) []WorktreeInfo {
-	lines := strings.Split(output, "\n")
+	var lines []string
+	if strings.Contains(output, "\x00") {
+		lines = strings.Split(output, "\x00")
+	} else {
+		lines = strings.Split(output, "\n")
+	}
 	var results []WorktreeInfo
 	var current *WorktreeInfo
 	isFirst := true
@@ -121,27 +135,38 @@ func parseWorktreePorcelain(output string) []WorktreeInfo {
 }
 
 func getMainWorktreePath(ctx context.Context, repoPath string) (string, error) {
-	out, err := runGitCommand(ctx, repoPath, "rev-parse", "--show-toplevel")
+	out, err := runGitCommand(ctx, repoPath, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out), nil
+	trees := parseWorktreePorcelain(out)
+	if len(trees) == 0 {
+		return "", fmt.Errorf("no worktrees found")
+	}
+	return trees[0].Path, nil
 }
 
 func pathsEqual(p1, p2 string) bool {
 	abs1, err1 := filepath.Abs(p1)
 	abs2, err2 := filepath.Abs(p2)
 	if err1 != nil || err2 != nil {
-		return filepath.Clean(p1) == filepath.Clean(p2)
+		abs1 = filepath.Clean(p1)
+		abs2 = filepath.Clean(p2)
+	} else {
+		// Evaluate symlinks if possible
+		if real1, err := filepath.EvalSymlinks(abs1); err == nil {
+			abs1 = real1
+		}
+		if real2, err := filepath.EvalSymlinks(abs2); err == nil {
+			abs2 = real2
+		}
+		abs1 = filepath.Clean(abs1)
+		abs2 = filepath.Clean(abs2)
 	}
-	// Evaluate symlinks if possible
-	if real1, err := filepath.EvalSymlinks(abs1); err == nil {
-		abs1 = real1
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(abs1, abs2)
 	}
-	if real2, err := filepath.EvalSymlinks(abs2); err == nil {
-		abs2 = real2
-	}
-	return strings.EqualFold(filepath.Clean(abs1), filepath.Clean(abs2))
+	return abs1 == abs2
 }
 
 func main() {
@@ -159,7 +184,7 @@ func main() {
 		cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
-		output, err := runGitCommand(cmdCtx, repoPath, "worktree", "list", "--porcelain")
+		output, err := runGitCommand(cmdCtx, repoPath, "worktree", "list", "--porcelain", "-z")
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to list worktrees: %v", err)), nil
 		}
@@ -237,7 +262,7 @@ func main() {
 		if newBranch != "" {
 			args = append(args, "-b", newBranch)
 		}
-		args = append(args, path)
+		args = append(args, "--", path)
 
 		if branch != "" {
 			args = append(args, branch)
@@ -265,7 +290,7 @@ func main() {
 			mcp.Required(),
 		),
 		mcp.WithBoolean("force",
-			mcp.Description("Force removal even if the worktree contains untracked or uncommitted changes. Defaults to false."),
+			mcp.Description("Force removal even if the worktree contains untracked or uncommitted changes or is locked. Defaults to false."),
 		),
 		mcp.WithString("repo_path",
 			mcp.Description("Optional path to the git repository. Defaults to current directory."),
@@ -295,9 +320,9 @@ func main() {
 
 		args := []string{"worktree", "remove"}
 		if force {
-			args = append(args, "--force")
+			args = append(args, "--force", "--force")
 		}
-		args = append(args, path)
+		args = append(args, "--", path)
 
 		out, err := runGitCommand(cmdCtx, repoPath, args...)
 		if err != nil {
