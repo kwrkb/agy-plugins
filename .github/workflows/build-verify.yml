@@ -289,12 +289,3 @@ jobs:
             exit 1
           fi
         working-directory: .
-      - name: Upload rebuilt worktree-manager binaries
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: worktree-manager-binaries
-          path: |
-            worktree-manager/bin/worktree-manager-linux-amd64
-            worktree-manager/bin/worktree-manager-darwin-arm64
-            worktree-manager/bin/worktree-manager.exe
