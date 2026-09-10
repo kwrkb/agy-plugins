@@ -178,3 +178,20 @@ macOS 予備検証（§6 旧版）を Linux で厳密再現し、機構を確定
 - [x] 各プラグインおよびルートのドキュメント整合性向上（`go-lsp` / `retro-status` の記載漏れ補完、`README.md` (EN) と `README_ja.md` (JA) の同期）
 - [x] 全プラグインのテスト・バリデーション・決定論ビルド検証
 
+## フェーズ10: Git ワークツリー管理プラグイン (worktree-manager) の追加（完了）
+
+- [x] Go モジュール設計・実装（`worktree-manager/src/main.go`, `main_test.go`）
+- [x] プラグイン定義・設定（`gemini-extension.json`, `skills/.../SKILL.md`, `bin/worktree-manager` dispatcher）
+- [x] ドキュメント作成と同期（`worktree-manager/README.md`, `README_ja.md`, ルート README 同期）
+- [x] ビルドシステム統合（`build.sh`, `build.ps1`, `.github/workflows/build-verify.yml`）
+- [x] テスト・バリデーション・クロスビルド検証
+
+## フェーズ11: PR #19 レビュー指摘（Codex Review）の修正と検証（完了）
+
+### 目的
+PR #19 に寄せられた Codex Review 指摘（Go コード 6件、CI ワークフロー 1件）を検証・修正し、回帰テストを追加して CI を通過させる。
+
+### 主要ステップ
+- [x] ステップ1: `worktree-manager/src/main.go` のバグ・境界条件の修正（main worktree 判定、大文字小文字比較、NUL 区切りパース、ハイフン引数保護、locked 削除、prune stderr 捕捉）
+- [x] ステップ2: `main_test.go` に指摘事項の再現・回帰テストを追加し全テスト通過を確認
+- [x] ステップ3: 決定論的再ビルド（Go 1.26.5）および CI 設定（govulncheck）の確認・検証

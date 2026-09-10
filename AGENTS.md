@@ -12,6 +12,7 @@
 - `go-lsp/`: `gopls` を利用する Go 製 MCP サーバー
 - `retro-status/`: リポジトリ情報をレトロゲーム風に表示する Go 製 MCP サーバー
 - `settings-advisor/`: ワークスペースに適した agy 設定を提案する Go 製 MCP サーバー
+- `worktree-manager/`: Git worktree の作成・削除・一覧・prune を行う Go 製 MCP サーバー
 - `agy-plugin-kit/`: プラグイン作成用の command、skill、template、および Go 製 validator
 
 Go 製プラグインは原則として `<plugin>/src/` に独立した Go モジュール、`<plugin>/bin/` に配布用バイナリを持ちます。validator のみ `agy-plugin-kit/validator/{src,bin}/` 配下です。
@@ -27,9 +28,10 @@ Go 製プラグインは原則として `<plugin>/src/` に独立した Go モ�
 
 - 変更は対象プラグイン内に限定し、他プラグインへの横展開は必要性が確認できた場合だけ行う。
 - Go コードは標準ライブラリと既存ヘルパーを優先し、新しい production dependency は追加前に確認する。
-- 外部 CLI の引数は文字列結合や手作業の再分割を避け、`exec.CommandContext` へ引数配列として渡す。
+- 外部 CLI の引数は文字列結合や手作業の再分割を避け、`exec.CommandContext` へ引数配列として渡す。ユーザー入力パスや引数が `-` で始まる場合のオプション誤認を防ぐため、必要に応じて `--` デリミタを挟む。
+- 外部 CLI 呼び出しでは、正常終了時でも stderr にレポートや診断メッセージを出力するツール（例: `git worktree prune -v`）があるため、必要に応じて stderr も捕捉して利用者に返す。
 - MCP の stdout はプロトコル専用に保つ。診断ログは stderr へ出す。
-- OS パスを扱う処理では Linux、macOS、Windows の区切り文字と実行形式を考慮する。
+- OS パスを扱う処理では Linux、macOS、Windows の区切り文字と実行形式を考慮する。パス比較で不用意に大文字小文字を無視（case-insensitive）せず、プラットフォームに応じた比較を行う。
 - ユーザー入力からファイルを読む、コマンドを実行する、または destructive な CLI 操作を公開する変更には、境界チェック、タイムアウト、説明を追加する。
 - 挙動変更には、正常系だけでなく引数境界、パス、キャンセル、エラー処理など変更リスクに対応するテストを加える。
 
@@ -62,12 +64,13 @@ github/src
 go-lsp/src
 retro-status/src
 settings-advisor/src
+worktree-manager/src
 ```
 
 Go ソースを変更したら、リポジトリルートで対象を決定論的に再ビルドします。
 
 ```sh
-./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor>
+./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor|worktree-manager>
 ```
 
 Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドは `go 1.26.5` を前提とします。ローカル Go バージョンが異なる場合、コミット済みバイナリとの差分を正しい更新とみなさず、使用できなかったことを報告してください。

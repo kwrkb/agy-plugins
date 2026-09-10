@@ -1,0 +1,10 @@
+{
+  "name": "worktree-manager",
+  "version": "1.0.0",
+  "description": "Git worktree management MCP plugin for agy.",
+  "mcpServers": {
+    "worktree-manager": {
+      "command": "${extensionPath}${/}bin${/}worktree-manager"
+    }
+  }
+}
