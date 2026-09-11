@@ -173,7 +173,9 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 		}
 
 		if info.IsDir() {
-			if skipDirs[info.Name()] {
+			// ルート自身は利用者が明示指定したパスなので、名前が skipDirs に
+			// 一致しても走査する（例: "target" というリポジトリを直接指定）。
+			if path != root && skipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
@@ -186,10 +188,13 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 			metrics.HasEnv = true
 		}
 
-		slashPath := filepath.ToSlash(path)
+		// パス由来の判定は root からの相対パスのみを見る。絶対パスを使うと
+		// ワークスペース外の祖先ディレクトリ名（例: /mnt/production/repos/app,
+		// ~/.circleci/repos/app）が誤検知の原因になる。
+		dirParts, relOK := relDirComponents(root, path)
 
 		// CI/CD 検知（GitHub Actions, GitLab CI, CircleCI, Bitbucket, Azure）
-		if isCIPath(slashPath, fileName) {
+		if isCIPath(dirParts, relOK, fileName) {
 			metrics.HasCI = true
 		}
 
@@ -202,9 +207,8 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 			base := strings.TrimSuffix(fileName, ext)
 			if hasProdToken(base) {
 				metrics.HasProdConfig = true
-			} else {
-				dir := filepath.Dir(slashPath)
-				for _, part := range strings.Split(dir, "/") {
+			} else if relOK {
+				for _, part := range dirParts {
 					if hasProdToken(strings.ToLower(part)) {
 						metrics.HasProdConfig = true
 						break
@@ -250,17 +254,48 @@ func isEnvFile(fileName string) bool {
 	return false
 }
 
-// isCIPath は CI/CD 関連のパスまたは設定ファイルであるかを判定する。
-func isCIPath(slashPath, fileName string) bool {
-	if strings.Contains(slashPath, ".github/workflows") ||
-		strings.Contains(slashPath, ".gitlab/ci") ||
-		strings.Contains(slashPath, ".circleci") {
-		return true
+// relDirComponents は root から path までの相対パスの「ディレクトリ部分」を
+// パス区切りで分解して返す。path が root 配下でない、または相対化できない場合は
+// ok=false を返し、呼び出し側はパス由来の判定を行わない。
+func relDirComponents(root, path string) ([]string, bool) {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, false
 	}
+	slashRel := filepath.ToSlash(rel)
+	if slashRel == ".." || strings.HasPrefix(slashRel, "../") {
+		return nil, false
+	}
+	dir := filepath.ToSlash(filepath.Dir(slashRel))
+	if dir == "." || dir == "" {
+		return nil, true // root 直下のファイル（ディレクトリ成分なし）
+	}
+	return strings.Split(dir, "/"), true
+}
+
+// isCIPath は CI/CD 関連のパスまたは設定ファイルであるかを判定する。
+// dirParts は root からの相対ディレクトリ成分。部分文字列ではなくパス成分単位で
+// 比較し、".circleci-disabled/" や ".gitlab/circle/" のような近似名を弾く。
+func isCIPath(dirParts []string, relOK bool, fileName string) bool {
 	if fileName == ".gitlab-ci.yml" ||
 		fileName == "bitbucket-pipelines.yml" ||
 		fileName == "azure-pipelines.yml" {
 		return true
+	}
+	if !relOK {
+		return false
+	}
+	for i, part := range dirParts {
+		if part == ".circleci" {
+			return true
+		}
+		if i+1 < len(dirParts) {
+			next := dirParts[i+1]
+			if (part == ".github" && next == "workflows") ||
+				(part == ".gitlab" && next == "ci") {
+				return true
+			}
+		}
 	}
 	return false
 }

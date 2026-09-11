@@ -309,3 +309,118 @@ func TestGenerateRecommendations(t *testing.T) {
 		}
 	})
 }
+
+// TestScanWorkspaceRootNamedSkipDir は、利用者が明示指定したルート自身が
+// skipDirs に一致する名前（target / out / Pods 等）でも走査されることを確認する。
+func TestScanWorkspaceRootNamedSkipDir(t *testing.T) {
+	for _, name := range []string{"target", "out", "Pods", "build", "dist"} {
+		t.Run(name, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), name)
+			if err := os.MkdirAll(root, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			m, err := scanWorkspace(root)
+			if err != nil {
+				t.Fatalf("scanWorkspace error: %v", err)
+			}
+			if want := []string{"go"}; !reflect.DeepEqual(m.Languages, want) {
+				t.Errorf("Languages = %v, want %v (explicitly requested root must not be skipped)", m.Languages, want)
+			}
+			if m.TotalLines == 0 {
+				t.Error("TotalLines = 0, want > 0 (explicitly requested root must not be skipped)")
+			}
+		})
+	}
+}
+
+// TestScanWorkspaceCINearMissDirs は、CI ディレクトリの近似名が部分文字列一致で
+// HasCI を立てないことを確認する（パス成分単位の比較）。
+func TestScanWorkspaceCINearMissDirs(t *testing.T) {
+	root := t.TempDir()
+	writeFile := func(rel, body string) {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeFile(".circleci-disabled/job.yml", "jobs: {}\n")
+	writeFile(".gitlab/circle/config.yml", "x: 1\n")
+	writeFile(".github/workflows-archive/old.yml", "on: push\n")
+	writeFile(".gitlab/ci-templates/base.yml", "x: 1\n")
+	writeFile("docs/circleci.md", "notes\n")
+
+	m, err := scanWorkspace(root)
+	if err != nil {
+		t.Fatalf("scanWorkspace error: %v", err)
+	}
+	if m.HasCI {
+		t.Error("expected HasCI=false for directories that only resemble CI directory names")
+	}
+}
+
+// TestScanWorkspaceCIComponentMatch は、成分単位比較にしても本来の CI ディレクトリを
+// 取りこぼさないことを確認する（ネストした配置を含む）。
+func TestScanWorkspaceCIComponentMatch(t *testing.T) {
+	cases := map[string]string{
+		".github/workflows/ci.yml":        "on: push\n",
+		".gitlab/ci/build.yml":            "x: 1\n",
+		".circleci/config.yml":            "version: 2.1\n",
+		"sub/.github/workflows/build.yml": "on: push\n",
+		"sub/.circleci/config.yml":        "version: 2.1\n",
+	}
+	for rel, body := range cases {
+		t.Run(rel, func(t *testing.T) {
+			root := t.TempDir()
+			p := filepath.Join(root, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			m, err := scanWorkspace(root)
+			if err != nil {
+				t.Fatalf("scanWorkspace error: %v", err)
+			}
+			if !m.HasCI {
+				t.Errorf("expected HasCI=true for %s", rel)
+			}
+		})
+	}
+}
+
+// TestScanWorkspaceAncestorOutsideRoot は、スキャンルートより上位（ワークスペース外）の
+// ディレクトリ名が prod / CI 判定に混入しないことを確認する。
+func TestScanWorkspaceAncestorOutsideRoot(t *testing.T) {
+	for _, ancestor := range []string{"production", "prod", ".circleci"} {
+		t.Run(ancestor, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), ancestor, "repos", "app")
+			if err := os.MkdirAll(root, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "settings.json"), []byte("{}\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			m, err := scanWorkspace(root)
+			if err != nil {
+				t.Fatalf("scanWorkspace error: %v", err)
+			}
+			if m.HasProdConfig {
+				t.Errorf("expected HasProdConfig=false: %q ancestor is outside the scan root", ancestor)
+			}
+			if m.HasCI {
+				t.Errorf("expected HasCI=false: %q ancestor is outside the scan root", ancestor)
+			}
+		})
+	}
+}
