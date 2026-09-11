@@ -195,3 +195,17 @@ PR #19 に寄せられた Codex Review 指摘（Go コード 6件、CI ワーク
 - [x] ステップ1: `worktree-manager/src/main.go` のバグ・境界条件の修正（main worktree 判定、大文字小文字比較、NUL 区切りパース、ハイフン引数保護、locked 削除、prune stderr 捕捉）
 - [x] ステップ2: `main_test.go` に指摘事項の再現・回帰テストを追加し全テスト通過を確認
 - [x] ステップ3: 決定論的再ビルド（Go 1.26.5）および CI 設定（govulncheck）の確認・検証
+
+## フェーズ12: settings-advisor の検知精度向上とモデル選定刷新（完了）
+
+### 目的
+settings-advisor のスキャン精度（CI/CD、言語、除外ディレクトリ、.env誤検知、本番設定パス）を向上させ、models.json の最新化およびモデル名ハードコードの排除（traits駆動）を行う。
+
+### 完了条件
+1. スキャン検知の拡充（GitLab CI等のCI検知、Dart/Swift等の言語追加、.next/target等のスキップ、.env.example等の除外、prodディレクトリ検知）が実装され、テストで検証されていること。
+2. models.json が最新モデルに更新され、main.go のモデル名ハードコードが traits 駆動のマッチングに置き換わっていること。
+3. ドキュメント（README.md / README_ja.md）が同期され、テスト（go test / go vet）およびビルドが通過すること。
+
+- [x] ステップ1: スキャン検知機能と除外ロジックの改善・テスト追加
+- [x] ステップ2: models.json 更新と traits 駆動モデル選定ロジックの実装・テスト追加
+- [x] ステップ3: ドキュメント同期（README.md / README_ja.md）とビルド・品質検証

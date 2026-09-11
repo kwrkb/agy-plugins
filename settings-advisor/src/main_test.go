@@ -22,6 +22,8 @@ func TestScanWorkspace(t *testing.T) {
 
 	writeFile("main.go", "package main\nfunc main() {}\n") // go
 	writeFile("app.ts", "export const x = 1\n")            // ts
+	writeFile("lib.dart", "void main() {}\n")              // dart
+	writeFile("App.swift", "import Foundation\n")          // swift
 	writeFile(".env", "SECRET=1\n")                        // → HasEnv
 	writeFile(".github/workflows/ci.yml", "on: push\n")    // → HasCI
 	writeFile("config.production.json", "{}\n")            // → HasProdConfig（トークン一致）
@@ -44,8 +46,96 @@ func TestScanWorkspace(t *testing.T) {
 		t.Error("expected HasProdConfig=true (config.production.json)")
 	}
 	// node_modules はスキップされるので js は言語に含まれない。決定論的にソート済み。
-	if want := []string{"go", "ts"}; !reflect.DeepEqual(m.Languages, want) {
+	if want := []string{"dart", "go", "swift", "ts"}; !reflect.DeepEqual(m.Languages, want) {
 		t.Errorf("Languages = %v, want %v (sorted, node_modules excluded)", m.Languages, want)
+	}
+}
+
+func TestScanWorkspaceCIAndProdDetection(t *testing.T) {
+	root := t.TempDir()
+
+	writeFile := func(rel, body string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeFile(".gitlab-ci.yml", "stages:\n  - test\n")
+	writeFile("config/prod/settings.json", "{}\n") // ディレクトリ名による prod 検出
+
+	m, err := scanWorkspace(root)
+	if err != nil {
+		t.Fatalf("scanWorkspace error: %v", err)
+	}
+
+	if !m.HasCI {
+		t.Error("expected HasCI=true (.gitlab-ci.yml)")
+	}
+	if !m.HasProdConfig {
+		t.Error("expected HasProdConfig=true (config/prod/settings.json)")
+	}
+}
+
+func TestScanWorkspaceEnvFilter(t *testing.T) {
+	t.Run("Env templates excluded", func(t *testing.T) {
+		root := t.TempDir()
+		for _, name := range []string{".env.example", ".env.sample", ".env.template", ".env.dist"} {
+			if err := os.WriteFile(filepath.Join(root, name), []byte("A=B\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		m, err := scanWorkspace(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m.HasEnv {
+			t.Error("expected HasEnv=false when only .env template/sample files exist")
+		}
+	})
+
+	t.Run("Actual env included", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, ".env.production"), []byte("SECRET=1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		m, err := scanWorkspace(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !m.HasEnv {
+			t.Error("expected HasEnv=true for .env.production")
+		}
+	})
+}
+
+func TestScanWorkspaceSkipDirs(t *testing.T) {
+	root := t.TempDir()
+	writeFile := func(rel, body string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeFile("main.go", "package main\n")
+	writeFile("target/debug/app.rs", "fn main() {}\n")
+	writeFile(".next/static/app.js", "console.log(1)\n")
+	writeFile(".dart_tool/package_config.json", "{}\n")
+	writeFile("Pods/SomeLib/lib.swift", "import UIKit\n")
+
+	m, err := scanWorkspace(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"go"}; !reflect.DeepEqual(m.Languages, want) {
+		t.Errorf("Languages = %v, want %v (build artifact directories should be skipped)", m.Languages, want)
 	}
 }
 
@@ -69,9 +159,9 @@ func TestGenerateRecommendations(t *testing.T) {
 	// テスト用モデル定義
 	modelCfg := ModelConfig{
 		Models: []Model{
-			{"gemini-3.5-flash-low", "Gemini 3.5 Flash (Low)", "light", []string{"fast", "cheap"}},
-			{"gemini-3.5-flash-medium", "Gemini 3.5 Flash (Medium)", "light", []string{"fast", "balanced"}},
-			{"gemini-3.5-flash-high", "Gemini 3.5 Flash (High)", "mid", []string{"accurate", "cost-effective"}},
+			{"gemini-3.8-flash-low", "Gemini 3.8 Flash (Low)", "light", []string{"fast", "cheap"}},
+			{"gemini-3.8-flash-medium", "Gemini 3.8 Flash (Medium)", "light", []string{"fast", "balanced"}},
+			{"gemini-3.8-flash-high", "Gemini 3.8 Flash (High)", "mid", []string{"accurate", "cost-effective"}},
 			{"gemini-3.1-pro-low", "Gemini 3.1 Pro (Low)", "mid", []string{"accurate", "context-long"}},
 			{"gemini-3.1-pro-high", "Gemini 3.1 Pro (High)", "heavy", []string{"most-accurate", "context-long"}},
 			{"claude-sonnet-4.6", "Claude Sonnet 4.6 (Thinking)", "mid", []string{"instruction-following", "format-strict"}},
@@ -96,7 +186,7 @@ func TestGenerateRecommendations(t *testing.T) {
 		}
 		found := false
 		for _, m := range rec.SuggestedModels {
-			if m == "Gemini 3.5 Flash (Medium)" || m == "Gemini 3.5 Flash (Low)" {
+			if m == "Gemini 3.8 Flash (Medium)" || m == "Gemini 3.8 Flash (Low)" {
 				found = true
 			}
 		}
@@ -164,8 +254,8 @@ func TestGenerateRecommendations(t *testing.T) {
 		}
 	})
 
-	// テストケース 3: 特化キーワード (Sonnet)
-	t.Run("Specialized task - Sonnet", func(t *testing.T) {
+	// テストケース 3: 特化キーワード (instruction-following trait -> Sonnet)
+	t.Run("Specialized task - Sonnet via trait", func(t *testing.T) {
 		metrics := WorkspaceMetrics{
 			TotalLines: 10000,
 			Languages:  []string{"go"},
@@ -174,6 +264,19 @@ func TestGenerateRecommendations(t *testing.T) {
 
 		if rec.SuggestedModels[0] != "Claude Sonnet 4.6 (Thinking)" {
 			t.Errorf("Expected Claude Sonnet 4.6 (Thinking) as first suggestion, got '%s'", rec.SuggestedModels[0])
+		}
+	})
+
+	// テストケース 3b: 特化キーワード (quota-independent trait -> GPT-OSS)
+	t.Run("Specialized task - GPT-OSS via trait", func(t *testing.T) {
+		metrics := WorkspaceMetrics{
+			TotalLines: 10000,
+			Languages:  []string{"go"},
+		}
+		rec := generateRecommendations(metrics, modelCfg, "quota枯渇時のフォールバックとして実行")
+
+		if rec.SuggestedModels[0] != "GPT-OSS 120B (Medium)" {
+			t.Errorf("Expected GPT-OSS 120B (Medium) as first suggestion, got '%s'", rec.SuggestedModels[0])
 		}
 	})
 

@@ -39,20 +39,45 @@ type WorkspaceMetrics struct {
 }
 
 var targetExts = map[string]bool{
-	".go":   true,
-	".ts":   true,
-	".js":   true,
-	".py":   true,
-	".rs":   true,
-	".rb":   true,
-	".java": true,
-	".kt":   true,
-	".cs":   true,
-	".cpp":  true,
-	".c":    true,
-	".html": true,
-	".css":  true,
-	".sh":   true,
+	".go":     true,
+	".ts":     true,
+	".js":     true,
+	".py":     true,
+	".rs":     true,
+	".rb":     true,
+	".java":   true,
+	".kt":     true,
+	".cs":     true,
+	".cpp":    true,
+	".c":      true,
+	".html":   true,
+	".css":    true,
+	".sh":     true,
+	".dart":   true,
+	".swift":  true,
+	".vue":    true,
+	".svelte": true,
+	".php":    true,
+	".scala":  true,
+	".zig":    true,
+	".lua":    true,
+	".sql":    true,
+	".tf":     true,
+}
+
+var skipDirs = map[string]bool{
+	".git":         true,
+	"node_modules": true,
+	"vendor":       true,
+	".venv":        true,
+	"dist":         true,
+	"build":        true,
+	"target":       true,
+	".next":        true,
+	".nuxt":        true,
+	"out":          true,
+	".dart_tool":   true,
+	"Pods":         true,
 }
 
 func main() {
@@ -148,9 +173,7 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 		}
 
 		if info.IsDir() {
-			name := info.Name()
-			// 巨大なディレクトリはスキップ
-			if name == ".git" || name == "node_modules" || name == "vendor" || name == ".venv" || name == "dist" || name == "build" {
+			if skipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
@@ -158,27 +181,34 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 
 		fileName := strings.ToLower(info.Name())
 
-		// .env 検知
-		if fileName == ".env" || strings.HasPrefix(fileName, ".env.") {
+		// .env 検知（テンプレート・サンプルは除外）
+		if isEnvFile(fileName) {
 			metrics.HasEnv = true
 		}
 
-		// CI/CD 検知。Windows では filepath.Walk が "\" 区切りを返すため、
-		// スラッシュ正規化してから判定する。
-		if strings.Contains(filepath.ToSlash(path), ".github/workflows") {
+		slashPath := filepath.ToSlash(path)
+
+		// CI/CD 検知（GitHub Actions, GitLab CI, CircleCI, Bitbucket, Azure）
+		if isCIPath(slashPath, fileName) {
 			metrics.HasCI = true
 		}
 
 		ext := filepath.Ext(fileName)
 
 		// 本番設定ファイル検知。"product.json" / "reproduce.yaml" 等の誤検知を避けるため、
-		// 拡張子を除いた名前を区切り（. - _）でトークン化し "prod"/"production" 単独一致のみ採る。
+		// 拡張子を除いたファイル名およびパス中のディレクトリ名を区切り（. - _）でトークン化し
+		// "prod"/"production" 単独一致のみ採る。
 		if ext == ".json" || ext == ".yaml" || ext == ".yml" || ext == ".toml" {
 			base := strings.TrimSuffix(fileName, ext)
-			for _, tok := range strings.FieldsFunc(base, isNameSeparator) {
-				if tok == "prod" || tok == "production" {
-					metrics.HasProdConfig = true
-					break
+			if hasProdToken(base) {
+				metrics.HasProdConfig = true
+			} else {
+				dir := filepath.Dir(slashPath)
+				for _, part := range strings.Split(dir, "/") {
+					if hasProdToken(strings.ToLower(part)) {
+						metrics.HasProdConfig = true
+						break
+					}
 				}
 			}
 		}
@@ -204,7 +234,48 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 	return metrics, err
 }
 
-// isNameSeparator はファイル名トークン分割に使う区切り文字を判定する。
+// isEnvFile は .env ファイルであるかを判定する（.env.example や .env.sample 等は除外）。
+func isEnvFile(fileName string) bool {
+	if fileName == ".env" {
+		return true
+	}
+	if strings.HasPrefix(fileName, ".env.") {
+		suffix := strings.TrimPrefix(fileName, ".env.")
+		switch suffix {
+		case "example", "sample", "template", "dist", "test", "defaults", "schema":
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+// isCIPath は CI/CD 関連のパスまたは設定ファイルであるかを判定する。
+func isCIPath(slashPath, fileName string) bool {
+	if strings.Contains(slashPath, ".github/workflows") ||
+		strings.Contains(slashPath, ".gitlab/ci") ||
+		strings.Contains(slashPath, ".circleci") {
+		return true
+	}
+	if fileName == ".gitlab-ci.yml" ||
+		fileName == "bitbucket-pipelines.yml" ||
+		fileName == "azure-pipelines.yml" {
+		return true
+	}
+	return false
+}
+
+// hasProdToken はトークン分割した名前に prod / production が含まれるかを判定する。
+func hasProdToken(name string) bool {
+	for _, tok := range strings.FieldsFunc(name, isNameSeparator) {
+		if tok == "prod" || tok == "production" {
+			return true
+		}
+	}
+	return false
+}
+
+// isNameSeparator はファイル名・ディレクトリ名トークン分割に使う区切り文字を判定する。
 func isNameSeparator(r rune) bool {
 	return r == '.' || r == '-' || r == '_'
 }
@@ -347,18 +418,33 @@ func generateRecommendations(metrics WorkspaceMetrics, modelCfg ModelConfig, tas
 		}
 	}
 
-	// 特化モデルの優先
-	preferModel := ""
+	// 特化モデルの優先（traits 駆動のマッチング）
+	var targetTrait string
 	for _, kw := range midSonnetKeywords {
 		if strings.Contains(taskHintLower, kw) {
-			preferModel = "Claude Sonnet 4.6 (Thinking)"
+			targetTrait = "instruction-following"
 			break
 		}
 	}
-	if preferModel == "" {
+	if targetTrait == "" {
 		for _, kw := range midOSSKeywords {
 			if strings.Contains(taskHintLower, kw) {
-				preferModel = "GPT-OSS 120B (Medium)"
+				targetTrait = "quota-independent"
+				break
+			}
+		}
+	}
+
+	preferModel := ""
+	if targetTrait != "" {
+		for _, m := range modelCfg.Models {
+			for _, tr := range m.Traits {
+				if tr == targetTrait {
+					preferModel = m.Name
+					break
+				}
+			}
+			if preferModel != "" {
 				break
 			}
 		}
