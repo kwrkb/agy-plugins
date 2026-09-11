@@ -79,7 +79,7 @@ Go ソースを変更したら、リポジトリルートで対象を決定論�
 ./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor|worktree-manager>
 ```
 
-Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドは `go 1.26.5` を前提とします。ローカル Go バージョンが異なる場合、コミット済みバイナリとの差分を正しい更新とみなさず、使用できなかったことを報告してください。
+Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドが前提とする Go のパッチ版は `.go-version` に定義され、`build.sh`/`build.ps1` が `GOTOOLCHAIN` で強制します（未取得なら Go が自動ダウンロード）。素の `go build` で焼いたバイナリはローカル Go 版によって別物になるため、必ずビルドスクリプト経由で再ビルドしてください。
 
 ## Verification and Review
 
