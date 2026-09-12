@@ -238,18 +238,29 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 	return metrics, err
 }
 
-// isEnvFile は .env ファイルであるかを判定する（.env.example や .env.sample 等は除外）。
+// envTemplateMarkers は「中身がダミーのテンプレート」を示す末尾トークン。
+var envTemplateMarkers = map[string]bool{
+	"example":  true,
+	"sample":   true,
+	"template": true,
+	"dist":     true,
+	"test":     true,
+	"defaults": true,
+	"schema":   true,
+}
+
+// isEnvFile は実値が入った .env ファイルであるかを判定する（.env.example 等のテンプレートは除外）。
+// 判定は接尾辞の完全一致ではなく**末尾トークン**で行う。`.env.production.example` や
+// `.env.local.sample` のような修飾付きテンプレートを取りこぼさず、かつ `.env.production`
+// や `.env.test.local`（実値を持つ）は env ファイルとして残すため。
 func isEnvFile(fileName string) bool {
 	if fileName == ".env" {
 		return true
 	}
 	if strings.HasPrefix(fileName, ".env.") {
 		suffix := strings.TrimPrefix(fileName, ".env.")
-		switch suffix {
-		case "example", "sample", "template", "dist", "test", "defaults", "schema":
-			return false
-		}
-		return true
+		parts := strings.Split(suffix, ".")
+		return !envTemplateMarkers[parts[len(parts)-1]]
 	}
 	return false
 }

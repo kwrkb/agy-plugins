@@ -424,3 +424,51 @@ func TestScanWorkspaceAncestorOutsideRoot(t *testing.T) {
 		})
 	}
 }
+
+// TestIsEnvFileQualifiedTemplates は修飾付きテンプレート（.env.production.example 等）を
+// 除外しつつ、実値を持つ .env.production / .env.test.local を env ファイルとして残すことを確認する。
+func TestIsEnvFileQualifiedTemplates(t *testing.T) {
+	cases := map[string]bool{
+		".env":                    true,
+		".env.production":         true,
+		".env.local":              true,
+		".env.test.local":         true,
+		".env.production.local":   true,
+		".env.example":            false,
+		".env.sample":             false,
+		".env.template":           false,
+		".env.dist":               false,
+		".env.test":               false,
+		".env.defaults":           false,
+		".env.schema":             false,
+		".env.production.example": false,
+		".env.local.sample":       false,
+		".env.staging.template":   false,
+		".env.production.dist":    false,
+		"env.production":          false, // 先頭ドット無しは対象外
+		"main.go":                 false,
+	}
+	for name, want := range cases {
+		if got := isEnvFile(name); got != want {
+			t.Errorf("isEnvFile(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// TestScanWorkspaceQualifiedEnvTemplates は修飾付きテンプレートだけのワークスペースで
+// HasEnv が立たない（＝不要な sandbox 推奨が出ない）ことを確認する。
+func TestScanWorkspaceQualifiedEnvTemplates(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{".env.production.example", ".env.local.sample", ".env.staging.template"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("A=B\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m, err := scanWorkspace(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.HasEnv {
+		t.Error("expected HasEnv=false for qualified env templates (.env.<name>.example etc.)")
+	}
+}
