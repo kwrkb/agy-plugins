@@ -1,0 +1,21 @@
+# 決定論ビルドの入力とシェルスクリプトは LF 固定、コミット済みネイティブバイナリは
+# 一切変換させない。CRLF で checkout されると `GOTOOLCHAIN=go1.26.5\r` になり
+# go が `invalid GOTOOLCHAIN` で即死する（build.sh は Git Bash / WSL も対象）。
+
+.go-version text eol=lf
+
+# build.sh と OS 分岐 dispatcher は sh が解釈するため LF 必須。
+*.sh text eol=lf
+*.ps1 text eol=lf
+ast-grep/bin/ast-grep                 text eol=lf
+github/bin/github                     text eol=lf
+go-lsp/bin/go-lsp                     text eol=lf
+retro-status/bin/retro-status         text eol=lf
+settings-advisor/bin/settings-advisor text eol=lf
+worktree-manager/bin/worktree-manager text eol=lf
+agy-plugin-kit/validator/bin/validator text eol=lf
+
+# bit-identical な stale 検出ゲートの前提。改行変換もテキスト diff もさせない。
+*-linux-amd64  binary
+*-darwin-arm64 binary
+*.exe          binary

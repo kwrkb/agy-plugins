@@ -16,6 +16,7 @@ on:
       - 'worktree-manager/**'
       - 'build.sh'
       - 'build.ps1'
+      - '.go-version'
       - '.github/workflows/build-verify.yml'
   push:
     branches: [master]
@@ -29,13 +30,13 @@ on:
       - 'worktree-manager/**'
       - 'build.sh'
       - 'build.ps1'
+      - '.go-version'
       - '.github/workflows/build-verify.yml'
 
-# 決定論ビルドは Go ツールチェーンのバージョンまで一致が必要。
-# 上げる時はこことローカル環境を揃えて全バイナリを再ビルドすること。
+# 決定論ビルドは Go ツールチェーンのパッチ版まで一致が必要。版の定義は
+# リポジトリルートの .go-version 1箇所だけ（build.sh / build.ps1 も同じファイルを読む）。
+# 上げる時は .go-version を書き換え、全バイナリを再ビルドしてコミットすること。
 # ビルドフラグ自体は build.sh に集約している（重複定義を避けるため）。
-env:
-  GO_VERSION: '1.26.5'
 
 jobs:
   github:
@@ -47,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck
@@ -83,7 +84,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck
@@ -119,7 +120,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck
@@ -155,7 +156,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck
@@ -191,7 +192,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck
@@ -227,7 +228,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck
@@ -263,7 +264,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: .go-version
       - run: go vet ./...
       - run: go test ./...
       - name: govulncheck

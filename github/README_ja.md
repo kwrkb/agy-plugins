@@ -54,7 +54,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/github
 
 ### バイナリの再ビルド
 
-リポジトリルートのビルドスクリプトを使います（**Go 1.26.5**。決定論フラグはスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求し、Go のバージョンがずれると fail します）。
+リポジトリルートのビルドスクリプトを使います（Go のパッチ版は `.go-version` に固定され、スクリプトが `GOTOOLCHAIN` で強制します。決定論フラグもスクリプトに集約。CI の検証ゲート `.github/workflows/build-verify.yml` がこの結果との bit-identical 一致を要求します）。
 
 ```bash
 ./build.sh github    # github のネイティブバイナリ（linux-amd64/darwin-arm64/windows）を再ビルド。Windows は ./build.ps1 github
@@ -62,5 +62,5 @@ agy plugin install https://github.com/kwrkb/agy-plugins/github
 ```
 
 > **ビルドする OS によってスクリプトを使い分ける**: macOS / Linux は `./build.sh`、Windows は `./build.ps1`。
-> どちらも `CGO_ENABLED=0` のクロスコンパイルで **3 OS 分のネイティブを 1 台で一括生成**し、Go 1.26.5 固定なら
+> どちらも `CGO_ENABLED=0` のクロスコンパイルで **3 OS 分のネイティブを 1 台で一括生成**し、`.go-version` のツールチェーン固定により
 > ホスト OS に依らず bit-identical（各 OS で実機ビルドする必要はない）。

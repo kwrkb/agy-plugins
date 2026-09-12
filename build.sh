@@ -8,13 +8,27 @@
 #   ./build.sh github     # github プラグインのみ
 #   ./build.sh validator  # agy-plugin-kit の validator のみ
 #
-# 注意: 決定論ビルドは Go ツールチェーンのバージョン一致が前提（現状 go 1.26.5）。
-#       バージョンを上げる時は全バイナリを再ビルドしてコミットすること。
+# 注意: 決定論ビルドは Go ツールチェーンのパッチ版まで一致が前提。版は .go-version が
+#       唯一の定義箇所で、CI（setup-go の go-version-file）もこのファイルを読む。
+#       バージョンを上げる時は .go-version を書き換え、全バイナリを再ビルドしてコミットすること。
 # Windows ネイティブで実行する場合は WSL または git-bash を使う。
 set -eu
 
+# スクリプトの位置をリポジトリルートとして扱う（呼び出し元 CWD に依存しない）
+cd "$(dirname "$0")"
+
 # 決定論フラグ（CI ゲートと一致させる唯一の定義箇所）
 FLAGS="-trimpath -buildvcs=false -ldflags=-buildid="
+
+# Go ツールチェーンを .go-version に固定する。GOTOOLCHAIN の既定は auto で、
+# go.mod の `go` ディレクティブは下限でしかないため、ローカルに新しい Go があると
+# 黙ってそちらが使われ、正常な再ビルド出力と見分けのつかない差分が出る（stale ゲートが落ちる）。
+# 指定版が無ければ Go が自動ダウンロードするので、開発者側の事前準備は不要。
+# Git Bash + core.autocrlf=true では .go-version が CRLF で checkout されうる。
+# CR が残ると go は `invalid GOTOOLCHAIN "go1.26.5\r"` で即死するため空白類を除去する
+# （.gitattributes で LF 固定もしているが、既存クローンを救うため読み取り側でも守る）。
+GOTOOLCHAIN="go$(tr -d "[:space:]" < .go-version)"
+export GOTOOLCHAIN
 
 # build <plugin-dir> <output-basename>
 # <plugin-dir>/src/ のソースから、ネイティブバイナリを <plugin-dir>/bin/ に生成する。
@@ -33,9 +47,6 @@ build() {
 		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build $FLAGS -o "../bin/$base.exe"          .
 	)
 }
-
-# スクリプトの位置をリポジトリルートとして扱う（呼び出し元 CWD に依存しない）
-cd "$(dirname "$0")"
 
 target="${1:-all}"
 case "$target" in

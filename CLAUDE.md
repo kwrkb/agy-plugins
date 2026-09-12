@@ -21,14 +21,14 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 cd github/src && go vet ./... && go test ./...
 cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 # 他プラグイン（ast-grep / retro-status / settings-advisor / go-lsp）も同じ流儀（<name>/src で go vet ./... && go test ./...）
-# バイナリ再ビルド（go 1.26.5。Windows は ./build.ps1）
+# バイナリ再ビルド（Go 版は .go-version に固定。build.sh が GOTOOLCHAIN で強制するため事前準備不要。Windows は ./build.ps1）
 ./build.sh                                    # 全プラグイン
 ./build.sh github                             # github だけ
 ./build.sh validator                          # validator だけ
 # 他ターゲット: ast-grep | retro-status | settings-advisor | go-lsp
 ```
 
-**ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に集約され、Go 1.26.5 固定で bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
+**ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に、Go のパッチ版は `.go-version` に集約され（`build.sh`/`build.ps1`/CI が同じファイルを読む）、bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
 
 ## 実機検証（tmux + agy）
 
