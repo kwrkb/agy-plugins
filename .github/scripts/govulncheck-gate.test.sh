@@ -56,6 +56,24 @@ run 1 "::error::" 1.26.5 "Your code is affected by 3
 vulnerabilities from the Go standard library.
     Fixed in: net/url@go1.26.6"
 
+CASE="混在: 第三者モジュール到達可能 + stdlib はマイナー跨ぎ → 許容せず fail"
+run 1 "-" 1.26.8 "Vulnerability #1: GO-2026-9999
+    Fixed in: github.com/example/lib@v1.0.1
+Vulnerability #2: GO-2026-8888
+  Standard library
+    Fixed in: net/http@go1.27.2
+
+Your code is affected by 2 vulnerabilities from 1 module and the Go standard library."
+
+CASE="混在: stdlib 成分が先に並んでも module 成分があれば fail（並び順に依存しない）"
+run 1 "-" 1.26.8 "Your code is affected by 2 vulnerabilities from the Go standard library and 1 module.
+    Fixed in: net/http@go1.27.2
+    Fixed in: github.com/example/lib@v1.0.1"
+
+CASE="混在: 複数モジュール + stdlib → fail"
+run 1 "-" 1.26.8 "Your code is affected by 3 vulnerabilities from 2 modules and the Go standard library.
+    Fixed in: net/http@go1.27.2"
+
 CASE="stdlib 以外のみ → govulncheck の失敗をそのまま返す"
 run 1 "-" 1.26.8 "Your code is affected by 1 vulnerability from a module you require.
     Fixed in: github.com/example/lib@v1.2.3"

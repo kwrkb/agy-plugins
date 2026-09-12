@@ -30,11 +30,23 @@ fi
 
 [ "$STATUS" -eq 0 ] && exit 0
 
-# 要約行は govulncheck が約80桁で折り返すことがあり、件数が1件なら単数形
-# （"1 vulnerability from the Go standard library"）になる。改行と連続空白を
-# 畳んでから単数・複数の両方を拾う。
+# 到達可能な指摘の要約は golang.org/x/vuln の text handler が組み立てる1文で、
+#   Your code is affected by <N> vulnerabilit{y,ies}[ from [<M> module{,s}][ and ]the Go standard library].
+# という形になる（internal/scan/text.go summary()）。件数1件なら単数形になり、
+# 約80桁で折り返すため、改行と連続空白を畳んでから判定する。
+# 非到達の指摘を述べる別文は "in packages you import" / "in modules you require" を
+# 使うので、"affected by" に錨を打てば到達可能分だけを見られる。
 SUMMARY=$(printf '%s' "$OUTPUT" | tr '\n' ' ' | tr -s ' ')
-if ! printf '%s' "$SUMMARY" | grep -qE "[0-9]+ vulnerabilit(y|ies) from the Go standard library"; then
+
+# stdlib の据え置き例外は「到達可能な指摘が stdlib だけ」の時にしか適用してはならない。
+# 第三者モジュール側の到達可能な指摘が混在していたら、stdlib 側がマイナー跨ぎでも
+# 失敗させる（さもないと依存側の脆弱性を warning で隠してしまう）。
+# 要約の並び順に依存せず、module 成分の有無を独立に見る。
+if printf '%s' "$SUMMARY" | grep -qE "affected by [0-9]+ vulnerabilit(y|ies) from .*[0-9]+ module"; then
+	exit "$STATUS"
+fi
+
+if ! printf '%s' "$SUMMARY" | grep -qE "affected by [0-9]+ vulnerabilit(y|ies) from the Go standard library"; then
 	exit "$STATUS" # stdlib 以外の指摘はそのまま失敗させる
 fi
 

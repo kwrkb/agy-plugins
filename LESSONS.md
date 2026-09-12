@@ -1,5 +1,11 @@
 # LESSONS（実装知見ログ）
 
+## 2026-09-12: bot の P1 は「主張」と「推奨」を分けて検証する — 主張は外れでも推奨が当たることがある（PR #22）
+
+- 却下した案: Codex の P1「混在スキャン（第三者モジュール到達可能 + stdlib はマイナー跨ぎ）が warning で素通りし依存側脆弱性を隠す」をそのまま真として、判定構造を作り直す。
+- 決め手: 主張は**現実装では成立しなかった**。`golang.org/x/vuln@v1.8.0/internal/scan/text.go` の `summary()` を読むと要約は `affected by <N> vulnerabilities from [<M> module(s)][ and ]the Go standard library.` と組まれ、混在時は `from 1 module and the Go standard library` になる。当時の正規表現は `vulnerabilit(y|ies) from the Go standard library` の**連続一致**だったため混在文には当たらず、実フィクスチャで `exit 1`（正しく fail）を確認した。ただし「正しく動くのは偶然」で、成分の並びが stdlib 先頭になれば例外が誤適用される。実測: 並び替えフィクスチャを修正前版に通すと `exit=0`（依存側脆弱性を隠蔽）。よって推奨（module 成分を独立に判定）は採用し、主張は否定した。
+- 覆す条件: govulncheck が機械可読出力（`-json`）を安定提供し、要約文の解析をやめられる場合。
+
 ## 2026-09-12: govulncheck 出力を grep で判定するなら単数形と行折り返しを前提にする（PR #22 レビュー対応）
 
 - 却下した案: 要約行を `grep -q "vulnerabilities from the Go standard library"`（複数形リテラル）で拾い、判定ロジックを7ジョブにインラインで複製したまま置く。
