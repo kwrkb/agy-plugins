@@ -24,7 +24,10 @@ FLAGS="-trimpath -buildvcs=false -ldflags=-buildid="
 # go.mod の `go` ディレクティブは下限でしかないため、ローカルに新しい Go があると
 # 黙ってそちらが使われ、正常な再ビルド出力と見分けのつかない差分が出る（stale ゲートが落ちる）。
 # 指定版が無ければ Go が自動ダウンロードするので、開発者側の事前準備は不要。
-GOTOOLCHAIN="go$(cat .go-version)"
+# Git Bash + core.autocrlf=true では .go-version が CRLF で checkout されうる。
+# CR が残ると go は `invalid GOTOOLCHAIN "go1.26.5\r"` で即死するため空白類を除去する
+# （.gitattributes で LF 固定もしているが、既存クローンを救うため読み取り側でも守る）。
+GOTOOLCHAIN="go$(tr -d "[:space:]" < .go-version)"
 export GOTOOLCHAIN
 
 # build <plugin-dir> <output-basename>
