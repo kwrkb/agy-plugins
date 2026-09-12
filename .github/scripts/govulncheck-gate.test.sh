@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# govulncheck-gate.sh の判定テーブルを固定した出力で検証する。
-# 単数形（件数1件）と行折り返しは govulncheck の実出力で確認済みの挙動なので、
-# 実際に再現できる Go 版が無いケースもフィクスチャで押さえる。
+# govulncheck-gate.sh の判定テーブルを、govulncheck -format json と同じ構造の
+# フィクスチャで検証する。到達可能性は trace[0].function の有無で表す。
 set -eu
 
 cd "$(dirname "$0")"
@@ -10,84 +9,71 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 FAILED=0
 
-# run <期待終了コード> <期待出力の grep パターン|-> <pinned version> <出力本文>
-run() {
-	want_code="$1"
-	want_pat="$2"
-	printf '%s\n' "$3" > "$TMP/version"
-	printf '%s\n' "$4" > "$TMP/out"
+# finding <osv> <fixed_version> <脆弱なモジュール> <reachable|info>
+# trace は govulncheck と同じ向き（脆弱な関数が先頭・自コードのエントリポイントが末尾）。
+finding() {
+	if [ "$4" = reachable ]; then
+		trace='[{"module":"'$3'","function":"Vulnerable"},{"module":"example.com/app","function":"main"}]'
+	else
+		trace='[{"module":"'$3'","version":"v0.0.0"}]'
+	fi
+	printf '{"finding":{"osv":"%s","fixed_version":"%s","trace":%s}}\n' "$1" "$2" "$trace"
+}
 
-	got=$("$GATE" "$TMP/version" "$TMP/out" 2>&1) && code=0 || code=$?
+# run <期待終了コード> <期待出力パターン|-> <pinned version> <JSON 本文>
+run() {
+	want_code="$1"; want_pat="$2"
+	printf '%s\n' "$3" > "$TMP/version"
+	printf '%s' "$4" > "$TMP/out.json"
+
+	got=$("$GATE" "$TMP/version" "$TMP/out.json" 2>&1) && code=0 || code=$?
 	if [ "$code" -ne "$want_code" ]; then
-		echo "FAIL [$CASE] exit=$code want=$want_code"
-		echo "  output: $got"
-		FAILED=1
-		return
+		echo "FAIL [$CASE] exit=$code want=$want_code"; echo "  output: $got"; FAILED=1; return
 	fi
 	if [ "$want_pat" != "-" ] && ! printf '%s' "$got" | grep -q "$want_pat"; then
-		echo "FAIL [$CASE] output missing '$want_pat'"
-		echo "  output: $got"
-		FAILED=1
-		return
+		echo "FAIL [$CASE] output missing '$want_pat'"; echo "  output: $got"; FAILED=1; return
 	fi
 	echo "ok   [$CASE]"
 }
 
-CASE="複数件・同マイナー内で修正 → fail"
-run 1 "::error::" 1.26.5 "Your code is affected by 3 vulnerabilities from the Go standard library.
-    Fixed in: net/url@go1.26.6
-    Fixed in: crypto/tls@go1.26.6"
+CASE="到達可能な指摘なし → pass"
+run 0 "-" 1.26.8 "$(finding GO-1 v1.26.9 stdlib info)"
 
-CASE="単数形・同マイナー内で修正 → fail"
-run 1 "::error::" 1.26.5 "Your code is affected by 1 vulnerability from the Go standard library.
-    Fixed in: net/url@go1.26.6"
+CASE="到達可能 stdlib・同マイナー内で修正 → fail"
+run 1 "::error::" 1.26.5 "$(finding GO-1 v1.26.6 stdlib reachable)"
 
-CASE="単数形・マイナー跨ぎが必要 → warning で許容"
-run 0 "::warning::" 1.26.8 "Your code is affected by 1 vulnerability from the Go standard library.
-    Fixed in: net/http@go1.27.2"
+CASE="到達可能 stdlib が1件だけ・同マイナー内 → fail（単数形の罠を構造で回避）"
+run 1 "Fixed in" 1.26.5 "$(finding GO-1 v1.26.6 stdlib reachable)"
 
-CASE="複数件・マイナー跨ぎが必要 → warning で許容"
-run 0 "::warning::" 1.26.8 "Your code is affected by 2 vulnerabilities from the Go standard library.
-    Fixed in: net/http@go1.27.2
-    Fixed in: os/exec@go1.27.2"
+CASE="到達可能 stdlib・マイナー跨ぎが必要 → warning で許容"
+run 0 "::warning::" 1.26.8 "$(finding GO-1 v1.27.2 stdlib reachable)"
 
-CASE="要約行が折り返されていても拾う（複数形・折り返しのみを切り分け）"
-run 1 "::error::" 1.26.5 "Your code is affected by 3
-vulnerabilities from the Go standard library.
-    Fixed in: net/url@go1.26.6"
+CASE="到達可能 stdlib はマイナー跨ぎ + 到達不能 stdlib が同マイナー内 → warning で許容"
+run 0 "::warning::" 1.26.8 "$(finding GO-1 v1.27.2 stdlib reachable)$(finding GO-2 v1.26.9 stdlib info)"
 
-CASE="混在: 第三者モジュール到達可能 + stdlib はマイナー跨ぎ → 許容せず fail"
-run 1 "-" 1.26.8 "Vulnerability #1: GO-2026-9999
-    Fixed in: github.com/example/lib@v1.0.1
-Vulnerability #2: GO-2026-8888
-  Standard library
-    Fixed in: net/http@go1.27.2
+CASE="混在: 到達可能な依存モジュール + 到達可能 stdlib はマイナー跨ぎ → fail"
+run 1 "modules you depend on" 1.26.8 "$(finding GO-1 v1.27.2 stdlib reachable)$(finding GO-2 v1.2.3 golang.org/x/text reachable)"
 
-Your code is affected by 2 vulnerabilities from 1 module and the Go standard library."
+CASE="到達可能な依存モジュールのみ → fail"
+run 1 "modules you depend on" 1.26.8 "$(finding GO-1 v1.2.3 golang.org/x/text reachable)"
 
-CASE="混在: stdlib 成分が先に並んでも module 成分があれば fail（並び順に依存しない）"
-run 1 "-" 1.26.8 "Your code is affected by 2 vulnerabilities from the Go standard library and 1 module.
-    Fixed in: net/http@go1.27.2
-    Fixed in: github.com/example/lib@v1.0.1"
+CASE="到達不能な依存モジュールのみ → pass"
+run 0 "-" 1.26.8 "$(finding GO-1 v1.2.3 golang.org/x/text info)"
 
-CASE="混在: 複数モジュール + stdlib → fail"
-run 1 "-" 1.26.8 "Your code is affected by 3 vulnerabilities from 2 modules and the Go standard library.
-    Fixed in: net/http@go1.27.2"
-
-CASE="stdlib 以外のみ → govulncheck の失敗をそのまま返す"
-run 1 "-" 1.26.8 "Your code is affected by 1 vulnerability from a module you require.
-    Fixed in: github.com/example/lib@v1.2.3"
+CASE="到達可能 stdlib が複数・一部が同マイナー内 → fail"
+run 1 "::error::" 1.26.5 "$(finding GO-1 v1.27.2 stdlib reachable)$(finding GO-2 v1.26.6 stdlib reachable)"
 
 CASE="CRLF の .go-version でもマイナーを取り違えない"
 printf '1.26.5\r\n' > "$TMP/version"
-printf '%s\n' "Your code is affected by 1 vulnerability from the Go standard library.
-    Fixed in: net/url@go1.26.6" > "$TMP/out"
-if "$GATE" "$TMP/version" "$TMP/out" >/dev/null 2>&1; then
-	echo "FAIL [$CASE] expected exit 1"
-	FAILED=1
+printf '%s' "$(finding GO-1 v1.26.6 stdlib reachable)" > "$TMP/out.json"
+if "$GATE" "$TMP/version" "$TMP/out.json" >/dev/null 2>&1; then
+	echo "FAIL [$CASE] expected exit 1"; FAILED=1
 else
 	echo "ok   [$CASE]"
 fi
+
+CASE="finding が1件も無い（空出力）→ pass"
+run 0 "-" 1.26.8 '{"config":{"protocol_version":"v1.0.0"}}'
 
 [ "$FAILED" -eq 0 ] && echo "--- all gate cases passed" || echo "--- FAILURES"
 exit "$FAILED"
