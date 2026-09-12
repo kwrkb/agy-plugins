@@ -39,20 +39,45 @@ type WorkspaceMetrics struct {
 }
 
 var targetExts = map[string]bool{
-	".go":   true,
-	".ts":   true,
-	".js":   true,
-	".py":   true,
-	".rs":   true,
-	".rb":   true,
-	".java": true,
-	".kt":   true,
-	".cs":   true,
-	".cpp":  true,
-	".c":    true,
-	".html": true,
-	".css":  true,
-	".sh":   true,
+	".go":     true,
+	".ts":     true,
+	".js":     true,
+	".py":     true,
+	".rs":     true,
+	".rb":     true,
+	".java":   true,
+	".kt":     true,
+	".cs":     true,
+	".cpp":    true,
+	".c":      true,
+	".html":   true,
+	".css":    true,
+	".sh":     true,
+	".dart":   true,
+	".swift":  true,
+	".vue":    true,
+	".svelte": true,
+	".php":    true,
+	".scala":  true,
+	".zig":    true,
+	".lua":    true,
+	".sql":    true,
+	".tf":     true,
+}
+
+var skipDirs = map[string]bool{
+	".git":         true,
+	"node_modules": true,
+	"vendor":       true,
+	".venv":        true,
+	"dist":         true,
+	"build":        true,
+	"target":       true,
+	".next":        true,
+	".nuxt":        true,
+	"out":          true,
+	".dart_tool":   true,
+	"Pods":         true,
 }
 
 func main() {
@@ -148,9 +173,9 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 		}
 
 		if info.IsDir() {
-			name := info.Name()
-			// 巨大なディレクトリはスキップ
-			if name == ".git" || name == "node_modules" || name == "vendor" || name == ".venv" || name == "dist" || name == "build" {
+			// ルート自身は利用者が明示指定したパスなので、名前が skipDirs に
+			// 一致しても走査する（例: "target" というリポジトリを直接指定）。
+			if path != root && skipDirs[info.Name()] {
 				return filepath.SkipDir
 			}
 			return nil
@@ -158,27 +183,36 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 
 		fileName := strings.ToLower(info.Name())
 
-		// .env 検知
-		if fileName == ".env" || strings.HasPrefix(fileName, ".env.") {
+		// .env 検知（テンプレート・サンプルは除外）
+		if isEnvFile(fileName) {
 			metrics.HasEnv = true
 		}
 
-		// CI/CD 検知。Windows では filepath.Walk が "\" 区切りを返すため、
-		// スラッシュ正規化してから判定する。
-		if strings.Contains(filepath.ToSlash(path), ".github/workflows") {
+		// パス由来の判定は root からの相対パスのみを見る。絶対パスを使うと
+		// ワークスペース外の祖先ディレクトリ名（例: /mnt/production/repos/app,
+		// ~/.circleci/repos/app）が誤検知の原因になる。
+		dirParts, relOK := relDirComponents(root, path)
+
+		// CI/CD 検知（GitHub Actions, GitLab CI, CircleCI, Bitbucket, Azure）
+		if isCIPath(dirParts, relOK, fileName) {
 			metrics.HasCI = true
 		}
 
 		ext := filepath.Ext(fileName)
 
 		// 本番設定ファイル検知。"product.json" / "reproduce.yaml" 等の誤検知を避けるため、
-		// 拡張子を除いた名前を区切り（. - _）でトークン化し "prod"/"production" 単独一致のみ採る。
+		// 拡張子を除いたファイル名およびパス中のディレクトリ名を区切り（. - _）でトークン化し
+		// "prod"/"production" 単独一致のみ採る。
 		if ext == ".json" || ext == ".yaml" || ext == ".yml" || ext == ".toml" {
 			base := strings.TrimSuffix(fileName, ext)
-			for _, tok := range strings.FieldsFunc(base, isNameSeparator) {
-				if tok == "prod" || tok == "production" {
-					metrics.HasProdConfig = true
-					break
+			if hasProdToken(base) {
+				metrics.HasProdConfig = true
+			} else if relOK {
+				for _, part := range dirParts {
+					if hasProdToken(strings.ToLower(part)) {
+						metrics.HasProdConfig = true
+						break
+					}
 				}
 			}
 		}
@@ -204,7 +238,90 @@ func scanWorkspace(root string) (WorkspaceMetrics, error) {
 	return metrics, err
 }
 
-// isNameSeparator はファイル名トークン分割に使う区切り文字を判定する。
+// envTemplateMarkers は「中身がダミーのテンプレート」を示す末尾トークン。
+var envTemplateMarkers = map[string]bool{
+	"example":  true,
+	"sample":   true,
+	"template": true,
+	"dist":     true,
+	"test":     true,
+	"defaults": true,
+	"schema":   true,
+}
+
+// isEnvFile は実値が入った .env ファイルであるかを判定する（.env.example 等のテンプレートは除外）。
+// 判定は接尾辞の完全一致ではなく**末尾トークン**で行う。`.env.production.example` や
+// `.env.local.sample` のような修飾付きテンプレートを取りこぼさず、かつ `.env.production`
+// や `.env.test.local`（実値を持つ）は env ファイルとして残すため。
+func isEnvFile(fileName string) bool {
+	if fileName == ".env" {
+		return true
+	}
+	if strings.HasPrefix(fileName, ".env.") {
+		suffix := strings.TrimPrefix(fileName, ".env.")
+		parts := strings.Split(suffix, ".")
+		return !envTemplateMarkers[parts[len(parts)-1]]
+	}
+	return false
+}
+
+// relDirComponents は root から path までの相対パスの「ディレクトリ部分」を
+// パス区切りで分解して返す。path が root 配下でない、または相対化できない場合は
+// ok=false を返し、呼び出し側はパス由来の判定を行わない。
+func relDirComponents(root, path string) ([]string, bool) {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return nil, false
+	}
+	slashRel := filepath.ToSlash(rel)
+	if slashRel == ".." || strings.HasPrefix(slashRel, "../") {
+		return nil, false
+	}
+	dir := filepath.ToSlash(filepath.Dir(slashRel))
+	if dir == "." || dir == "" {
+		return nil, true // root 直下のファイル（ディレクトリ成分なし）
+	}
+	return strings.Split(dir, "/"), true
+}
+
+// isCIPath は CI/CD 関連のパスまたは設定ファイルであるかを判定する。
+// dirParts は root からの相対ディレクトリ成分。部分文字列ではなくパス成分単位で
+// 比較し、".circleci-disabled/" や ".gitlab/circle/" のような近似名を弾く。
+func isCIPath(dirParts []string, relOK bool, fileName string) bool {
+	if fileName == ".gitlab-ci.yml" ||
+		fileName == "bitbucket-pipelines.yml" ||
+		fileName == "azure-pipelines.yml" {
+		return true
+	}
+	if !relOK {
+		return false
+	}
+	for i, part := range dirParts {
+		if part == ".circleci" {
+			return true
+		}
+		if i+1 < len(dirParts) {
+			next := dirParts[i+1]
+			if (part == ".github" && next == "workflows") ||
+				(part == ".gitlab" && next == "ci") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasProdToken はトークン分割した名前に prod / production が含まれるかを判定する。
+func hasProdToken(name string) bool {
+	for _, tok := range strings.FieldsFunc(name, isNameSeparator) {
+		if tok == "prod" || tok == "production" {
+			return true
+		}
+	}
+	return false
+}
+
+// isNameSeparator はファイル名・ディレクトリ名トークン分割に使う区切り文字を判定する。
 func isNameSeparator(r rune) bool {
 	return r == '.' || r == '-' || r == '_'
 }
@@ -347,18 +464,33 @@ func generateRecommendations(metrics WorkspaceMetrics, modelCfg ModelConfig, tas
 		}
 	}
 
-	// 特化モデルの優先
-	preferModel := ""
+	// 特化モデルの優先（traits 駆動のマッチング）
+	var targetTrait string
 	for _, kw := range midSonnetKeywords {
 		if strings.Contains(taskHintLower, kw) {
-			preferModel = "Claude Sonnet 4.6 (Thinking)"
+			targetTrait = "instruction-following"
 			break
 		}
 	}
-	if preferModel == "" {
+	if targetTrait == "" {
 		for _, kw := range midOSSKeywords {
 			if strings.Contains(taskHintLower, kw) {
-				preferModel = "GPT-OSS 120B (Medium)"
+				targetTrait = "quota-independent"
+				break
+			}
+		}
+	}
+
+	preferModel := ""
+	if targetTrait != "" {
+		for _, m := range modelCfg.Models {
+			for _, tr := range m.Traits {
+				if tr == targetTrait {
+					preferModel = m.Name
+					break
+				}
+			}
+			if preferModel != "" {
 				break
 			}
 		}

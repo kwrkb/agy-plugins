@@ -29,10 +29,10 @@ agy plugin install https://github.com/kwrkb/agy-plugins/settings-advisor
 
 ## 推奨ロジック
 
-- **モデルティア**: 総行数と言語数から `light` / `mid` / `heavy` を判定。`task_hint` に「リファクタ/設計/アーキ/migrate」等が含まれる場合は `heavy` に格上げ。「手順/フォーマット/strict/document」等は instruction-following 重視の **Claude Sonnet 4.6 (Thinking)**、「quota/枯渇/フォールバック/別視点」等は **GPT-OSS 120B** を優先候補にする。
-- **モデル名**: `models.json` に定義し、`agy models` の表示名と一致させている（推奨はそのまま `/model` で選択可能）。
-- **サンドボックス**: `.env`（系）を検出したら `enableTerminalSandbox: true` を提案（機密漏洩防止）。
-- **ツール許可モード（`toolPermission`）**: `.github/workflows` 検出時は `proceed-in-sandbox`、本番設定ファイル（`*.prod.*` / `production.*` 等）検出時は最も厳格な `strict` を提案。値はいずれも agy 本体の有効列挙値（`always-proceed` / `request-review` / `strict` / `proceed-in-sandbox`）。
+- **モデルティア**: 総行数と言語数から `light` / `mid` / `heavy` を判定。Go, TS, JS, Python, Rust, Dart, Swift, Vue, Svelte, PHP, Scala, C/C++, C#, Java, Kotlin, Ruby, Zig, Lua, SQL, Shell, Terraform などの主要開発言語を幅広く走査。ビルド生成物やパッケージキャッシュ（`.next`, `.nuxt`, `out`, `target`, `.dart_tool`, `Pods`, `node_modules`, `dist`, `build` 等）はスキップ。`task_hint` に「リファクタ/設計/アーキ/migrate」等が含まれる場合は `heavy` に格上げ。
+- **モデル名**: `models.json` の定義および `traits`（`instruction-following` による Claude Sonnet、`quota-independent` による GPT-OSS など）に基づき動的に推奨モデルをマッチング。
+- **サンドボックス**: 実機密設定の `.env`（系）を検出したら `enableTerminalSandbox: true` を提案（`.env.example` や `.env.sample` などのテンプレートは誤検知防止のため除外）。
+- **ツール許可モード（`toolPermission`）**: CI/CD 設定（GitHub Actions, GitLab CI, CircleCI, Bitbucket, Azure Pipelines）検出時は `proceed-in-sandbox`、本番設定ファイルまたはパス（ファイル名や `config/prod/` などのディレクトリ名に `prod`/`production` トークンを含む場合）検出時は最も厳格な `strict` を提案。値はいずれも agy 本体の有効列挙値（`always-proceed` / `request-review` / `strict` / `proceed-in-sandbox`）。
 
 ## 同梱スキル
 

@@ -1,5 +1,16 @@
 # LESSONS（実装知見ログ）
 
+## 2026-09-12: settings-advisor のパス判定を root 相対の「パス成分」へ統一（PR #20 レビュー対応）
+
+- 却下した案: Codex の指摘どおり CI 検知（`.circleci` 等の部分文字列一致）と本番設定検知（絶対パスのディレクトリ名走査）を**別々に**直す案。前者に区切り境界チェックを足し、後者だけ root 相対化する。
+- 決め手: 両者は同一バグの別断面だった。`isCIPath` は絶対パス `slashPath` を見ていたため、`~/.circleci/repos/app/foo.yml` のように**スキャンルート外の祖先ディレクトリ名**でも `HasCI` が立つ（prod 側と同じ祖先混入）。別々に直すと prod 側だけ root 相対になり、CI 側の祖先混入が残る。実際、追加した `TestScanWorkspaceAncestorOutsideRoot/.circleci` は修正前コードで FAIL することを確認した。
+- 覆す条件: スキャンルート外のパス情報（親リポジトリの CI 設定など）を意図的に判定材料に使う要件が出た場合。
+
+## 2026-09-11: settings-advisor のモデル選定を traits 駆動へ移行
+- 却下した案: `main.go` 内でモデル名文字列（`Claude Sonnet 4.6 (Thinking)` や `GPT-OSS 120B (Medium)`）をハードコードして分岐する方式
+- 決め手: `models.json` 側のモデル名や定義を更新した際に、コード内のハードコード文字列と不整合が生じて推奨モデルが選定されなくなる。また世代交代（Gemini 3.5→3.8等）のたびに Go ソースの修正・再ビルド・全プラットフォームバイナリ再配布が必要になるという密結合の制約を観測。
+- 覆す条件: モデルの選定要件が `traits` の一致（`instruction-following`, `quota-independent` 等）では表現できず、Go 側で複雑な外部条件分岐や動的プロファイリングが必要になった場合。
+
 ## 2026-07-02: agy 1.0.15 での hooks/rules 実機再検証
 
 ### 学んだこと
