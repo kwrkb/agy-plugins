@@ -1,5 +1,11 @@
 # LESSONS（実装知見ログ）
 
+## 2026-09-12: govulncheck 出力を grep で判定するなら単数形と行折り返しを前提にする（PR #22 レビュー対応）
+
+- 却下した案: 要約行を `grep -q "vulnerabilities from the Go standard library"`（複数形リテラル）で拾い、判定ロジックを7ジョブにインラインで複製したまま置く。
+- 決め手: govulncheck の要約文は**件数で単数形になり**、かつ**約80桁で折り返す**。実出力で `This scan also found 0 vulnerabilities in packages you import and 1\nvulnerability in modules you require` を確認した（同じ文型が単数形・改行の両方を踏む）。複数形リテラルのままだと stdlib 指摘1件の時に判定を取りこぼし、「マイナー跨ぎが必要なので warning で許容」すべきケースが `exit $STATUS` に落ちて**全ジョブが fail する**。変異体テストで再現済み（複数形のみ版は単数2ケースが FAIL、折り返し正規化なし版は折り返し1ケースが FAIL）。またインライン7重複のままだとこの1文字の差を7箇所直す必要があり、テストも書けなかった。
+- 覆す条件: govulncheck が機械可読な出力（`-json` 等）を安定提供し、grep ベースの判定をやめられる場合。
+
 ## 2026-09-12: 固定 Go 版の引き上げ条件を「同マイナー内パッチで直る到達可能 stdlib 脆弱性」に置き、CI を warning から fail へ
 
 - 却下した案: (a) 引き上げ判断を人の裁量に委ね、govulncheck の stdlib 指摘は従来どおり一律 `::warning::` で許容し続ける。(b) 常に最新マイナーへ追従する。

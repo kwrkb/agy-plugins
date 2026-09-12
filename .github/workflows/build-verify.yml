@@ -17,6 +17,7 @@ on:
       - 'build.sh'
       - 'build.ps1'
       - '.go-version'
+      - '.github/scripts/**'
       - '.github/workflows/build-verify.yml'
   push:
     branches: [master]
@@ -31,6 +32,7 @@ on:
       - 'build.sh'
       - 'build.ps1'
       - '.go-version'
+      - '.github/scripts/**'
       - '.github/workflows/build-verify.yml'
 
 # 決定論ビルドは Go ツールチェーンのパッチ版まで一致が必要。版の定義は
@@ -39,6 +41,14 @@ on:
 # ビルドフラグ自体は build.sh に集約している（重複定義を避けるため）。
 
 jobs:
+  # govulncheck ゲートの判定テーブル（単数/複数形・行折り返し・マイナー跨ぎ）を検証する。
+  # ロジックは全プラグインジョブが共有するため、ここが唯一のテスト箇所。
+  gate-logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: .github/scripts/govulncheck-gate.test.sh
+
   github:
     runs-on: ubuntu-latest
     defaults:
@@ -54,24 +64,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh github
         working-directory: .
@@ -99,24 +92,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh validator
         working-directory: .
@@ -144,24 +120,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh ast-grep
         working-directory: .
@@ -189,24 +148,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh retro-status
         working-directory: .
@@ -234,24 +176,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh go-lsp
         working-directory: .
@@ -279,24 +204,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh settings-advisor
         working-directory: .
@@ -324,24 +232,7 @@ jobs:
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
-          echo "$OUTPUT"
-          if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
-              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
-              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
-              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
-              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
-              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
-                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
-                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
-                exit 1
-              fi
-              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
-            else
-              exit "$STATUS"
-            fi
-          fi
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
       - name: Deterministic rebuild
         run: ./build.sh worktree-manager
         working-directory: .
