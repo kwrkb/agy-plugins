@@ -57,8 +57,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
@@ -93,8 +102,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
@@ -129,8 +147,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
@@ -165,8 +192,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
@@ -201,8 +237,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
@@ -237,8 +282,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
@@ -273,8 +327,17 @@ jobs:
           OUTPUT=$("$(go env GOPATH)/bin/govulncheck" ./... 2>&1) || STATUS=$?
           echo "$OUTPUT"
           if [ "${STATUS:-0}" -ne 0 ]; then
-            if echo "$OUTPUT" | grep -q "Your code is affected by [0-9]* vulnerabilities from the Go standard library"; then
-              echo "::warning::Tolerating known toolchain vulnerabilities from pinned Go standard library"
+            if echo "$OUTPUT" | grep -q "vulnerabilities from the Go standard library"; then
+              # 固定中のマイナー内のパッチで直るものは「据え置く理由が無い」ので fail させる。
+              # 一律 warning にしていた頃は誰も読まず、3 パッチ分の既知 CVE を抱えたまま
+              # 気づけなかった。マイナー跨ぎが要るものだけ warning で許容する。
+              MINOR=$(cut -d. -f1,2 < "$GITHUB_WORKSPACE/.go-version")
+              if echo "$OUTPUT" | grep -qE "^ *Fixed in: .*@go${MINOR}\."; then
+                echo "::error::Reachable stdlib vulnerabilities are fixed within go${MINOR}. Bump .go-version to the latest go${MINOR}.x, run ./build.sh, and commit the binaries."
+                echo "$OUTPUT" | grep -E "^ *Fixed in: .*@go${MINOR}\." | sort -u
+                exit 1
+              fi
+              echo "::warning::Tolerating stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
             else
               exit "$STATUS"
             fi
