@@ -1,5 +1,31 @@
 # LESSONS（実装知見ログ）
 
+## 2026-09-12: govulncheck の判定はテキスト要約の grep をやめ `-format json` に切り替えた（PR #22）
+
+- 却下した案: テキスト要約の grep を直し続ける。単数形対応 → 成分の並び順対応 → セクション（Symbol/Package/Module）の切り分け、と当てていく。
+- 決め手: 同一ブロックで**レビュー3周連続**して別種のバグが出た。(1) 件数1件で単数形になる、(2) 約80桁で折り返す、(3) 要約の module/stdlib 成分の並び順に依存する、(4) `Fixed in:` の grep が `=== Symbol Results ===` 以外（到達不能な Package/Module セクション）まで拾う。(4) は「到達可能な stdlib はマイナー跨ぎ・到達不能な stdlib が同マイナー内」で誤 fail することを旧ゲートで実測（`exit=1`、正しくは warning）。テキスト解析には破綻面の上限が無い。`-format json` の finding は `trace[0].function` の有無で到達可能性が、`trace[0].module` で脆弱なモジュールが、`fixed_version` で修正版が構造的に取れ、到達可能3件がテキストの Symbol Results と完全一致することを実測確認した。これは自分で書いた前2エントリの「覆す条件」そのもの。
+- 覆す条件: govulncheck が `-format json` のスキーマを破壊的に変更した場合（`trace` の向き・`fixed_version` の形式が対象）。
+
+**注意**: `trace` は**脆弱な関数が先頭・自コードのエントリポイントが末尾**。`trace | last | .module` と書くと自分のモジュール名を拾い、「依存モジュールに到達可能な脆弱性あり」と誤報する（実測で踏んだ）。JSON フィクスチャのテストは11件とも通っていたが、フィクスチャ側も同じ向きで間違えていたため検出できなかった——**構造化データに移しても、実データでの end-to-end 確認は省けない**。また stdlib の `fixed_version` は `v1.26.6` 形式で、テキストの `@go1.26.6` とは接頭辞が違う。
+
+## 2026-09-12: bot の P1 は「主張」と「推奨」を分けて検証する — 主張は外れでも推奨が当たることがある（PR #22）
+
+- 却下した案: Codex の P1「混在スキャン（第三者モジュール到達可能 + stdlib はマイナー跨ぎ）が warning で素通りし依存側脆弱性を隠す」をそのまま真として、判定構造を作り直す。
+- 決め手: 主張は**現実装では成立しなかった**。`golang.org/x/vuln@v1.8.0/internal/scan/text.go` の `summary()` を読むと要約は `affected by <N> vulnerabilities from [<M> module(s)][ and ]the Go standard library.` と組まれ、混在時は `from 1 module and the Go standard library` になる。当時の正規表現は `vulnerabilit(y|ies) from the Go standard library` の**連続一致**だったため混在文には当たらず、実フィクスチャで `exit 1`（正しく fail）を確認した。ただし「正しく動くのは偶然」で、成分の並びが stdlib 先頭になれば例外が誤適用される。実測: 並び替えフィクスチャを修正前版に通すと `exit=0`（依存側脆弱性を隠蔽）。よって推奨（module 成分を独立に判定）は採用し、主張は否定した。
+- 覆す条件: govulncheck が機械可読出力（`-json`）を安定提供し、要約文の解析をやめられる場合。
+
+## 2026-09-12: govulncheck 出力を grep で判定するなら単数形と行折り返しを前提にする（PR #22 レビュー対応）
+
+- 却下した案: 要約行を `grep -q "vulnerabilities from the Go standard library"`（複数形リテラル）で拾い、判定ロジックを7ジョブにインラインで複製したまま置く。
+- 決め手: govulncheck の要約文は**件数で単数形になり**、かつ**約80桁で折り返す**。実出力で `This scan also found 0 vulnerabilities in packages you import and 1\nvulnerability in modules you require` を確認した（同じ文型が単数形・改行の両方を踏む）。複数形リテラルのままだと stdlib 指摘1件の時に判定を取りこぼし、「マイナー跨ぎが必要なので warning で許容」すべきケースが `exit $STATUS` に落ちて**全ジョブが fail する**。変異体テストで再現済み（複数形のみ版は単数2ケースが FAIL、折り返し正規化なし版は折り返し1ケースが FAIL）。またインライン7重複のままだとこの1文字の差を7箇所直す必要があり、テストも書けなかった。
+- 覆す条件: govulncheck が機械可読な出力（`-json` 等）を安定提供し、grep ベースの判定をやめられる場合。
+
+## 2026-09-12: 固定 Go 版の引き上げ条件を「同マイナー内パッチで直る到達可能 stdlib 脆弱性」に置き、CI を warning から fail へ
+
+- 却下した案: (a) 引き上げ判断を人の裁量に委ね、govulncheck の stdlib 指摘は従来どおり一律 `::warning::` で許容し続ける。(b) 常に最新マイナーへ追従する。
+- 決め手: (a) は実測で失敗していた。CI は毎 PR で govulncheck を走らせていたのに warning は誰にも読まれず、固定版 1.26.5 は**到達可能な** stdlib 脆弱性3件（GO-2026-6218 `net/url` / 6090 `crypto/tls` / 5972 `encoding/asn1`、いずれも `ServeStdio`→`tls.Conn.Read`・`asn1.Unmarshal` の経路）を抱えたまま3パッチ遅れていた。1.26.8 では govulncheck が `No vulnerabilities found`。(b) は据え置きコストが実測で重い——1回の引き上げで21バイナリ再ビルド＝約 157MB の新規 blob（`.git` は既に 322MB）で、年2回のマイナー移行はこれを2回払う。よって「同マイナー内のパッチで直るなら fail、マイナー跨ぎが要るものだけ warning」に絞り、マイナー移行は EOL 直前まで据え置く。
+- 覆す条件: バイナリを git にコミットしなくなった場合（引き上げコストが消えるため最新追従が合理的になる）。または Go が最新2マイナーというサポート範囲を変えた場合。
+
 ## 2026-09-12: Go ツールチェーン版を `.go-version` に集約し `GOTOOLCHAIN` で強制する
 
 - 却下した案: (a) 従来どおり「go 1.26.5 前提」をコメント・README に書くだけで運用する。(b) 固定自体をやめ、stale ゲートを bit-identical 比較からソースハッシュ照合へ変更する。

@@ -79,7 +79,7 @@ Go ソースを変更したら、リポジトリルートで対象を決定論�
 ./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor|worktree-manager>
 ```
 
-Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドが前提とする Go のパッチ版は `.go-version` に定義され、`build.sh`/`build.ps1` が `GOTOOLCHAIN` で強制します（未取得なら Go が自動ダウンロード）。素の `go build` で焼いたバイナリはローカル Go 版によって別物になるため、必ずビルドスクリプト経由で再ビルドしてください。
+Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドが前提とする Go のパッチ版は `.go-version` に定義され、`build.sh`/`build.ps1` が `GOTOOLCHAIN` で強制します（未取得なら Go が自動ダウンロード）。素の `go build` で焼いたバイナリはローカル Go 版によって別物になるため、必ずビルドスクリプト経由で再ビルドしてください。`.go-version` を独断で書き換えないこと。引き上げ条件は CLAUDE.md「Go バージョンの引き上げ方針」に定義され、条件1（固定中のマイナー内のパッチで直る stdlib 脆弱性）は CI の govulncheck が fail で通知します。
 
 ## Verification and Review
 
