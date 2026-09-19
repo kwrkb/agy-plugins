@@ -54,4 +54,4 @@ In `test-runner/src`, run `gofmt`, `go vet ./...`, and `go test -count=1 ./...`.
 
 From the repository root, run `./build.sh test-runner` (or `./build.ps1 test-runner`). These use the pinned `.go-version`; do not replace distributed binaries with an unpinned build. CI runs tests on Linux, macOS, and Windows and checks vulnerability policy and deterministic artifacts on Linux.
 
-The bundled agent guide is [test-runner-gemini](skills/test-runner-gemini/SKILL.md). This is an agy plugin package, not a Codex plugin manifest.
+The bundled agent guide is [test-runner-gemini](skills/test-runner-gemini/SKILL.md).
