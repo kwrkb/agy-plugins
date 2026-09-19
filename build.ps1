@@ -75,6 +75,7 @@ switch ($Target) {
     'settings-advisor' { Build 'settings-advisor' 'settings-advisor' }
     'go-lsp' { Build 'go-lsp' 'go-lsp' }
     'worktree-manager' { Build 'worktree-manager' 'worktree-manager' }
+    'test-runner' { Build 'test-runner' 'test-runner' }
     'all' {
         Build 'github' 'github'
         Build 'agy-plugin-kit/validator' 'validator'
@@ -83,9 +84,10 @@ switch ($Target) {
         Build 'settings-advisor' 'settings-advisor'
         Build 'go-lsp' 'go-lsp'
         Build 'worktree-manager' 'worktree-manager'
+        Build 'test-runner' 'test-runner'
     }
     default {
-        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | all)"
+        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner | all)"
         exit 2
     }
 }

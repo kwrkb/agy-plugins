@@ -14,6 +14,7 @@ A collection of Model Context Protocol (MCP) plugins designed for AI assistants,
 | **[retro-status](./retro-status/README.md)** | MCP server scanning repositories to render RPG-style retro status ASCII art |
 | **[settings-advisor](./settings-advisor/README.md)** | MCP server analyzing workspace scale, languages, and settings to recommend optimal models and sandbox configurations |
 | **[worktree-manager](./worktree-manager/README.md)** | MCP server providing safe git worktree operations (list, add, remove, prune) for isolated parallel workflows |
+| **[test-runner](./test-runner/README.md)** | MCP server running Go tests with bounded failure logs and targeted rerun arguments |
 
 ## Installation
 
@@ -41,6 +42,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/settings-advisor
 
 # worktree-manager plugin
 agy plugin install https://github.com/kwrkb/agy-plugins/worktree-manager
+
+# test-runner plugin
+agy plugin install https://github.com/kwrkb/agy-plugins/test-runner
 ```
 
 Please refer to the README in each plugin directory for specific prerequisites (required CLI binaries on PATH / authentication).
@@ -61,12 +65,13 @@ Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded upon too
 | retro-status | `git` (recommended), `rg` (optional) | None |
 | settings-advisor | None (prebuilt binaries included) | None |
 | worktree-manager | `git` (on PATH) | None |
+| test-runner | `go` >= 1.24 (on PATH) | None |
 
 ### Bundled Platforms & Self-Build
 
-✅ **Windows native execution verified across all plugins**
+Existing plugins have been verified on native Windows. `test-runner` includes CI tests for Linux, macOS, and Windows; local verification is on Linux.
 
-Go-based plugins (`github`, `ast-grep`, `go-lsp`, `retro-status`, `settings-advisor`, `worktree-manager`, and `agy-plugin-kit` validator) include native binaries for **`linux/amd64`**, **`darwin/arm64` (Apple Silicon)**, and **`windows/amd64`** in `bin/`. The extensionless `bin/<name>` dispatcher script detects the platform via `uname` and executes `<name>-<goos>-<goarch>` (on Windows, agy directly invokes `<name>.exe`).
+Go-based plugins (`github`, `ast-grep`, `go-lsp`, `retro-status`, `settings-advisor`, `worktree-manager`, `test-runner`, and `agy-plugin-kit` validator) include native binaries for **`linux/amd64`**, **`darwin/arm64` (Apple Silicon)**, and **`windows/amd64`** in `bin/`. The extensionless `bin/<name>` dispatcher script detects the platform via `uname` and executes `<name>-<goos>-<goarch>` (on Windows, agy directly invokes `<name>.exe`).
 
 **Other platforms (e.g. `linux/arm64` / `darwin/amd64`) are not bundled by default**, but can be built on the target machine without modifying any scripts:
 
@@ -89,5 +94,6 @@ Each plugin acts as a wrapper for existing tools/servers and complies with their
 | settings-advisor | Custom Go implementation | MIT |
 | agy-plugin-kit | Custom Go implementation | MIT |
 | worktree-manager | `git` CLI | MIT |
+| test-runner | `go test` (Go toolchain) | BSD-3-Clause |
 
 Plugins delegate execution to user-installed binaries/CLIs on PATH (no redistribution of external binaries).
