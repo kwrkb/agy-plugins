@@ -14,6 +14,7 @@ on:
       - 'settings-advisor/**'
       - 'go-lsp/**'
       - 'worktree-manager/**'
+      - 'test-runner/**'
       - 'build.sh'
       - 'build.ps1'
       - '.go-version'
@@ -29,6 +30,7 @@ on:
       - 'settings-advisor/**'
       - 'go-lsp/**'
       - 'worktree-manager/**'
+      - 'test-runner/**'
       - 'build.sh'
       - 'build.ps1'
       - '.go-version'
@@ -244,3 +246,36 @@ jobs:
             exit 1
           fi
         working-directory: .
+
+  test-runner:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: test-runner/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+      - run: go vet ./...
+      - run: go test -count=1 ./...
+      - name: govulncheck
+        if: runner.os == 'Linux'
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
+      - name: Deterministic rebuild
+        if: runner.os == 'Linux'
+        run: ./build.sh test-runner
+        working-directory: .
+      - name: Verify committed binaries are up to date
+        if: runner.os == 'Linux'
+        run: git diff --exit-code -- test-runner/bin/test-runner-linux-amd64 test-runner/bin/test-runner-darwin-arm64 test-runner/bin/test-runner.exe
+        working-directory: .
+      - name: MCP smoke test through the distributed dispatcher
+        if: runner.os == 'Linux'
+        run: TEST_RUNNER_BINARY="$GITHUB_WORKSPACE/test-runner/bin/test-runner" go test -count=1 -run '^TestMCPStdio$' ./...

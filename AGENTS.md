@@ -13,6 +13,7 @@
 - `retro-status/`: リポジトリ情報をレトロゲーム風に表示する Go 製 MCP サーバー
 - `settings-advisor/`: ワークスペースに適した agy 設定を提案する Go 製 MCP サーバー
 - `worktree-manager/`: Git worktree の作成・削除・一覧・prune を行う Go 製 MCP サーバー
+- `test-runner/`: Go テストを実行し、失敗ログと再実行引数を返す Go 製 MCP サーバー
 - `agy-plugin-kit/`: プラグイン作成用の command、skill、template、および Go 製 validator
 
 Go 製プラグインは原則として `<plugin>/src/` に独立した Go モジュール、`<plugin>/bin/` に配布用バイナリを持ちます。validator のみ `agy-plugin-kit/validator/{src,bin}/` 配下です。
@@ -71,12 +72,13 @@ go-lsp/src
 retro-status/src
 settings-advisor/src
 worktree-manager/src
+test-runner/src
 ```
 
 Go ソースを変更したら、リポジトリルートで対象を決定論的に再ビルドします。
 
 ```sh
-./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor|worktree-manager>
+./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor|worktree-manager|test-runner>
 ```
 
 Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドが前提とする Go のパッチ版は `.go-version` に定義され、`build.sh`/`build.ps1` が `GOTOOLCHAIN` で強制します（未取得なら Go が自動ダウンロード）。素の `go build` で焼いたバイナリはローカル Go 版によって別物になるため、必ずビルドスクリプト経由で再ビルドしてください。`.go-version` を独断で書き換えないこと。引き上げ条件は CLAUDE.md「Go バージョンの引き上げ方針」に定義され、条件1（固定中のマイナー内のパッチで直る stdlib 脆弱性）は CI の govulncheck が fail で通知します。
