@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -204,6 +205,69 @@ func (s *eventStream) consume(line []byte) {
 	}
 }
 func terminal(a string) bool { return a == "pass" || a == "fail" || a == "skip" }
+
+// splitRun mirrors testing.splitRegexp: go test cuts a -run expression into
+// elements at slashes and alternations that sit outside brackets, groups and
+// escapes, then compiles each element on its own. The escape case is load
+// bearing: without it an escaped separator such as `a\/b` splits into `a\`,
+// which does not compile, so a valid expression would be rejected.
+func splitRun(expr string) []string {
+	var elements []string
+	brackets, groups := 0, 0
+	for i := 0; i < len(expr); {
+		switch expr[i] {
+		case '[':
+			brackets++
+		case ']':
+			if brackets--; brackets < 0 { // An unmatched ']' is legal.
+				brackets = 0
+			}
+		case '(':
+			if brackets == 0 {
+				groups++
+			}
+		case ')':
+			if brackets == 0 {
+				groups--
+			}
+		case '\\':
+			i++
+		case '/', '|':
+			if brackets == 0 && groups == 0 {
+				elements = append(elements, expr[:i])
+				expr = expr[i+1:]
+				i = 0
+				continue
+			}
+		}
+		i++
+	}
+	return append(elements, expr)
+}
+
+// validateRun rejects what the test binary would reject at startup. Left to go
+// test, an invalid caller expression fails every package with no failing test,
+// which reads as a project test failure rather than an input error.
+func validateRun(expr string) error {
+	if expr == "" {
+		return nil
+	}
+	for i, element := range splitRun(expr) {
+		// go test verifies each element after rewriting whitespace to '_', so
+		// mirror that substitution. Its other rewrite, escaping non-printable
+		// runes, cannot change whether an element compiles.
+		normalized := strings.Map(func(r rune) rune {
+			if unicode.IsSpace(r) {
+				return '_'
+			}
+			return r
+		}, element)
+		if _, err := regexp.Compile(normalized); err != nil {
+			return fmt.Errorf("run element %d (%q) is not a valid expression: %w", i, element, err)
+		}
+	}
+	return nil
+}
 func exactRun(name string) string {
 	parts := strings.Split(name, "/")
 	for i, p := range parts {

@@ -47,6 +47,11 @@ func validatePackages(data []byte, root string) ([]string, error) {
 			}
 			return nil, fmt.Errorf("invalid go list output: %w", err)
 		}
+		// go list synthesizes this import path for a .go file list, which has no
+		// package framing and cannot be reproduced by a rerun.
+		if p.ImportPath == "command-line-arguments" {
+			return nil, errors.New(".go file lists are not supported; pass package patterns")
+		}
 		if p.Module == nil || p.Dir == "" {
 			if p.Error != nil {
 				return nil, fmt.Errorf("package discovery: %s", p.Error.Err)

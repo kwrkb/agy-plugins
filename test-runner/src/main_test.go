@@ -24,9 +24,10 @@ func TestOptions(t *testing.T) {
 		{"module_path": ".", "packages": []any{".", 2}},
 		{"module_path": ".", "packages": []string{}},
 		{"module_path": ".", "packages": []string{"-exec=evil"}},
-		{"module_path": ".", "packages": []string{"a.go"}},
 		{"module_path": ".", "packages": nil},
 		{"module_path": ".", "run": false},
+		{"module_path": ".", "run": "["},
+		{"module_path": ".", "run": "A/("},
 		{"module_path": ".", "timeout_seconds": "60"},
 		{"module_path": ".", "timeout_seconds": 0},
 		{"module_path": ".", "timeout_seconds": 301},
@@ -43,6 +44,57 @@ func TestOptions(t *testing.T) {
 		if err != nil || o.Timeout != timeout || o.Packages[0] != "./..." {
 			t.Fatalf("%+v %v", o, err)
 		}
+	}
+	// A directory or import path may end in ".go"; only discovery can tell such a
+	// package from a file list, so the pattern itself is accepted here.
+	o, err := parseOptions(map[string]any{"module_path": ".", "packages": []string{"./pkg.go", "example.com/m/gen.go"}})
+	if err != nil || len(o.Packages) != 2 {
+		t.Fatalf("%+v %v", o, err)
+	}
+	// Expressions go test accepts, verified against a real "go test -run" run.
+	for _, run := range []string{"TestA", "(a/b)", "a[/]b", "A|B", "^A$/^B$", `^TestParent$/^a\+b\[1\]$`, "A//B", "A|", "(?P<a b>x)", "a b", `a\ b`, `a\/b`, `a\|b`, ""} {
+		if o, err := parseOptions(map[string]any{"module_path": ".", "run": run}); err != nil || o.Run != run {
+			t.Fatalf("rejected valid run %q: %v", run, err)
+		}
+	}
+	// Expressions the test binary rejects at startup, which would otherwise fail
+	// every package and read as a project test failure.
+	for _, run := range []string{"[", "(a", "A/[", "a|(", "A/b)", `a\`, "((A)/B", "[a-", "A/*"} {
+		if _, err := parseOptions(map[string]any{"module_path": ".", "run": run}); err == nil {
+			t.Errorf("accepted invalid run %q", run)
+		}
+	}
+}
+
+// A failing package whose import path ends in ".go" must produce a rerun the
+// tool can accept again; the pattern check used to reject its own output.
+func TestRerunRoundTripsThroughOptions(t *testing.T) {
+	s := newEventStream()
+	emit(s,
+		event{Action: "run", Package: "example.com/m/gen.go", Test: "TestParent/a+b[1]"},
+		event{Action: "fail", Package: "example.com/m/gen.go", Test: "TestParent/a+b[1]"},
+		event{Action: "fail", Package: "example.com/m/gen.go"},
+	)
+	s.finish()
+	r := s.result(Options{ModulePath: ".", Packages: []string{"./..."}, Timeout: 60}, &cappedBuffer{})
+	if r.Status != "failed" || len(r.Packages) != 1 || len(r.Packages[0].Failures) != 1 {
+		t.Fatalf("%+v", r)
+	}
+	rerun := r.Packages[0].Failures[0].Rerun
+	b, err := json.Marshal(rerun)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var args map[string]any
+	if err := json.Unmarshal(b, &args); err != nil {
+		t.Fatal(err)
+	}
+	o, err := parseOptions(args)
+	if err != nil {
+		t.Fatalf("rerun rejected: %v (%+v)", err, rerun)
+	}
+	if o.Packages[0] != "example.com/m/gen.go" || o.Run != rerun.Run {
+		t.Fatalf("%+v", o)
 	}
 }
 
@@ -276,6 +328,8 @@ func TestPackageValidation(t *testing.T) {
 		{Dir: outside, ImportPath: "p", Module: &struct{ Dir string }{root}},
 		{Dir: root, ImportPath: "p", Module: &struct{ Dir string }{outside}},
 		{Dir: root, ImportPath: "-bad", Module: &struct{ Dir string }{root}},
+		// go list reports a .go file list under this synthesized import path.
+		{Dir: root, ImportPath: "command-line-arguments", Module: &struct{ Dir string }{root}},
 	} {
 		b, _ := json.Marshal(p)
 		if _, err := validatePackages(b, root); err == nil {

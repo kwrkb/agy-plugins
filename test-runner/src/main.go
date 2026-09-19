@@ -39,15 +39,20 @@ func parseOptions(args map[string]any) (Options, error) {
 			return o, fmt.Errorf("packages must be a nonempty string array")
 		}
 	}
+	// A directory or import path may legitimately end in ".go", so file lists are
+	// rejected by their discovery result instead of by this pattern's spelling.
 	for _, p := range o.Packages {
-		if p == "" || strings.HasPrefix(p, "-") || strings.ContainsAny(p, "\x00\r\n") || strings.HasSuffix(p, ".go") {
-			return o, fmt.Errorf("invalid package pattern %q (file lists and flags are not supported)", p)
+		if p == "" || strings.HasPrefix(p, "-") || strings.ContainsAny(p, "\x00\r\n") {
+			return o, fmt.Errorf("invalid package pattern %q (flags are not supported)", p)
 		}
 	}
 	if v, exists := args["run"]; exists {
 		o.Run, ok = v.(string)
 		if !ok || strings.ContainsRune(o.Run, 0) {
 			return o, fmt.Errorf("run must be a string without NUL bytes")
+		}
+		if err := validateRun(o.Run); err != nil {
+			return o, err
 		}
 	}
 	if v, exists := args["timeout_seconds"]; exists {

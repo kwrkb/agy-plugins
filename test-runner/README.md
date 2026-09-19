@@ -16,8 +16,8 @@ agy plugin install https://github.com/kwrkb/agy-plugins/test-runner
 | Argument | Meaning |
 | :-- | :-- |
 | `module_path` | Required directory containing `go.mod`. Prefer an absolute path: relative paths use the MCP server's working directory. |
-| `packages` | Nonempty string array of Go package patterns; default `["./..."]`. Local paths and import paths are accepted only when all resolved packages belong to the selected module and are physically inside it. |
-| `run` | Optional Go `-run` expression, including slash-separated subtest expressions. |
+| `packages` | Nonempty string array of Go package patterns; default `["./..."]`. Local paths and import paths are accepted only when all resolved packages belong to the selected module and are physically inside it. A package directory or import path may end in `.go`; a `.go` file list is rejected by its discovery result. |
+| `run` | Optional Go `-run` expression, including slash-separated subtest expressions. An expression `go test` would reject at startup is reported as an input error instead of a test failure. |
 | `timeout_seconds` | Integer 1–300, default 60. Covers discovery, compilation, and tests. Process cleanup can take a few additional seconds. |
 
 Example arguments:
