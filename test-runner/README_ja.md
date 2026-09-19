@@ -54,4 +54,4 @@ MCPのテキストとしてJSONオブジェクトを返します。
 
 リポジトリルートで `./build.sh test-runner`（Windowsでは `./build.ps1 test-runner`）を実行します。配布物は `.go-version` の固定版でビルドし、素の `go build` の成果物では置き換えません。CIではLinux・macOS・Windowsのテストと、Linuxでの脆弱性ポリシー・決定論ビルドの検査を行います。
 
-利用ガイドは [test-runner-codex](skills/test-runner-codex/SKILL.md) を同梱します。パッケージ自体はagy向けで、Codexプラグインmanifestではありません。
+利用ガイドは [test-runner-gemini](skills/test-runner-gemini/SKILL.md) を同梱します。パッケージ自体はagy向けで、Codexプラグインmanifestではありません。
