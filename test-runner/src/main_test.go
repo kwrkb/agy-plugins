@@ -52,7 +52,7 @@ func TestOptions(t *testing.T) {
 		t.Fatalf("%+v %v", o, err)
 	}
 	// Expressions go test accepts, verified against a real "go test -run" run.
-	for _, run := range []string{"TestA", "(a/b)", "a[/]b", "A|B", "^A$/^B$", `^TestParent$/^a\+b\[1\]$`, "A//B", "A|", "(?P<a b>x)", "a b", `a\ b`, `a\/b`, `a\|b`, "",
+	for _, run := range []string{"TestA", "(a/b)", "a[/]b", "A|B", "^A$/^B$", `^TestParent$/^a\+b\[1\]$`, "A//B", "A|", "(?P<a b>x)", "a b", `a\ b`, `a\/b`, `a\|b`, "", "\u088f", "A/\u088f",
 		// testing.rewrite escapes non-printable runes before compiling, so a
 		// backslash before one becomes an escaped backslash rather than an
 		// invalid escape, and "\a" stays the bell class it already was.
@@ -87,7 +87,11 @@ func TestRewriteRunMatchesGoTest(t *testing.T) {
 		"\t": "_", " ": "_", "\u0085": "_", "\u00a0": "_", "\u1680": "_",
 		"\u2000": "_", "\u2005": "_", "\u200a": "_", "\u2028": "_",
 		"\u202f": "_", "\u205f": "_", "\u3000": "_",
-		"\u200b": `\u200b`, "\a": `\a`,
+		"\u200b": `\u200b`, "\a": `\a`, "\ufeff": `\ufeff`, "\ue000": `\ue000`,
+		// Unassigned under the pinned toolchain and printable under a newer one,
+		// so it must survive raw: "go test -run" accepts it on go1.27.1 and this
+		// server would otherwise reject a rerun it built itself.
+		"\u088f":    "\u088f",
 		"TestA":     "TestA",
 		"a b":       "a_b",
 		"a\\\u200b": `a\\u200b`,

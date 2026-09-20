@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -271,13 +272,23 @@ func validateRun(expr string) error {
 // element compiles, in either direction: a lone U+200B becomes the escape
 // "\u200b" that the regexp parser rejects, while a backslash before it becomes
 // an escaped backslash that parses.
+//
+// The escape branch deliberately narrows the mirror, because testing.rewrite
+// runs inside the toolchain under test while this runs inside ours, and
+// strconv.IsPrint is generated per Unicode version: 10615 runes are printable
+// under 1.27.1 and not under the pinned 1.26.8. Escaping those would reject
+// expressions the caller's go test accepts -- including reruns this server
+// builds itself from reported test names. Every one of them is unassigned
+// here, so the escape is limited to categories a later Unicode version cannot
+// turn printable. A rune this misses stays raw and is merely accepted, which
+// is the pre-existing behaviour, rather than wrongly reported as bad input.
 func rewriteRun(s string) string {
 	var b strings.Builder
 	for _, r := range s {
 		switch {
 		case isRunSpace(r):
 			b.WriteByte('_')
-		case !strconv.IsPrint(r):
+		case !strconv.IsPrint(r) && stableNonPrint(r):
 			q := strconv.QuoteRune(r)
 			b.WriteString(q[1 : len(q)-1])
 		default:
@@ -285,6 +296,15 @@ func rewriteRun(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// stableNonPrint reports whether r is non-printable for a reason no Unicode
+// release can revise: a control, format, surrogate or private-use code point.
+// Unassigned code points are excluded precisely because assigning one is what
+// makes a newer toolchain print it raw.
+func stableNonPrint(r rune) bool {
+	return unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) ||
+		unicode.Is(unicode.Cs, r) || unicode.Is(unicode.Co, r)
 }
 
 // isRunSpace is testing.isSpace verbatim. unicode.IsSpace agrees with it on
