@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -14,6 +16,13 @@ const retainedLogLimit = 1 << 20
 const returnedLogLimit = 64 << 10
 const eventLimit = 1 << 20
 const recordLimit = 100000
+
+// runLimit bounds the -run expression. validateRun compiles one regexp per
+// top-level element and runs before the request timeout context exists, so an
+// unbounded expression would spend that time outside the timeout and outside
+// elapsed_seconds. At this size validation measures in tens of milliseconds,
+// against roughly a second for a 2 MiB expression.
+const runLimit = 64 << 10
 
 type Counts struct {
 	Passed  int `json:"passed"`
@@ -204,6 +213,130 @@ func (s *eventStream) consume(line []byte) {
 	}
 }
 func terminal(a string) bool { return a == "pass" || a == "fail" || a == "skip" }
+
+// splitRun mirrors testing.splitRegexp: go test cuts a -run expression into
+// elements at slashes and alternations that sit outside brackets, groups and
+// escapes, then compiles each element on its own. The escape case is load
+// bearing: without it an escaped separator such as `a\/b` splits into `a\`,
+// which does not compile, so a valid expression would be rejected.
+func splitRun(expr string) []string {
+	var elements []string
+	brackets, groups := 0, 0
+	for i := 0; i < len(expr); {
+		switch expr[i] {
+		case '[':
+			brackets++
+		case ']':
+			if brackets--; brackets < 0 { // An unmatched ']' is legal.
+				brackets = 0
+			}
+		case '(':
+			if brackets == 0 {
+				groups++
+			}
+		case ')':
+			if brackets == 0 {
+				groups--
+			}
+		case '\\':
+			i++
+		case '/', '|':
+			if brackets == 0 && groups == 0 {
+				elements = append(elements, expr[:i])
+				expr = expr[i+1:]
+				i = 0
+				continue
+			}
+		}
+		i++
+	}
+	return append(elements, expr)
+}
+
+// validateRun rejects what the test binary would reject at startup. Left to go
+// test, an invalid caller expression fails every package with no failing test,
+// which reads as a project test failure rather than an input error.
+func validateRun(expr string) error {
+	if expr == "" {
+		return nil
+	}
+	for i, element := range splitRun(expr) {
+		rewritten := rewriteRun(element)
+		if _, err := regexp.Compile(rewritten); err != nil {
+			shown := strconv.Quote(element)
+			if rewritten != element {
+				shown += fmt.Sprintf(" checked as %q", rewritten)
+			}
+			return fmt.Errorf("run element %d (%s) is not a valid expression: %w", i, shown, err)
+		}
+	}
+	return nil
+}
+
+// rewriteRun mirrors testing.rewrite, which go test applies to every -run
+// element before compiling it: whitespace collapses to '_' and non-printable
+// runes become their escaped spelling. Both substitutions decide whether an
+// element compiles, in either direction: a lone U+200B becomes the escape
+// "\u200b" that the regexp parser rejects, while a backslash before it becomes
+// an escaped backslash that parses.
+//
+// The escape branch deliberately narrows the mirror, because testing.rewrite
+// runs inside the toolchain under test while this runs inside ours, and
+// strconv.IsPrint is generated per Unicode version: 10615 runes are printable
+// under 1.27.1 and not under the pinned 1.26.8. Escaping those would reject
+// expressions the caller's go test accepts -- including reruns this server
+// builds itself from reported test names. Every one of them is unassigned
+// here, so the escape is limited to categories a later Unicode version cannot
+// turn printable. A rune this misses stays raw and is merely accepted, which
+// is the pre-existing behaviour, rather than wrongly reported as bad input.
+func rewriteRun(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case isRunSpace(r):
+			b.WriteByte('_')
+		case !strconv.IsPrint(r) && stableNonPrint(r):
+			q := strconv.QuoteRune(r)
+			b.WriteString(q[1 : len(q)-1])
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// stableNonPrint reports whether r is non-printable for a reason no Unicode
+// release can revise: a control, format, surrogate or private-use code point.
+// Unassigned code points are excluded precisely because assigning one is what
+// makes a newer toolchain print it raw.
+func stableNonPrint(r rune) bool {
+	return unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) ||
+		unicode.Is(unicode.Cs, r) || unicode.Is(unicode.Co, r)
+}
+
+// isRunSpace is testing.isSpace verbatim. unicode.IsSpace agrees with it on
+// every rune today, but it is a hand-written switch precisely because it is not
+// the Unicode Z class: deriving it from the Unicode tables instead would start
+// diverging the moment a release adds a White_Space rune, which is the same
+// mismatch this mirror exists to avoid.
+func isRunSpace(r rune) bool {
+	if r < 0x2000 {
+		switch r {
+		case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xA0, 0x1680:
+			return true
+		}
+	} else {
+		if r <= 0x200a {
+			return true
+		}
+		switch r {
+		case 0x2028, 0x2029, 0x202f, 0x205f, 0x3000:
+			return true
+		}
+	}
+	return false
+}
+
 func exactRun(name string) string {
 	parts := strings.Split(name, "/")
 	for i, p := range parts {
