@@ -51,6 +51,9 @@ func parseOptions(args map[string]any) (Options, error) {
 		if !ok || strings.ContainsRune(o.Run, 0) {
 			return o, fmt.Errorf("run must be a string without NUL bytes")
 		}
+		if len(o.Run) > runLimit {
+			return o, fmt.Errorf("run must be at most %d bytes", runLimit)
+		}
 		if err := validateRun(o.Run); err != nil {
 			return o, err
 		}

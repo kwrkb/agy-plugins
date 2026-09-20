@@ -46,7 +46,7 @@ Each MCP result contains a JSON text object:
 
 Use a failure's `rerun` object as the next `go_test` arguments. It retains the absolute module path and timeout, selects one package, and anchors/escapes each subtest-name segment. Go still runs parent setup to discover a selected subtest. Parent failures can overlap child failures; choose the parent to rerun a group or the child to narrow the retry. There is no server-side retry state.
 
-Malformed/oversized JSON events (over 1 MiB), over 100,000 result records, and discovery output over 8 MiB produce explicit execution errors. Output continues to drain after a parsing error to avoid blocking the child; the overall timeout still applies. Timeout/cancellation stops the Unix process group or the Windows process tree and bounds pipe shutdown. Programs that deliberately detach from the process tree are outside this mechanism.
+A `run` expression over 64 KiB is rejected as an input error, because it is validated before the timeout starts. Malformed/oversized JSON events (over 1 MiB), over 100,000 result records, and discovery output over 8 MiB produce explicit execution errors. Output continues to drain after a parsing error to avoid blocking the child; the overall timeout still applies. Timeout/cancellation stops the Unix process group or the Windows process tree and bounds pipe shutdown. Programs that deliberately detach from the process tree are outside this mechanism.
 
 ## Development and validation
 

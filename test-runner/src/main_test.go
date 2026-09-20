@@ -82,6 +82,30 @@ func TestOptions(t *testing.T) {
 // rewritten form back. Note the space set is testing's hand-written switch, not
 // the Unicode Z class -- U+200A rewrites to "_" while U+200B, one past the end
 // of that range, becomes the escape "\u200b" the regexp parser rejects.
+// validateRun compiles one regexp per top-level element before runTests builds
+// the timeout context, so the expression is bounded by size rather than left to
+// spend that time outside the timeout and outside elapsed_seconds.
+func TestRunSizeIsBounded(t *testing.T) {
+	if _, err := parseOptions(map[string]any{"module_path": ".", "run": strings.Repeat("A", runLimit)}); err != nil {
+		t.Fatalf("rejected run at the limit: %v", err)
+	}
+	// Worst case for validation cost: every byte pair is its own element.
+	dense := strings.Repeat("A|", runLimit/2)
+	start := time.Now()
+	o, err := parseOptions(map[string]any{"module_path": ".", "run": dense})
+	if err != nil || o.Run != dense {
+		t.Fatalf("rejected dense run at the limit: %v", err)
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("validating a run at the limit took %s", d)
+	}
+	for _, run := range []string{strings.Repeat("A", runLimit+1), strings.Repeat("A|", runLimit)} {
+		if _, err := parseOptions(map[string]any{"module_path": ".", "run": run}); err == nil {
+			t.Errorf("accepted run of %d bytes", len(run))
+		}
+	}
+}
+
 func TestRewriteRunMatchesGoTest(t *testing.T) {
 	for in, want := range map[string]string{
 		"\t": "_", " ": "_", "\u0085": "_", "\u00a0": "_", "\u1680": "_",

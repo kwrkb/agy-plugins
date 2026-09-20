@@ -17,6 +17,13 @@ const returnedLogLimit = 64 << 10
 const eventLimit = 1 << 20
 const recordLimit = 100000
 
+// runLimit bounds the -run expression. validateRun compiles one regexp per
+// top-level element and runs before the request timeout context exists, so an
+// unbounded expression would spend that time outside the timeout and outside
+// elapsed_seconds. At this size validation measures in tens of milliseconds,
+// against roughly a second for a 2 MiB expression.
+const runLimit = 64 << 10
+
 type Counts struct {
 	Passed  int `json:"passed"`
 	Failed  int `json:"failed"`
