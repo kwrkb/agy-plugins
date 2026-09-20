@@ -54,14 +54,20 @@ D=$(mktemp -d) && git archive HEAD test-runner/ | tar -x -C "$D" && \
          ~/.gemini/antigravity-cli/mcp/test-runner_test-runner && \
   agy plugin install "$D/test-runner"
 # mcp_config.json の command が ${extensionPath} 解決済み絶対パスになっていること
-# 配布物は mtime でなく中身で確認する（リポジトリ側の bin/ と sha256 一致・+x 保持）
-sha256sum test-runner/bin/* ~/.gemini/config/plugins/test-runner/bin/*
+# 配布物は mtime でなく中身で確認する（目視で突き合わせず、file ごとに判定させる）
+for f in test-runner/bin/*; do
+  cmp -s "$f" ~/.gemini/config/plugins/test-runner/bin/"$(basename "$f")" \
+    && echo "OK $(basename "$f")" || echo "DIFFER $(basename "$f")"
+done
+ls -l ~/.gemini/config/plugins/test-runner/bin/   # +x が保持されていること
 
 # 2) tmux で agy を「対話モードで」起こす（`agy -p` は下記のとおり使えない）
 tmux new-session -d -s v -x 220 -y 50 -c <検証用モジュールのディレクトリ>
 tmux send-keys -t v 'agy' Enter
 #   初回のみ「Do you trust this folder?」→ Enter で承認
-tmux send-keys -t v 'Use the go_test tool with module_path "<絶対パス>" and packages ["./..."]' Enter
+#   本文と Enter は別コール（TUI が本文を受け取ってから改行が届く。1 コールでも
+#   クォート自体は壊れないことは確認済み）
+tmux send-keys -t v 'Use the go_test tool with module_path "<絶対パス>" and packages ["./..."]'
 tmux send-keys -t v Enter
 #   「Allow calling this tool?」→ 1（Yes, allow tool call）。3 と 6 は settings.json へ
 #   永続化するので検証では選ばない。1 は毎回聞かれる＝何も残らない
