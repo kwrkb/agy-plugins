@@ -52,14 +52,21 @@ func TestOptions(t *testing.T) {
 		t.Fatalf("%+v %v", o, err)
 	}
 	// Expressions go test accepts, verified against a real "go test -run" run.
-	for _, run := range []string{"TestA", "(a/b)", "a[/]b", "A|B", "^A$/^B$", `^TestParent$/^a\+b\[1\]$`, "A//B", "A|", "(?P<a b>x)", "a b", `a\ b`, `a\/b`, `a\|b`, ""} {
+	for _, run := range []string{"TestA", "(a/b)", "a[/]b", "A|B", "^A$/^B$", `^TestParent$/^a\+b\[1\]$`, "A//B", "A|", "(?P<a b>x)", "a b", `a\ b`, `a\/b`, `a\|b`, "",
+		// testing.rewrite escapes non-printable runes before compiling, so a
+		// backslash before one becomes an escaped backslash rather than an
+		// invalid escape, and "\a" stays the bell class it already was.
+		"\\\u200b", "\u0007", "a\u0007b", "\u00a0", "A/\\\u200b"} {
 		if o, err := parseOptions(map[string]any{"module_path": ".", "run": run}); err != nil || o.Run != run {
 			t.Fatalf("rejected valid run %q: %v", run, err)
 		}
 	}
 	// Expressions the test binary rejects at startup, which would otherwise fail
 	// every package and read as a project test failure.
-	for _, run := range []string{"[", "(a", "A/[", "a|(", "A/b)", `a\`, "((A)/B", "[a-", "A/*"} {
+	for _, run := range []string{"[", "(a", "A/[", "a|(", "A/b)", `a\`, "((A)/B", "[a-", "A/*",
+		// The same rewrite turns a bare non-printable rune into "\u200b", which
+		// the regexp parser rejects; go test then fails every package instead.
+		"\u200b", "A/\u200b", "A|\u200b", "(\u200b)"} {
 		if _, err := parseOptions(map[string]any{"module_path": ".", "run": run}); err == nil {
 			t.Errorf("accepted invalid run %q", run)
 		}
@@ -68,6 +75,29 @@ func TestOptions(t *testing.T) {
 
 // A failing package whose import path ends in ".go" must produce a rerun the
 // tool can accept again; the pattern check used to reject its own output.
+// The rewrite go test applies to every -run element decides whether the
+// element compiles, so rewriteRun must reproduce it rune for rune. Each
+// expectation below was read off a real "go test -run" run: feeding it "[" plus
+// the rune makes the element invalid, and the resulting error echoes the
+// rewritten form back. Note the space set is testing's hand-written switch, not
+// the Unicode Z class -- U+200A rewrites to "_" while U+200B, one past the end
+// of that range, becomes the escape "\u200b" the regexp parser rejects.
+func TestRewriteRunMatchesGoTest(t *testing.T) {
+	for in, want := range map[string]string{
+		"\t": "_", " ": "_", "\u0085": "_", "\u00a0": "_", "\u1680": "_",
+		"\u2000": "_", "\u2005": "_", "\u200a": "_", "\u2028": "_",
+		"\u202f": "_", "\u205f": "_", "\u3000": "_",
+		"\u200b": `\u200b`, "\a": `\a`,
+		"TestA":     "TestA",
+		"a b":       "a_b",
+		"a\\\u200b": `a\\u200b`,
+	} {
+		if got := rewriteRun(in); got != want {
+			t.Errorf("rewriteRun(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestRerunRoundTripsThroughOptions(t *testing.T) {
 	s := newEventStream()
 	emit(s,
@@ -95,6 +125,14 @@ func TestRerunRoundTripsThroughOptions(t *testing.T) {
 	}
 	if o.Packages[0] != "example.com/m/gen.go" || o.Run != rerun.Run {
 		t.Fatalf("%+v", o)
+	}
+	// go test spells non-printable runes in test names with their escape
+	// sequence, so exactRun must quote the backslash for the rerun to survive
+	// validateRun, which mirrors the same rewrite.
+	for _, name := range []string{`TestZero/a\u200bb`, "TestSpace/a b", "TestParent/a+b[1]"} {
+		if err := validateRun(exactRun(name)); err != nil {
+			t.Fatalf("rerun for %q rejected: %v", name, err)
+		}
 	}
 }
 
@@ -328,13 +366,20 @@ func TestPackageValidation(t *testing.T) {
 		{Dir: outside, ImportPath: "p", Module: &struct{ Dir string }{root}},
 		{Dir: root, ImportPath: "p", Module: &struct{ Dir string }{outside}},
 		{Dir: root, ImportPath: "-bad", Module: &struct{ Dir string }{root}},
-		// go list reports a .go file list under this synthesized import path.
-		{Dir: root, ImportPath: "command-line-arguments", Module: &struct{ Dir string }{root}},
+		// go list reports a .go file list under this synthesized import path and
+		// without module framing.
+		{Dir: root, ImportPath: "command-line-arguments"},
 	} {
 		b, _ := json.Marshal(p)
 		if _, err := validatePackages(b, root); err == nil {
 			t.Fatalf("accepted %+v", p)
 		}
+	}
+	// A module may legitimately declare "command-line-arguments" as its path; go
+	// list then reports it with a module, and "go test" on it succeeds.
+	b, _ := json.Marshal(listedPackage{Dir: root, ImportPath: "command-line-arguments", Module: &struct{ Dir string }{root}})
+	if got, err := validatePackages(b, root); err != nil || len(got) != 1 || got[0] != "command-line-arguments" {
+		t.Fatalf("rejected module named command-line-arguments: %v %v", got, err)
 	}
 	link := filepath.Join(root, "link")
 	if err := os.Symlink(outside, link); err == nil {

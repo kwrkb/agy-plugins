@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -253,21 +253,63 @@ func validateRun(expr string) error {
 		return nil
 	}
 	for i, element := range splitRun(expr) {
-		// go test verifies each element after rewriting whitespace to '_', so
-		// mirror that substitution. Its other rewrite, escaping non-printable
-		// runes, cannot change whether an element compiles.
-		normalized := strings.Map(func(r rune) rune {
-			if unicode.IsSpace(r) {
-				return '_'
+		rewritten := rewriteRun(element)
+		if _, err := regexp.Compile(rewritten); err != nil {
+			shown := strconv.Quote(element)
+			if rewritten != element {
+				shown += fmt.Sprintf(" checked as %q", rewritten)
 			}
-			return r
-		}, element)
-		if _, err := regexp.Compile(normalized); err != nil {
-			return fmt.Errorf("run element %d (%q) is not a valid expression: %w", i, element, err)
+			return fmt.Errorf("run element %d (%s) is not a valid expression: %w", i, shown, err)
 		}
 	}
 	return nil
 }
+
+// rewriteRun mirrors testing.rewrite, which go test applies to every -run
+// element before compiling it: whitespace collapses to '_' and non-printable
+// runes become their escaped spelling. Both substitutions decide whether an
+// element compiles, in either direction: a lone U+200B becomes the escape
+// "\u200b" that the regexp parser rejects, while a backslash before it becomes
+// an escaped backslash that parses.
+func rewriteRun(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case isRunSpace(r):
+			b.WriteByte('_')
+		case !strconv.IsPrint(r):
+			q := strconv.QuoteRune(r)
+			b.WriteString(q[1 : len(q)-1])
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// isRunSpace is testing.isSpace verbatim. unicode.IsSpace agrees with it on
+// every rune today, but it is a hand-written switch precisely because it is not
+// the Unicode Z class: deriving it from the Unicode tables instead would start
+// diverging the moment a release adds a White_Space rune, which is the same
+// mismatch this mirror exists to avoid.
+func isRunSpace(r rune) bool {
+	if r < 0x2000 {
+		switch r {
+		case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xA0, 0x1680:
+			return true
+		}
+	} else {
+		if r <= 0x200a {
+			return true
+		}
+		switch r {
+		case 0x2028, 0x2029, 0x202f, 0x205f, 0x3000:
+			return true
+		}
+	}
+	return false
+}
+
 func exactRun(name string) string {
 	parts := strings.Split(name, "/")
 	for i, p := range parts {
