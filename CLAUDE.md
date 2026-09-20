@@ -59,7 +59,11 @@ for f in test-runner/bin/*; do
   cmp -s "$f" ~/.gemini/config/plugins/test-runner/bin/"$(basename "$f")" \
     && echo "OK $(basename "$f")" || echo "DIFFER $(basename "$f")"
 done
-ls -l ~/.gemini/config/plugins/test-runner/bin/   # +x が保持されていること
+# 中身が同じでも install が実行ビットを落とすことがあり、内容比較では検出できない。
+# 起動するのは実行ホストの分だけなので、他 OS 向けも含めて明示的に判定させる
+for f in ~/.gemini/config/plugins/test-runner/bin/*; do
+  [ -x "$f" ] && echo "+x $(basename "$f")" || echo "NOT-EXECUTABLE $(basename "$f")"
+done
 
 # 2) tmux で agy を「対話モードで」起こす（`agy -p` は下記のとおり使えない）
 tmux new-session -d -s v -x 220 -y 50 -c <検証用モジュールのディレクトリ>
