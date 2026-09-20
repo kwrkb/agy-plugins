@@ -480,3 +480,15 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: 不正な式をそのまま `go test` に渡す（初版）か、出力の `testing: invalid regexp` 文字列を検出して事後判定する。
 - 決め手: 実測で `-run '['` は全パッケージに package 単位の `fail` イベント＋exit 1 を出し、失敗テスト0件のまま `status: failed`・MCP `isError: false` になる＝入力エラーがプロジェクトのテスト失敗に化ける。固定 Go の `src/testing/match.go` の `splitRegexp` と同じ分割（`[]`・`()`・`\` を尊重）＋空白→`_` 置換で各要素を `regexp.Compile` すると、実 `go test -run` と22ケースで完全一致した。`\` 分岐を外した版と実測比較したところ、差が出るのは呼び出し側が渡す `a\/b`・`a\|b`（エスケープされた区切り）で、分割が `a\` を作って `regexp.Compile` が落ち、go が受理する式を誤拒否する。`exactRun` の出力は `/` 区切りで連結した QuoteMeta 済み要素なので、分割が崩れて要素が結合しても必ずコンパイルでき、この分岐の有無に影響されない（当初「自分の rerun を誤拒否する」と推定したが実測で否定）。空白置換を写さないと `(?P<a b>x)` を誤って拒否する（go 側は `rewrite` で有効化する）。非印字文字のエスケープは正規表現の妥当性を変えないため写していない。
 - 覆す条件: `testing` 側の分割・`rewrite` 仕様が変わり一致が崩れた場合（固定 Go の `src/testing/match.go` を再 diff して判断する）。
+
+## 2026-09-20: `testing.rewrite` は空白置換だけでなく非印字エスケープまで写す（直前の教訓を覆す）
+
+- 却下した案: 非印字文字のエスケープは正規表現の妥当性を変えないとして写さない（直前エントリの結論）。および、写す際に空白判定を `unicode.IsSpace` で代用する。
+- 決め手: 実 `go test -run` で双方向にズレを観測した。U+200B 単体は `invalid regexp for element 0 of -test.run ("​"): invalid escape sequence` で失敗する（＝旧実装が受理して入力エラーがテスト失敗に化ける、この機能が防ぐはずだった当の症状）。逆に `\`+U+200B は `ok` で通る（＝旧実装が誤拒否）。妥当性を変えないという前提が誤りだった。空白判定を代用しない理由は別。全ルーン走査（U+0000–U+10FFFF）で `testing.isSpace` と `unicode.IsSpace` の相違は0件、固定 1.26.8 と 1.27.1 の `isSpace` も同一だが、`testing` 側は「not the same as Unicode Z class」と明記して手書きスイッチにしている＝Unicode テーブル由来の判定は `White_Space` が追加された時点で静かにズレ、この写しが防ごうとしている乖離そのものを再発させる。期待値は手で書かず、`-run` に `[`＋対象ルーンを渡すと要素が必ず不正になりエラーが書き換え後の文字列をそのまま出力する性質を使って実測した。
+- 覆す条件: `testing` 側の `rewrite`/`isSpace` が変わった場合（固定 Go の `src/testing/match.go` を再 diff）。また、ミラーの手写しが破綻するなら、実 `go test -run` の出力を期待値として生成する照合を CI に入れる方向へ切り替える。
+
+## 2026-09-20: 予約 import path の判定は綴りではなく `Module` の有無で行う
+
+- 却下した案: import path が `command-line-arguments` なら無条件で拒否する。
+- 決め手: `module command-line-arguments` を宣言したモジュールは実在でき、`go list -json ./...` が同じ import path を **`Module` 付き**で返し `go test command-line-arguments` は `ok` になる。一方 `.go` ファイル一覧指定では `Module: null` で返る。綴りだけで弾くと正当なモジュールを拒否する。直前の教訓「`.go` の判定は `go list` の解決結果で行う」と同じ誤りが、パターン側からセンチネル側へ移っていただけだった。判定は既に module framing 欠落を扱っている分岐へ移した。
+- 覆す条件: `go list` がファイル一覧に `Module` を付けて返すようになった場合。
