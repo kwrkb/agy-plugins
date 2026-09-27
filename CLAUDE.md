@@ -45,7 +45,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 ## 実機検証（tmux + agy）
 
-agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で実測した手順**で、1.0.x 当時の書き方から 2 点変わっている（末尾の注記）。
+agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で実測した手順**（注意点は末尾の注記）。
 
 ```bash
 # 1) クリーン install を再現（git 追跡ファイルのみ＝URL install と等価）
@@ -101,4 +101,4 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 ## ドキュメント地図
 
 - `LESSONS.md` — 番号付き実装教訓（最重要・着手前に grep）＋ 末尾に設計判断ログ（意思決定の経緯）
-- `PLAN.md` — タスク進捗 / `README.md` — 利用者向け
+- `PLAN.md` — フェーズ境界と現在地 / `README.md` — 利用者向け
