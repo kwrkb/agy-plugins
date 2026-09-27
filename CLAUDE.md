@@ -2,7 +2,7 @@
 
 agy (Google Antigravity CLI) 向け MCP プラグイン集。グローバル CLAUDE.md のルールに加え、本リポジトリ固有の事実のみをここに記す。
 
-## 構成（6プラグイン + gitlab / 6 Go モジュール）
+## 構成（Go 製 7 プラグイン + gitlab / 8 Go モジュール）
 
 Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分離。`bin/` に各 OS のネイティブ
 `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe` と、拡張子なしの **OS 分岐 dispatcher**
@@ -10,7 +10,7 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 `command` は `${extensionPath}${/}bin${/}<name>`（Windows は agy が `.exe` を補完し `bin/<name>.exe` を直接起動＝dispatcher 非経由）。
 
 - `github/` — `gh` CLI を exec する自作 Go 製 MCP サーバー。module `github.com/kwrkb/agy-plugins/github`（`github/src/`）。
-- `ast-grep/` — `ast-grep` CLI を exec。`retro-status/` — リポジトリ解析。`settings-advisor/` — Gemini の settings 助言。`go-lsp/` — `gopls` 経由の Go LSP（definition/references/hover）。いずれも Go 製 MCP サーバーで src/bin 構成、module パスは `github.com/kwrkb/agy-plugins/<name>`。
+- `ast-grep/` — `ast-grep` CLI を exec。`retro-status/` — リポジトリ解析。`settings-advisor/` — Gemini の settings 助言。`go-lsp/` — `gopls` 経由の Go LSP（definition/references/hover）。`worktree-manager/` — Git worktree 管理。`test-runner/` — Go テスト実行と失敗ログ・再実行引数の返却。いずれも Go 製 MCP サーバーで src/bin 構成、module パスは `github.com/kwrkb/agy-plugins/<name>`。
 - `gitlab/` — `glab mcp serve` を呼ぶ薄い設定のみ（`plugin.json` + `mcp_config.json`、Go バイナリ無し＝src/bin 非対象）。
 - `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/` `commands/` `templates/`。hook は `validator/bin/validator --hook`。
 
@@ -20,19 +20,19 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 # テスト・静的解析（モジュール別。ソースは <plugin>/src/ 配下）
 cd github/src && go vet ./... && go test ./...
 cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
-# 他プラグイン（ast-grep / retro-status / settings-advisor / go-lsp）も同じ流儀（<name>/src で go vet ./... && go test ./...）
+# 他プラグイン（ast-grep / retro-status / settings-advisor / go-lsp / worktree-manager / test-runner）も同じ流儀（<name>/src で go vet ./... && go test ./...）
 # バイナリ再ビルド（Go 版は .go-version に固定。build.sh が GOTOOLCHAIN で強制するため事前準備不要。Windows は ./build.ps1）
 ./build.sh                                    # 全プラグイン
 ./build.sh github                             # github だけ
 ./build.sh validator                          # validator だけ
-# 他ターゲット: ast-grep | retro-status | settings-advisor | go-lsp
+# 他ターゲット: ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner
 ```
 
 **ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に、Go のパッチ版は `.go-version` に集約され（`build.sh`/`build.ps1`/CI が同じファイルを読む）、bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
 
 ## Go バージョンの引き上げ方針
 
-固定版は `.go-version` の1箇所（`build.sh`/`build.ps1`/CI が読む）。**上げるのは以下のいずれかに当たる時だけ**で、「新しい版が出たから」では上げない。1回の引き上げは21バイナリの再ビルド＝約 157MB の新規 blob を伴う。
+固定版は `.go-version` の1箇所（`build.sh`/`build.ps1`/CI が読む）。**上げるのは以下のいずれかに当たる時だけ**で、「新しい版が出たから」では上げない。1回の引き上げは全ネイティブバイナリ（Go モジュール数 × 3 OS）の再ビルド＝大きな新規 blob を伴う。
 
 1. **到達可能な stdlib 脆弱性が、固定中のマイナー内のパッチで修正済み** → そのマイナーの最新パッチへ。言語変更が無く再ビルドのみで済む。**CI の govulncheck がこのケースを fail させる**ので、検知は自動。
 2. **固定中のマイナーが EOL**（Go は最新2マイナーのみ patch。1.28 リリース時点で 1.26 が該当）→ サポート内マイナーへ移行。`go vet` の新チェックや挙動変更を見込んでテストを流す。
@@ -41,7 +41,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 マイナー移行は **EOL 直前まで据え置く**（最新マイナーへの追従はしない）。
 
-手順は `.go-version` を書き換えて `./build.sh`（全プラグイン）→ 21バイナリをコミット。`go.mod` の `go` ディレクティブは**言語の下限**であって固定版とは別の軸なので、引き上げに合わせて動かさない。
+手順は `.go-version` を書き換えて `./build.sh`（全プラグイン）→ 再ビルドされた全バイナリをコミット。`go.mod` の `go` ディレクティブは**言語の下限**であって固定版とは別の軸なので、引き上げに合わせて動かさない。
 
 ## 実機検証（tmux + agy）
 
