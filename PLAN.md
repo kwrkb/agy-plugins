@@ -2,7 +2,13 @@
 
 ## 現在地
 
-フェーズ1〜14 すべて完了。進行中のフェーズなし。次フェーズは未定義。
+フェーズ1〜14 完了。次はフェーズ15（未着手）。
+
+## フェーズ15: mcp-go v1 移行（未着手）
+
+- 対象: `github.com/mark3labs/mcp-go` を v0.54.1 から v1 系へ上げる。依存しているのは 7 モジュール（github / ast-grep / retro-status / settings-advisor / go-lsp / worktree-manager / test-runner）。validator は依存なし
+- 完了条件: 7 モジュールすべてが v1 系にそろい、`go vet` / `go test` / `govulncheck`（到達可能 0 件）が通る。全バイナリを再ビルドし、CI（stale 検出を含む）が pass。agy 実機で install からツール実行まで確認する（MCP キャッシュのツール名が移行前と一致すること）
+- 前提: v1.3.0 の `go.mod` 下限は `go 1.25.5`。固定版 1.26.9 のまま移行でき、Go の引き上げは伴わない
 
 ## 完了フェーズ
 
