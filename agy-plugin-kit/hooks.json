@@ -1,5 +1,5 @@
 {
-  "hooks": {
+  "agy-plugin-kit-validator": {
     "PostToolUse": [
       {
         "matcher": ".*",
@@ -7,9 +7,16 @@
           {
             "type": "command",
             "command": "validator/bin/validator --hook",
-            "timeout": 10000
+            "timeout": 10
           }
         ]
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "validator/bin/validator --inject",
+        "timeout": 10
       }
     ]
   }

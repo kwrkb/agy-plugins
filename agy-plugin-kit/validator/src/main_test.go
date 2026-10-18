@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -249,6 +251,89 @@ func TestValidateAgy142Rules(t *testing.T) {
 		fs := validate(dir)
 		if hasCode(fs, "C2") {
 			t.Errorf("expected no C2 for ${extensionPath}${/} in gemini-extension.json command, got %+v", fs)
+		}
+	})
+}
+
+// useRelayDir は受け渡しファイルの置き場をテスト用の一時ディレクトリに差し替える。
+func useRelayDir(t *testing.T) string {
+	t.Helper()
+	d := t.TempDir()
+	orig := relayDir
+	relayDir = func() string { return d }
+	t.Cleanup(func() { relayDir = orig })
+	return d
+}
+
+func TestRelayPath(t *testing.T) {
+	useRelayDir(t)
+	for _, id := range []string{"ec33ebf9-0cba-4100-8142-c61503f6c587", "abc_DEF-1"} {
+		if _, ok := relayPath(id); !ok {
+			t.Errorf("relayPath(%q) rejected a valid id", id)
+		}
+	}
+	for _, id := range []string{"", "../x", "a/b", `a\b`, "a.b", strings.Repeat("a", 129)} {
+		if _, ok := relayPath(id); ok {
+			t.Errorf("relayPath(%q) accepted an unsafe id", id)
+		}
+	}
+}
+
+// --hook が残した検査結果を --inject が ephemeralMessage として 1 回だけ差し込むことを検証する。
+func TestHookInjectRelay(t *testing.T) {
+	useRelayDir(t)
+	plugin := t.TempDir()
+	mustWrite(t, filepath.Join(plugin, "plugin.json"), `{"name":"p"}`)
+	mustWrite(t, filepath.Join(plugin, "mcp_config.json"), `{"mcpServers":{"s":{"command":"${PLUGIN_ROOT}/bin/srv"}}}`)
+	const conv = "ec33ebf9-0cba-4100-8142-c61503f6c587"
+	hookPayload := func(target string) []byte {
+		b, _ := json.Marshal(map[string]any{
+			"conversationId": conv,
+			"toolCall":       map[string]any{"name": "write_to_file", "args": map[string]string{"TargetFile": target}},
+		})
+		return b
+	}
+	injectPayload := []byte(`{"conversationId":"` + conv + `","invocationNum":2}`)
+
+	var log bytes.Buffer
+	handleHook(hookPayload(filepath.Join(plugin, "plugin.json")), &log)
+	if !strings.Contains(log.String(), "C2") {
+		t.Fatalf("hook log should contain C2, got %q", log.String())
+	}
+
+	var got struct {
+		InjectSteps []struct {
+			EphemeralMessage string `json:"ephemeralMessage"`
+		} `json:"injectSteps"`
+	}
+	if err := json.Unmarshal(injectOutput(injectPayload), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.InjectSteps) != 1 || !strings.Contains(got.InjectSteps[0].EphemeralMessage, "C2") {
+		t.Fatalf("expected one ephemeralMessage containing C2, got %+v", got)
+	}
+	if out := string(injectOutput(injectPayload)); out != "{}" {
+		t.Errorf("relay should be consumed once, second inject = %s", out)
+	}
+
+	t.Run("non-manifest edit leaves nothing to inject", func(t *testing.T) {
+		handleHook(hookPayload(filepath.Join(plugin, "README.md")), &bytes.Buffer{})
+		if out := string(injectOutput(injectPayload)); out != "{}" {
+			t.Errorf("inject after non-manifest edit = %s, want {}", out)
+		}
+	})
+
+	t.Run("Claude payload without conversationId does not relay", func(t *testing.T) {
+		claude, _ := json.Marshal(map[string]string{"file_path": filepath.Join(plugin, "plugin.json")})
+		handleHook(claude, &bytes.Buffer{})
+		if out := string(injectOutput(injectPayload)); out != "{}" {
+			t.Errorf("inject after Claude payload = %s, want {}", out)
+		}
+	})
+
+	t.Run("unparsable inject payload yields {}", func(t *testing.T) {
+		if out := string(injectOutput([]byte("not json"))); out != "{}" {
+			t.Errorf("injectOutput(garbage) = %s, want {}", out)
 		}
 	})
 }

@@ -8,14 +8,20 @@
 //	validator <plugin-dir>        検査結果を表示。[ERROR] が1件でもあれば exit 1（/validate 用）。
 //	validator --hook              stdin の PostToolUse JSON から編集ファイルを取り出し（agy の
 //	                              toolCall.args.TargetFile / Claude の file_path 両対応）、マニフェスト
-//	                              編集時だけ検査。常に exit 0（助言的・非ブロッキング）。
+//	                              編集時だけ検査。結果は stderr に出し、agy では conversationId ごとの
+//	                              受け渡しファイルにも書く。stdout は常に {}、常に exit 0（非ブロッキング）。
+//	validator --inject            stdin の PreInvocation JSON の conversationId に対応する受け渡しファイルを
+//	                              読んで消し、injectSteps の ephemeralMessage としてモデルへ差し込む。
+//	                              無ければ {}。常に exit 0。
 //	validator --fix-paths <dir>   #390 ワークアラウンド: plugin.json 形式の mcp_config.json に残る
 //	                              ${extensionPath} を <dir> の絶対パスへ書き換える。
 //
 // stdout/stderr 方針: 検査結果は stdout（--hook 時は stderr）に人間可読で出す。MCP の NDJSON は流さない。
+// --hook / --inject の stdout は agy が JSON として厳格に解釈するため、決められた JSON 以外は書かない。
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,13 +55,15 @@ type finding struct {
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: validator <plugin-dir> | --hook | --fix-paths <plugin-dir>")
+		fmt.Fprintln(os.Stderr, "usage: validator <plugin-dir> | --hook | --inject | --fix-paths <plugin-dir>")
 		os.Exit(2)
 	}
 
 	switch args[0] {
 	case "--hook":
 		runHook()
+	case "--inject":
+		runInject()
 	case "--fix-paths":
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: validator --fix-paths <plugin-dir>")
@@ -128,8 +136,26 @@ func resolveEditedFile(r io.Reader) (string, bool) {
 }
 
 // runHook は PostToolUse stdin を読み、編集されたファイルがマニフェスト系のときだけ検査する。
+// agy 1.4.2 は PostToolUse の stderr をモデルにも TUI にも出さず、stdout での差し込みも受け付けない
+// （injectSteps は unknown field でツール結果ごとエラー化、overwriteResult は無視。LESSONS 2026-10-18）。
+// そこで結果を conversationId ごとの受け渡しファイルに書き、直後の PreInvocation（--inject）で差し込む。
 func runHook() {
-	fp, ok := resolveEditedFile(os.Stdin)
+	// stdout は {} 以外を書くとツール結果全体がエラーに見え、異常終了も同じ扱いになる。
+	// どの経路（panic 含む）でも {} を出して 0 終了する。
+	defer func() {
+		_ = recover()
+		fmt.Fprintln(os.Stdout, "{}")
+	}()
+	payload, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return
+	}
+	handleHook(payload, os.Stderr)
+}
+
+// handleHook は PostToolUse payload を検査し、結果を logw に書いて agy なら受け渡しファイルにも残す。
+func handleHook(payload []byte, logw io.Writer) {
+	fp, ok := resolveEditedFile(bytes.NewReader(payload))
 	if !ok {
 		return // 編集ファイルを特定できない回は無音（非 write ステップ等）
 	}
@@ -138,11 +164,114 @@ func runHook() {
 	}
 	dir := pluginRootFromManifest(fp)
 	findings := validate(dir)
-	if len(findings) > 0 {
-		fmt.Fprintf(os.Stderr, "agy-plugin-kit: %s を検査しました:\n", filepath.Base(fp))
-		printFindings(os.Stderr, dir, findings)
+	if len(findings) == 0 {
+		return
 	}
-	// hook は常に 0 終了（ブロックしない）
+	var b strings.Builder
+	fmt.Fprintf(&b, "agy-plugin-kit: %s を検査しました:\n", fp)
+	printFindings(&b, dir, findings)
+	fmt.Fprint(logw, b.String())
+	// Claude Code の payload には conversationId が無いので受け渡しは agy のときだけ。
+	if id := conversationID(payload); id != "" {
+		if err := appendRelay(id, b.String()); err != nil {
+			fmt.Fprintln(logw, "agy-plugin-kit: 受け渡しファイルに書けませんでした:", err)
+		}
+	}
+}
+
+// runInject は PreInvocation stdin を読み、--hook が残した検査結果を ephemeralMessage として差し込む。
+// PreInvocation はツール実行直後のモデル呼び出し前にも走るので、同じターン内で届く（実機検証済み）。
+func runInject() {
+	out := []byte("{}")
+	defer func() {
+		_ = recover()
+		fmt.Fprintln(os.Stdout, string(out))
+	}()
+	payload, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return
+	}
+	out = injectOutput(payload)
+}
+
+// injectOutput は PreInvocation payload に対応する受け渡しファイルを消費し、stdout に出す JSON を返す。
+func injectOutput(payload []byte) []byte {
+	msg := takeRelay(conversationID(payload))
+	if msg == "" {
+		return []byte("{}")
+	}
+	msg = "[agy-plugin-kit validator] 直前に編集したプラグインのマニフェストに問題が見つかりました。" +
+		"修正案は skill agy-plugin-authoring か /agy-plugin-kit:doctor を参照してください。\n\n" + msg
+	b, err := json.Marshal(map[string]any{
+		"injectSteps": []map[string]string{{"ephemeralMessage": msg}},
+	})
+	if err != nil {
+		return []byte("{}")
+	}
+	return b
+}
+
+// relayDir は --hook から --inject への受け渡しファイルの置き場（テストで差し替える）。
+// install 先は再 install で置き換わり、ソースツリーに書くと作業ツリーを汚すので一時ディレクトリに置く。
+var relayDir = func() string { return filepath.Join(os.TempDir(), "agy-plugin-kit-relay") }
+
+// relayPath は conversationId に対応する受け渡しファイルのパスを返す。
+// ID はファイル名になるので英数字・ハイフン・アンダースコアだけを許す（パス区切りや .. を通さない）。
+func relayPath(convID string) (string, bool) {
+	if convID == "" || len(convID) > 128 {
+		return "", false
+	}
+	for _, r := range convID {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return "", false
+		}
+	}
+	return filepath.Join(relayDir(), convID+".txt"), true
+}
+
+// conversationID は agy のフック payload から conversationId を取り出す（無ければ ""）。
+func conversationID(payload []byte) string {
+	var p struct {
+		ConversationID string `json:"conversationId"`
+	}
+	if json.Unmarshal(payload, &p) != nil {
+		return ""
+	}
+	return p.ConversationID
+}
+
+// appendRelay は msg を受け渡しファイルに追記する（1 ステップで複数のマニフェストを編集した場合に備えて追記）。
+func appendRelay(convID, msg string) error {
+	p, ok := relayPath(convID)
+	if !ok {
+		return fmt.Errorf("conversationId が不正です: %q", convID)
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(msg + "\n"); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// takeRelay は受け渡しファイルを読んで消し、中身を返す（無い・読めない時は ""）。
+func takeRelay(convID string) string {
+	p, ok := relayPath(convID)
+	if !ok {
+		return ""
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	_ = os.Remove(p)
+	return strings.TrimRight(string(b), "\n")
 }
 
 // pluginRootFromManifest はマニフェストファイルのパスからプラグインルートディレクトリを返す。
@@ -165,7 +294,7 @@ func isManifestFile(fp string) bool {
 	return false
 }
 
-func printFindings(w *os.File, dir string, fs []finding) {
+func printFindings(w io.Writer, dir string, fs []finding) {
 	if len(fs) == 0 {
 		fmt.Fprintf(w, "OK: %s — 問題は検出されませんでした\n", dir)
 		return
