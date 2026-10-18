@@ -2,13 +2,7 @@
 
 ## 現在地
 
-フェーズ1〜14・16・17 完了。次はフェーズ15（未着手）。
-
-## フェーズ15: mcp-go v1 移行（未着手）
-
-- 対象: `github.com/mark3labs/mcp-go` を v0.54.1 から v1 系へ上げる。依存しているのは 7 モジュール（github / ast-grep / retro-status / settings-advisor / go-lsp / worktree-manager / test-runner）。validator は依存なし
-- 完了条件: 7 モジュールすべてが v1 系にそろい、`go vet` / `go test` / `govulncheck`（到達可能 0 件）が通る。全バイナリを再ビルドし、CI（stale 検出を含む）が pass。agy 実機で install からツール実行まで確認する（MCP キャッシュのツール名が移行前と一致すること）
-- 前提: v1.3.0 の `go.mod` 下限は `go 1.25.5`。固定版 1.26.9 のまま移行でき、Go の引き上げは伴わない
+フェーズ1〜17 完了。次のフェーズは未定。
 
 ## 完了フェーズ
 
@@ -30,5 +24,6 @@
 | 12 | settings-advisor の検知精度向上（PR #20） | スキャン検知拡充、`models.json` 更新と traits 駆動のモデル選定 |
 | 13 | test-runner プラグイン追加（PR #23） | `go test -json` の集計と失敗テストの `rerun` 引数を返す MCP サーバー。CI 3 OS pass で squash マージ |
 | 14 | test-runner レビュー指摘修正と実機検証（PR #24, #25, #26） | `go list` によるパッケージ探索バリデーション、`rewriteRun` の Unicode Cn 素通し・サイズ上限（PR #24）。Linux / Windows 実機検証（PR #25）、起動検証前の稼働中 MCP キャッシュ削除（承認必須）をスキルに明記（PR #26） |
+| 15 | mcp-go v1 移行（PR #35） | 7 モジュールを v0.54.1 → v1.3.0 へ。ソース変更なし・Go の引き上げなし。新旧バイナリの JSON-RPC 応答比較と agy 1.4.2 実機（7 サーバーのキャッシュ一致・go_test / gh_command 実行）で確認 |
 | 16 | agy 1.4.2 でのプラグイン仕様再検証（PR #28） | プラグイン `rules/`・`agents/*.md`・`PLUGIN_DATA`・`bin/` PATH の機能化を確認。MCP `command` の `${PLUGIN_ROOT}` 未展開を受けて同梱バイナリは `gemini-extension.json` 形式を維持。validator の C2/C10 を拡張し、サブディレクトリ配置のマニフェストに対応 |
 | 17 | validator フックの結果をエージェントへ届ける（PR #29, #31, #32、Issue #30） | PostToolUse → PreInvocation の受け渡しで指摘を差し込み、`timeout` を秒に修正（C11 新設）。Windows 形と Unix 形を `||` でつなぐ command にし、Linux / macOS / Windows の実機で確認 |

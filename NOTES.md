@@ -19,7 +19,7 @@
 | `.github/workflows/build-verify.yml` | モジュールごとに vet・test・govulncheck・再ビルド後の `git diff --exit-code`（stale 検出） |
 
 Go 製プラグイン: github / ast-grep / go-lsp / retro-status / settings-advisor / worktree-manager / test-runner
-（`mark3labs/mcp-go` に依存）。validator は依存なし。
+（`mark3labs/mcp-go` v1 系に依存）。validator は依存なし。
 
 ## agy-plugin-kit
 
