@@ -21,15 +21,15 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | # | 検出内容 | 重大度 |
 | :-- | :-- | :-- |
 | C1 | `plugin.json` と `gemini-extension.json` の二重マニフェスト | WARN |
-| C2 | native `plugin.json` 形式で `${extensionPath}` 使用（**Issue #390**: 解決されず壊れる） | ERROR |
+| C2 | native `plugin.json` 形式で `${extensionPath}` 使用（**Issue #390**）、または MCP `command` フィールドで `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 使用（マニフェスト形式を問わない。`args`/`env` と異なり `command` 本体では未展開、`gemini-extension.json` の install でも literal のまま） | ERROR |
 | C3 | `.sh`/`.cmd`/`.bat` を `command` に直接指定（Windows で spawn 不可） | ERROR |
 | C4 | マニフェスト参照バイナリが `.gitignore` 対象（URL install で消える。`git check-ignore` 判定） | ERROR |
-| C5 | `plugin.json`/`gemini-extension.json` が無い・不正 JSON | ERROR |
+| C5 | `plugin.json`（`.antigravity-plugin/plugin.json`・`.gemini-plugin/plugin.json` 含む）/`gemini-extension.json` が無い・不正 JSON | ERROR |
 | C6 | `${extensionPath}` 形式 command に `.exe` 拡張子 | WARN |
 | C7 | トークン専用 MCP サーバーを wrapper 無しで直叩き（heuristic） | WARN |
 | C8 | `${CLAUDE_PLUGIN_ROOT}`（agy に存在しないトークン） | ERROR |
 | C9 | 同梱 Go ラッパーが自前で stdout に書く（NDJSON 破壊。heuristic） | WARN |
-| C10 | native `plugin.json` 形式の `hooks.json` で `${extensionPath}` 使用（実機検証: 実行時に置換されず literal のまま残り、`${/}` は `/bin/sh` で `Bad substitution` になり hook 起動失敗） | WARN |
+| C10 | `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: マニフェスト形式を問わず `${extensionPath}`/`${PLUGIN_ROOT}` は空文字展開、`${/}` は `Bad substitution` になり hook 起動失敗。`${PLUGIN_DATA}` は未実測だが同種として扱う） | WARN |
 
 ## インストール
 
@@ -49,8 +49,8 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 
 > **対応 OS（Linux / macOS / Windows）**: 拡張子なし `validator/bin/validator` は `uname` で実機判定し
 > `validator-{linux-amd64,darwin-arm64}` を `exec` する POSIX sh **dispatcher**（テキスト＝OS 非依存。Windows は
-> `validator.exe` 直起動で非経由）。agy は `${extensionPath}` 以外を置換しないため、これが OS 別バイナリを単一
-> `command` に畳み込む唯一の手段。dispatcher・ネイティブとも実行ビット（`100755`）を git にコミット（`.gitignore` 対象外）。
+> `validator.exe` 直起動で非経由）。3 OS 共通で OS 別バイナリを単一 `command` に畳み込む標準構成。
+> dispatcher・ネイティブとも実行ビット（`100755`）を git にコミット（`.gitignore` 対象外）。
 
 ## マニフェスト形式（このキット自身）
 
@@ -64,18 +64,17 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 （非ブロッキング・常に exit 0）。仕組み:
 
 - `PostToolUse` の `matcher: ".*"`、`command: "validator/bin/validator --hook"`（PWD=install 先の相対パス。
-  `${extensionPath}`/`${/}` は使わない＝C10/C2 を踏まない）。`validator/bin/validator` は OS 分岐 dispatcher で、
+  `${extensionPath}`/`${PLUGIN_ROOT}`/`${/}` は使わない＝C10/C2 を踏まない）。`validator/bin/validator` は OS 分岐 dispatcher で、
   hook 経路でも shebang 解釈で実機ネイティブを `exec` する（実機検証: macOS arm64 で発火確認）。
 - ツール種別の選別は **validator 側のコードで** 行う（`toolCall.args.TargetFile` が入る編集系ステップだけ
   反応し、マニフェスト basename 以外は無音）。matcher にツール名を書かない（agy のツール名は
   新規作成=`write_to_file` / 既存編集=`replace_file_content` と版で異なるため）。
 
-> **3 OS 対応**: `command` は1本の固定文字列で agy は `${extensionPath}` 以外を置換しないが、
-> `validator/bin/validator` を OS 分岐 dispatcher（shebang sh）にすることで Linux / macOS（arm64）/ Windows を
-> 単一 command でカバーする（Windows は `.exe` を直接起動）。フックが使えない環境でも `/agy-plugin-kit:validate` /
-> `:doctor` を手動で使える。
+> **3 OS 対応**: `command` は1本の固定文字列だが、`validator/bin/validator` を OS 分岐 dispatcher（shebang sh）にすることで
+> Linux / macOS（arm64）/ Windows を単一 command でカバーする（Windows は `.exe` を直接起動）。フックが使えない環境でも
+> `/agy-plugin-kit:validate` / `:doctor` を手動で使える。
 
-### 経緯（1.0.8 では非機能 → 1.0.9 で再導入）
+### 経緯（1.0.8 では非機能 → 1.0.9 で再導入 → 1.4.2 での最新状況）
 
 当初の `hooks.json` は **agy 1.0.8 で実機検証した結果フックが成立せず**（payload に編集ファイルが無い
 ＝`toolCall: null`、発火が不安定、`agy -p` 非発火）、一度同梱を取りやめた（agy upstream
@@ -83,11 +82,8 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 **agy 1.0.9 で再検証した結果、payload に `toolCall.args.TargetFile`（編集ファイル絶対パス）が入り、
 2 回目以降の編集・`agy -p` でも発火、自前バイナリを PWD 相対で呼べる**ようになったため再導入した
 （#395 は解決済みでクローズ／詳細はリポジトリ LESSONS #34、`hook-investigation-report.md` §5）。
-**agy 1.0.10 ではフックの動的リロードを確認**（install 後、親セッションに次ツール実行から自動適用＝再起動不要、LESSONS #42／§6.1）。
-なお `${extensionPath}` 非置換（[#390](https://github.com/google-antigravity/antigravity-cli/issues/390)）は 1.0.10 でも継続。
-`rules/` はプラグイン経路（プラグイン内 `rules/`・`plugin.json "rules"`・グローバル `~/.gemini/rules`）が
-[#396](https://github.com/google-antigravity/antigravity-cli/issues/396) で**依然非機能**（知識は `skills/` で渡す）。
-ただし **1.0.10 でプロジェクトルートの `.agents/AGENTS.md` のみ注入されるようになった**（LESSONS #41／§6）。
+**agy 1.0.10 ではフックの動的リロードを確認**（LESSONS #42／§6.1）。
+**agy 1.4.2 の再検証**では、`hooks.json` 内の変数置換は `${extensionPath}` に加え新設の `${PLUGIN_ROOT}` も未置換のまま（PWD 相対パス指定を継続、§8.1）である一方、プラグイン内 `rules/*.md`（要 frontmatter `trigger:`）の `<user_rules>` 自動注入・`agents/*.md` サブエージェント・`PLUGIN_DATA` 永続領域・`bin/` PATH 公開が機能化していることを確認した（§8.2）。
 
 ## ライセンス
 

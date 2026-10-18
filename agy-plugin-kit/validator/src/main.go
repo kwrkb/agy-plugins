@@ -136,13 +136,24 @@ func runHook() {
 	if !isManifestFile(fp) {
 		return // マニフェスト以外の編集には反応しない（無音）
 	}
-	dir := filepath.Dir(fp)
+	dir := pluginRootFromManifest(fp)
 	findings := validate(dir)
 	if len(findings) > 0 {
 		fmt.Fprintf(os.Stderr, "agy-plugin-kit: %s を検査しました:\n", filepath.Base(fp))
 		printFindings(os.Stderr, dir, findings)
 	}
 	// hook は常に 0 終了（ブロックしない）
+}
+
+// pluginRootFromManifest はマニフェストファイルのパスからプラグインルートディレクトリを返す。
+// .antigravity-plugin/plugin.json や .gemini-plugin/plugin.json の場合は親ディレクトリを返す。
+func pluginRootFromManifest(fp string) string {
+	dir := filepath.Dir(fp)
+	base := strings.ToLower(filepath.Base(dir))
+	if base == ".antigravity-plugin" || base == ".gemini-plugin" {
+		return filepath.Dir(dir)
+	}
+	return dir
 }
 
 // isManifestFile は basename が agy プラグインのマニフェスト系かを判定する。
@@ -185,7 +196,18 @@ func validate(dir string) []finding {
 		return string(b)
 	}
 
-	hasPluginJSON := has("plugin.json")
+	pluginJSONCandidates := []string{
+		"plugin.json",
+		filepath.Join(".antigravity-plugin", "plugin.json"),
+		filepath.Join(".gemini-plugin", "plugin.json"),
+	}
+	hasPluginJSON := false
+	for _, cand := range pluginJSONCandidates {
+		if has(cand) {
+			hasPluginJSON = true
+			break
+		}
+	}
 	hasGeminiExt := has("gemini-extension.json")
 	mcpRaw := read("mcp_config.json")
 	hooksRaw := read("hooks.json")
@@ -193,15 +215,17 @@ func validate(dir string) []finding {
 	// C5: 識別ファイルが無い
 	if !hasPluginJSON && !hasGeminiExt {
 		out = append(out, finding{sevError, "C5",
-			"plugin.json（または gemini-extension.json）が無く、agy がプラグインと認識できません。"})
+			"plugin.json（または .antigravity-plugin/plugin.json、.gemini-plugin/plugin.json、gemini-extension.json）が無く、agy がプラグインと認識できません。"})
 	}
 	// 存在する JSON 系ファイルは空 or 不正 JSON を ERROR（マニフェストだけでなく mcp_config/hooks も）。
-	for _, jf := range []string{"plugin.json", "gemini-extension.json", "mcp_config.json", "hooks.json"} {
+	jsonFiles := append([]string{}, pluginJSONCandidates...)
+	jsonFiles = append(jsonFiles, "gemini-extension.json", "mcp_config.json", "hooks.json")
+	for _, jf := range jsonFiles {
 		if has(jf) {
 			raw := read(jf)
 			var v any
 			if strings.TrimSpace(raw) == "" || json.Unmarshal([]byte(raw), &v) != nil {
-				out = append(out, finding{sevError, "C5", jf + " が空または不正な JSON です。"})
+				out = append(out, finding{sevError, "C5", filepath.ToSlash(jf) + " が空または不正な JSON です。"})
 			}
 		}
 	}
@@ -212,27 +236,40 @@ func validate(dir string) []finding {
 			"plugin.json と gemini-extension.json が両方あります。plugin.json があると install は copy-only になり ${extensionPath} は解決されません（LESSONS #1）。"})
 	}
 
-	// C2: plugin.json 形式なのに mcp_config.json で ${extensionPath} を使用（Issue #390 で未解決のまま残る）
+	// command を構造化して収集。C3/C6/C7 は MCP の executable（command 本体）のみを対象にする
+	// （args 内の .sh/.exe で誤検出しないため）。hook command はシェル文字列として扱う。
+	mcpCmds := collectMCPCommands(mcpRaw, read("gemini-extension.json"))
+	hookCmds := collectHookCommands(hooksRaw)
+
+	// C2: MCP 定義で未解決変数を参照
+	// - ${extensionPath}/${/} は native 形式ではどこでも未解決（Issue #390）。gemini-extension.json 形式では install 時に解決されるので native 限定。
+	// - ${PLUGIN_ROOT}/${PLUGIN_DATA} は args/env では解決されるが、command フィールド自体では未解決で起動不能（agy 1.4.2 実機検証は ${PLUGIN_ROOT}）。
+	//   gemini-extension.json 形式でも install は ${PLUGIN_ROOT} を書き換えず生成先 mcp_config.json の command に literal で残すため
+	//   （agy 1.4.2 実測）、マニフェスト形式を問わず mcp_config.json と gemini-extension.json の両方の command を検査する。
 	if hasPluginJSON && !hasGeminiExt && mcpRaw != "" {
 		if strings.Contains(mcpRaw, "${extensionPath}") || strings.Contains(mcpRaw, "${/}") {
 			out = append(out, finding{sevError, "C2",
 				"plugin.json 形式の mcp_config.json で ${extensionPath}/${/} を使用しています。native 形式では解決されず（Issue #390）パスが literal のまま壊れます。gemini-extension.json 形式にするか、/agy-plugin-kit:doctor の --fix-paths で絶対パス化してください。"})
 		}
 	}
-
-	// C10: native plugin.json 形式の hooks.json で ${extensionPath}/${/} を使用
-	// （実機検証: 実行時に置換されず literal のまま残る。${extensionPath} は未定義 env として空文字に消え、
-	//  ${/} は /bin/sh で Bad substitution になり hook プロセスが起動前にクラッシュする。LESSONS #20）
-	if hasPluginJSON && !hasGeminiExt &&
-		(strings.Contains(hooksRaw, "${extensionPath}") || strings.Contains(hooksRaw, "${/}")) {
-		out = append(out, finding{sevWarn, "C10",
-			"plugin.json 形式の hooks.json で ${extensionPath}/${/} を使用しています。実機検証では実行時に置換されず literal のまま残り、${/} は /bin/sh で Bad substitution になり hook が起動しません（LESSONS #20）。絶対パス等の代替を検討してください。"})
+	for _, c := range mcpCmds {
+		if strings.Contains(c.command, "${PLUGIN_ROOT}") || strings.Contains(c.command, "${PLUGIN_DATA}") {
+			out = append(out, finding{sevError, "C2",
+				fmt.Sprintf("MCP の command フィールドで ${PLUGIN_ROOT}/${PLUGIN_DATA} を使用しています: %q。args/env では展開されますが command 本体では展開されず起動に失敗します（agy 1.4.2 で ${PLUGIN_ROOT} を実機検証。gemini-extension.json 形式でも install 時に書き換えられず literal のまま残る）。同梱バイナリ起動は gemini-extension.json 形式で ${extensionPath}${/}bin${/}<name> を指定してください。", c.command)})
+		}
 	}
 
-	// command を構造化して収集。C3/C6/C7 は MCP の executable（command 本体）のみを対象にする
-	// （args 内の .sh/.exe で誤検出しないため）。hook command はシェル文字列として扱う。
-	mcpCmds := collectMCPCommands(mcpRaw, read("gemini-extension.json"))
-	hookCmds := collectHookCommands(hooksRaw)
+	// C10: hooks.json で変数マクロを使用
+	// （実機検証: マニフェスト形式を問わず実行時に ${extensionPath}/${PLUGIN_ROOT} は置換されず未定義 env として空文字に消え、
+	//  ${/} は /bin/sh で Bad substitution になり hook プロセスが起動前にクラッシュする。LESSONS #20 / agy 1.4.2 再検証。
+	//  ${PLUGIN_DATA} は個別には未実測だが、PLUGIN_ROOT と同じく hook 環境に注入されない同種のマクロとして検出する）
+	if strings.Contains(hooksRaw, "${extensionPath}") ||
+		strings.Contains(hooksRaw, "${/}") ||
+		strings.Contains(hooksRaw, "${PLUGIN_ROOT}") ||
+		strings.Contains(hooksRaw, "${PLUGIN_DATA}") {
+		out = append(out, finding{sevWarn, "C10",
+			"hooks.json で ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA}/${/} を使用しています。実機検証ではマニフェスト形式を問わず ${extensionPath}/${PLUGIN_ROOT} は実行時に置換されず空文字展開、${/} は Bad substitution になり hook が起動しません（LESSONS #20。${PLUGIN_DATA} も同種として扱う）。フックの実行 cwd はプラグインルートになるため相対パスで指定してください。"})
+	}
 
 	for _, c := range mcpCmds {
 		exe := strings.ToLower(c.command)
@@ -361,40 +398,54 @@ func firstShellToken(s string) string {
 }
 
 // collectHookCommands は hooks.json の各 hook command を抽出する。
+// Claude/legacy 形式（トップレベル "hooks"）と agy 名前付きフック形式（トップレベル <hook-name> -> PreToolUse / PreInvocation 等）の両方に対応する。
 func collectHookCommands(hooksRaw string) []string {
 	var cmds []string
 	if hooksRaw == "" {
 		return cmds
 	}
-	var h struct {
-		Hooks map[string][]struct {
-			Hooks []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
+	var root any
+	if json.Unmarshal([]byte(hooksRaw), &root) != nil {
+		return cmds
 	}
-	if json.Unmarshal([]byte(hooksRaw), &h) == nil {
-		for _, group := range h.Hooks {
-			for _, entry := range group {
-				for _, hk := range entry.Hooks {
-					if hk.Command != "" {
-						cmds = append(cmds, hk.Command)
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			keys := make([]string, 0, len(x))
+			for k := range x {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				val := x[k]
+				if k == "command" {
+					if s, ok := val.(string); ok && s != "" {
+						cmds = append(cmds, s)
 					}
+					continue
 				}
+				walk(val)
+			}
+		case []any:
+			for _, elem := range x {
+				walk(elem)
 			}
 		}
 	}
+	walk(root)
 	return cmds
 }
 
-// referencedLocalFiles は実行ファイルトークン（${extensionPath}${/}foo / ./foo / "..."）を実ファイルに解決する。
+// referencedLocalFiles は実行ファイルトークン（${extensionPath}${/}foo / ${PLUGIN_ROOT}/foo / ./foo / "..."）を実ファイルに解決する。
 func referencedLocalFiles(dir string, execs []string) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, tok := range execs {
 		tok = strings.Trim(tok, `"'`) // 残った引用符を除去
-		// ${extensionPath}${/} を剥がしてプラグインルート相対にする
+		// ${extensionPath} / ${PLUGIN_ROOT} / ${/} を剥がしてプラグインルート相対にする
 		t := strings.ReplaceAll(tok, "${extensionPath}", "")
+		t = strings.ReplaceAll(t, "${PLUGIN_ROOT}", "")
 		t = strings.ReplaceAll(t, "${/}", string(filepath.Separator))
 		t = strings.TrimLeft(t, `/\`)
 		t = strings.TrimPrefix(t, "."+string(filepath.Separator))

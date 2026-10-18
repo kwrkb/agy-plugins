@@ -19,15 +19,15 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 | # | Condition Checked | Severity |
 | :-- | :-- | :-- |
 | C1 | Dual manifest (`plugin.json` and `gemini-extension.json` both present) | WARN |
-| C2 | Using `${extensionPath}` in native `plugin.json` format (**Issue #390**) | ERROR |
+| C2 | Using `${extensionPath}` in native `plugin.json` format (**Issue #390**), or using `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` in an MCP `command` field in either manifest format (unexpanded in `command` itself; `gemini-extension.json` install leaves it literal too) | ERROR |
 | C3 | Direct execution of `.sh`/`.cmd`/`.bat` in `command` (fails on Windows) | ERROR |
 | C4 | Referenced binary ignored by `.gitignore` (missing in URL installs) | ERROR |
-| C5 | Missing or invalid JSON in manifests | ERROR |
+| C5 | Missing or invalid JSON in manifests (including `.antigravity-plugin/plugin.json` and `.gemini-plugin/plugin.json`) | ERROR |
 | C6 | Appending `.exe` extension to `${extensionPath}` commands | WARN |
 | C7 | Invoking token-only MCP servers directly without wrapper (heuristic) | WARN |
 | C8 | Using `${CLAUDE_PLUGIN_ROOT}` (Claude-only variable, invalid in agy) | ERROR |
 | C9 | Go wrappers writing diagnostic text to stdout instead of stderr | WARN |
-| C10 | Using `${extensionPath}` in native `plugin.json` hooks | WARN |
+| C10 | Using `${extensionPath}`, `${PLUGIN_ROOT}`, `${PLUGIN_DATA}`, or `${/}` in `hooks.json` (verified on real devices: `${extensionPath}`/`${PLUGIN_ROOT}` expand to empty and `${/}` causes `Bad substitution` regardless of manifest format; `${PLUGIN_DATA}` treated the same) | WARN |
 
 ## Installation
 

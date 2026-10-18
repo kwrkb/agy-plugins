@@ -11,23 +11,34 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 
 ## マニフェスト形式の選択（最重要）
 
-- **`gemini-extension.json` 形式**（`plugin.json` を置かない）: install 時に `${extensionPath}`/`${/}` を
-  **絶対パスへ解決**し `plugin.json`+`mcp_config.json` を生成する。**同梱バイナリを参照する場合はこれ**。
-- **`plugin.json` 形式**（native）: `mcp_config.json` はそのままコピーされ **`${extensionPath}` は解決されない**
-  （= Issue #390。実機確認済み）。PATH 上のコマンドを使う・置換が不要な場合のみこれ。
+- **`gemini-extension.json` 形式**（`plugin.json` を置かない）: `agy plugin install` 時に `${extensionPath}`/`${/}` を
+  **絶対パスへ解決**し、install 先に `plugin.json`+`mcp_config.json` を生成する。**3 OS 共通で同梱バイナリを MCP `command` に指定する場合は引き続きこれ**。
+- **`plugin.json` 形式**（native。ルート直下または `.antigravity-plugin/plugin.json` / `.gemini-plugin/plugin.json`）:
+  `mcp_config.json` はそのままコピーされ **`${extensionPath}` は解決されない**（= Issue #390。1.4.2 でも継続）。
+  マニフェストをサブフォルダに置いても `mcp_config.json`・`hooks.json`・`skills/` 等のコンポーネントは**プラグインルート直下**に置く
+  （`.antigravity-plugin/` 内に置くと読まれない。1.4.2 で `agy plugin validate` / `install` により確認、出典は同梱 changelog）。
+  PATH 上のコマンドを使う場合、または `command` に変数展開が不要な場合のみこれ。
 - **両方置かない**（C1 警告対象）。曖昧になり `plugin.json` 側が優先され copy-only 化する。
 
-## Issue #390（`${extensionPath}` が native 形式で解決されない）
+## 変数展開仕様と `command` フィールドの罠（Issue #390 / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}`）
 
-- native `plugin.json` 形式の `mcp_config.json` に `${extensionPath}` を書いても **literal のまま**残り、
-  MCP の `command` パスが壊れて起動不能になる。
-- 対処: (a) 同梱バイナリ参照なら `gemini-extension.json` 形式にする / (b) `/agy-plugin-kit:doctor` の
-  path-fix（validator `--fix-paths`）で絶対パスへ書き換える / (c) PATH 上のコマンドにして同梱をやめる。
+- **`${extensionPath}` / `${/}`**: `gemini-extension.json` の install 時変換でのみ展開される。native `plugin.json` 形式の
+  `mcp_config.json` に書くと **literal のまま**残り起動不能になる（C2 エラー）。
+- **`${PLUGIN_ROOT}` / `${PLUGIN_DATA}`（agy 1.3.2〜）**:
+  - MCP サーバーのプロセス環境変数 `PLUGIN_ROOT`（`~/.gemini/config/plugins/<name>`）と `PLUGIN_DATA`
+    （`~/.gemini/antigravity-cli/plugin_data/<name>`、install 更新でも消えない永続領域＝Issue #554 解消。ただし `.agents/plugins/` 直置き時は空文字）が自動注入される。
+  - native `mcp_config.json` の **`args` / `env`（および 1.4.0〜 の HTTP `headers`）では実行時に絶対パスへ展開される**。
+  - **罠**: native `mcp_config.json` の **`command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗する**（1.4.2 実機検証済み、C2 エラー）。
+    `gemini-extension.json` の `command` に書いても install は `${PLUGIN_ROOT}` を書き換えず、生成先 `mcp_config.json` に literal のまま残る（1.4.2 実測。マニフェスト形式を問わず C2 エラー）。
+- **対処**: (a) 同梱バイナリを MCP `command` で起動するなら `gemini-extension.json` 形式にし `${extensionPath}${/}bin${/}<name>` と書く
+  （`command` の `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` はこれで置き換える） / (b) **`${extensionPath}` の場合に限り** `/agy-plugin-kit:doctor` の
+  path-fix（validator `--fix-paths`）で install 先を絶対パスへ書き換える（`--fix-paths` は `${extensionPath}`/`${/}` しか置換しないため
+  `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` は直らない） / (c) PATH 上のコマンドにして同梱をやめる。
 
 ## マルチプラットフォーム対応（同梱 Go バイナリ・`src/`＋`bin/`）
 
-- `command` は **1 本の固定文字列**で agy は `${extensionPath}` 以外を置換せず OS 別に切り替えられない。Go の
-  ネイティブは OS×arch ごとに別物なので、**dispatcher 方式**で単一 command に畳み込む（実機検証済み）:
+- `command` は **1 本の固定文字列**で OS 別に切り替えられない。Go のネイティブは OS×arch ごとに別物なので、
+  **dispatcher 方式**で単一 command に畳み込む（実機検証済み）:
   - ソースは `<plugin>/src/`、配布物は `<plugin>/bin/`。`bin/` に `<name>-linux-amd64` / `<name>-darwin-arm64` /
     `<name>.exe`（ネイティブ）＋拡張子なし `bin/<name>`（**POSIX sh dispatcher**＝OS 非依存テキスト。`uname` で実機
     判定し対応ネイティブを `exec`）。`command` は `${extensionPath}${/}bin${/}<name>`。Windows は agy が `.exe` を
@@ -35,8 +46,10 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
   - dispatcher はエラーのみ stderr（stdout は NDJSON 専用）。実行ビット（`100755`）をコミット
     （`git update-index --chmod=+x`。install コピーで +x は保持＝実機検証済み）。`.sh`/`.cmd`/`.bat` の直 `command`
     は Windows で spawn 不可（C3）だが、dispatcher は拡張子なし＋Windows は `.exe` 直起動なので C3 を踏まない。
+- **`bin/` の PATH 自動公開（agy 1.3.2〜）**: `agy plugin install` されたプラグインの `bin/<tool>` は `~/.gemini/antigravity-cli/bin`
+  経由でエージェントの `PATH` 先頭に入り、`run_command` からコマンド名だけで直接実行できる（ただしその子プロセスには
+  `PLUGIN_ROOT`/`PLUGIN_DATA` 環境変数は自動注入されないため、パス解決は `$0` 基準で行う）。
 - `${CLAUDE_PLUGIN_ROOT}` は **agy に存在しない**（Claude Code 専用）。使うと解決されない（C8 エラー）。
-  agy のトークンは `${extensionPath}` と `${workspacePath}` のみ。
 
 ## 同梱バイナリ
 
@@ -48,19 +61,32 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 
 ## コンポーネント構造
 
-- `commands/<group>/<name>.toml`（`description=` / `prompt="""..."""`）→ `/group:name`。install 時に
-  **skills に変換**される。`skills/<name>/SKILL.md` も同様にスラッシュコマンド化される。
-- **`hooks.json` は agy 1.0.9〜で利用可（1.0.8 では非機能だった）**: 1.0.8 ではフック payload に編集対象ファイルパスが無く（`toolCall: null`）発火も不安定で利用不可能だったが、**1.0.9 で payload に `toolCall.args.TargetFile`（編集ファイル絶対パス）が入り発火も安定化、1.0.10 で動的リロードも確認**された（本キットは validator フックを同梱＝`hooks.json` の自動バリデーション参照）。ただし payload は agy 独自スキーマで、変数（`${extensionPath}`/`${/}`）は依然未置換のため、フック command は **PWD 相対**（例: `validator/bin/validator --hook`）で書く。フックが使えない環境向けに明示コマンド（`/agy-plugin-kit:validate`）も併せて提供する。
-- **`rules/` は使わない（プラグイン経路は 1.0.10 でも非機能）**: プラグイン内 `rules/*.md`・`plugin.json` の `"rules": [...]`・グローバル `~/.gemini/rules/*.md` のいずれも、agy 1.0.8/1.0.9/1.0.10 の実機検証でシステムプロンプト（`<user_rules>`）に**一切注入されなかった**。プラグインからエージェントへ固有の知識・規約を渡すには、必ず `skills/<name>/SKILL.md`（呼び出し時ロード）として定義する。**※ 1.0.10 でプロジェクトルートの `.agents/AGENTS.md`（Workspace Customizations Root）のみ注入されるようになったが、これはプロジェクト全体の規約用でありプラグインからは配置できない**（プラグイン知識の配布手段にはならない）。
+- **`skills/<name>/SKILL.md`（主力）**: 呼び出し時（オンデマンド）にロードされる知識。YAML frontmatter の `name` と
+  `description` が必須で、**`name` はディレクトリ名と完全一致**させる（1.4.1〜 `agy plugin validate` で検査、本文 24KB 上限）。
+  `commands/<group>/<name>.toml` も install 時に skills に変換される。
+- **`hooks.json`（agy 1.0.9〜で利用可）**: `PostToolUse` payload の `toolCall.args.TargetFile` で編集ファイルの絶対パスを取得可能。
+  ただし **1.4.2 でも `hooks.json` の `command` 内では `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` は一切展開されない**
+  （`sh -c` が未定義変数として空文字展開し `/hook.sh: No such file` になるか、`${/}` で `Bad substitution` になる＝C10 警告）。
+  フック実行時の `pwd` はプラグインルートになるため、command は必ず **PWD 相対パス**（例: `validator/bin/validator --hook`）で書く。
+- **`rules/*.md`（agy 1.4.2 で機能化確認・用途を絞って使う）**: 1.0.8〜1.0.15 ではプラグイン `rules/` が `<user_rules>` に
+  注入されなかったが、**1.4.2 実機検証で YAML frontmatter（`trigger: always_on | model_decision | glob` 必須、24KB 上限）付きの
+  `rules/AGENTS.md` が `<user_rules>` に自動注入されることを確認**（ルート直下の `AGENTS.md` は validate 警告となるため `rules/` 配下に置く）。
+  ただし `always_on` ルールは全ルール共有の常時 20,000 トークン予算を毎ターン消費するため、**MCP ツールの詳細な引数仕様や手順は
+  引き続きオンデマンドの `skills/<name>/SKILL.md` に置き**、`rules/` は常時強制したい短いガードレールに限定する。
+- **`agents/<name>.md`（サブエージェント・agy 1.3.2 / 1.4.1〜で機能化確認）**: 旧 `agent.json` は CLI に無視され validate 警告となる。
+  `agents/<name>.md` に YAML frontmatter（`name`, `description` 必須）と本文を書くと `invoke_subagent` で呼び出せ、親プラグインの MCP サーバーも利用できる。
 
 ## 検証
 
-- 健全性チェックは **`agy plugin validate <path>`**（`agy doctor` は存在しない）。
+- **ソース検査と install 後検査の使い分け（1.4.0〜重要）**:
+  - `agy plugin validate <path>`（`--strict` / `--json` 対応）は 1.4.0 から **`plugin.json` の存在を直接要求する**ため、
+    `gemini-extension.json` 形式の**ソースディレクトリ**に直接かけるとエラーになる。
+  - **ソースディレクトリの検査**には本キットの `validator <src-dir>` を使い、**`agy plugin validate` は native `plugin.json`
+    形式のプラグイン、または `agy plugin install` 後の `~/.gemini/config/plugins/<name>`** に対して実行する（install 先には変換済みの `plugin.json` があるため pass する）。
 - 「動く」の証明は **実環境（端末から agy）** で行う（手動 export の直叩きは不可）。証拠は
   **`~/.gemini/antigravity-cli/mcp/<plugin>_<server>/` 内のツール名**で取る。
   - **ディレクトリ名は `<plugin>_<server>`**（例 `github_github`）。`mcp/<plugin>/` という旧名の
-    ディレクトリが**古い内容のまま残っている**ことがあり（実機で 16 日前のものが同じツール名を
-    保持していた）、そちらを見ると mtime もツール名も「それらしく」通ってしまう。消す時・見る時とも
+    ディレクトリが**古い内容のまま残っている**ことがあり、そちらを見ると mtime もツール名も「それらしく」通ってしまう。消す時・見る時とも
     `<plugin>_<server>` を指すこと。
   - 起動確認の前に **現行の `mcp/<plugin>_<server>/` も削除する**。残したままでは、今回のサーバーが
     起動に失敗しても前回のツール JSON を起動成功の証拠と誤認する。ただしこれはユーザーの
@@ -68,7 +94,7 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
     承認が得られなければ削除せず、キャッシュのツール JSON は起動成功の証拠に使えない（前回の残り
     かもしれない）ことを検証結果に明記する。
   - **mtime だけでは不十分**。設計を作り替えた時は中身のツール名で新サーバーを別人確認する。
-  - **`agy -p`（headless）で確認できるのは起動とツール探索まで**。agy 1.2.7 は headless では MCP
+  - **`agy -p`（headless）で確認できるのは起動とツール探索まで**。headless では MCP
     ツールの実行を自動拒否する（権限プロンプトを出せないため）ので、ツール実行まで確かめるなら
     対話セッションで起こして許可プロンプトに応答する。
 - ソースを再ビルドしたら **`agy plugin install` の再実行**が必要。

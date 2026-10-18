@@ -518,3 +518,21 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: install された `bin/` をリポジトリ側と sha256 / `cmp` で突き合わせれば配布物の健全性は確認できるとする。
 - 決め手: 実行ビットだけ落としたコピーを作ると `cmp` は一致と報告する。中身は同一だからで、原理上検出できない。しかも起動して確かめられるのは実行ホスト向けの1本だけなので、たとえば darwin-arm64 だけ非実行になっていても Linux での検証は最後まで通り、壊れたまま配布される。`[ -x ]` を全ファイルに対して明示的に回す（`ls -l` を目視で突き合わせるのも、判定を人間に委ねている点で同じ穴）。
 - 覆す条件: `agy plugin install` がパーミッションを保証すると確認できた場合。現状 #40 で「+x が保持される」ことは観測しているが、保証ではなく観測。
+
+## 2026-10-18: agy 1.4.2 でも同梱バイナリ参照プラグインは gemini-extension.json 形式を維持し、ソース検査と install 後検査を使い分ける
+
+- 却下した案: agy 1.4.0 で `agy plugin validate` が `plugin.json` 無しをエラー化するよう変更されたため、同梱バイナリ型プラグインのソースを `gemini-extension.json` から native `plugin.json` + `mcp_config.json`（`"command": "${PLUGIN_ROOT}/bin/<name>"` または `"command": "./bin/<name>"`）へ一斉移行する。
+- 決め手: agy 1.4.2 で 5 パターンの MCP サーバー定義を同時実機検証した結果、(1) native `mcp_config.json` の `args`/`env` では `${PLUGIN_ROOT}` と `${PLUGIN_DATA}` が絶対パスに展開されるが、肝心の **`command` フィールド自体では `${PLUGIN_ROOT}` が展開されずサーバーが起動しない**（`directroot` が introspect されない）、(2) `${extensionPath}` / `${/}` も native 形式では依然未展開（Issue #390 継続）、(3) `"command": "./bin/<name>"` は MCP プロセスの起動 `pwd` がプラグインルート（`~/.gemini/config/plugins/<name>`）になったことで Linux では起動したが、Windows の `.exe` 補完＋スラッシュ区切り相対パスが実機未検証（LESSONS #29 の原則により未検証方式へ一斉移行しない）。一方 `gemini-extension.json` は `agy plugin install` 時に `${extensionPath}${/}bin${/}<name>` を OS ネイティブ絶対パスへ展開した上で install 先に `plugin.json` と `mcp_config.json` を生成し、**install 先ディレクトリに対する `agy plugin validate ~/.gemini/config/plugins/<name>` は 0 error / 0 warning で pass する**ことを実測確認した。したがってソース検査にはキットの `validator <src>` を、install 後（または native `plugin.json` 形式）の検査には `agy plugin validate` を使い分ける。
+- 覆す条件: agy が native `mcp_config.json` の `command` フィールドでも `${PLUGIN_ROOT}`（および OS 別バイナリ解決）を展開するようになり、Linux / macOS / Windows の 3 環境で実機確認できた場合。または `"command": "./bin/<name>"` が Windows 実機でも `.exe` 補完込みで起動すると確認できた場合。
+
+## 2026-10-18: agy 1.4.2 でプラグインの rules/ 注入が機能化したが、ツール知識の配布は引き続き skills/ を主とする
+
+- 却下した案: プラグイン内 `rules/*.md` の `<user_rules>` 自動注入が機能化したのを受け、各プラグインの `skills/<name>/SKILL.md` を `rules/AGENTS.md`（`trigger: always_on`）へ移行する。
+- 決め手: (1) 実測: agy 1.4.2 で YAML frontmatter `trigger: always_on` 付きの `rules/AGENTS.md` が `<user_rules>` に注入された（マーカー `CANARY-RULE-7731` を確認。1.0.8〜1.0.15 の非注入 #22/#35/#41/#48 からの変化）。(2) agy バイナリ同梱ドキュメントの記載（strings 解析で読んだもので、超過時の挙動は未実測）: always-on とグローバルのルールは全体で 20,000 トークンの共有予算（`defaultRulesBudget`）を持ち、超過分は本文インラインからファイルパスのポインタへ降格される。1 ファイルは 24,000 bytes で行境界に切り詰められる。skills・workflows・subagents・MCP ツールは別予算。(3) 実測: 本リポジトリの `skills/*/SKILL.md` は 9 ファイル合計 41,117 bytes（トークン数は未計測）。
+- 覆す条件: 共有ルール予算がプラグイン単位になるか大幅に拡大された場合、または超過時の降格挙動がドキュメントと異なることを実測した場合。全セッションで常時強制したい短いガードレール（数十行以内）を特定プラグインに足す必要が出た場合は、その部分に限り frontmatter 付き `rules/` を併用する。
+
+## 2026-10-18: サブフォルダ配置のマニフェスト（`.antigravity-plugin/plugin.json` / `.gemini-plugin/plugin.json`）を validator で有効なマニフェストとして扱う
+
+- 却下した案: 「`plugin.json` はプラグインルート直下必須で、サブフォルダは代替配置ではない」という bot レビューの指摘に従い、サブフォルダのマニフェストでは C5（マニフェスト無し）を出す。
+- 決め手: agy 1.4.2 で実測した。(1) `.antigravity-plugin/plugin.json` だけを置き `mcp_config.json` をルートに置いたディレクトリは `agy plugin validate` が pass し（`mcpServers 1`）、`agy plugin install` 後も `agy plugin list` に enabled で載った。`.gemini-plugin/plugin.json` も validate が pass した。(2) マニフェストが無いディレクトリに対する validate のエラー文は `no plugin.json found at the plugin root or in .antigravity-plugin or .gemini-plugin`。(3) `mcp_config.json`・`hooks.json` を `.antigravity-plugin/` 内に置くと `never loaded: components are read from the plugin root, not .antigravity-plugin` と警告され、`mcpServers 0` になった。コンポーネントはルート直下から読まれるので、ルート直下だけを読む `validate()` の現実装と一致する。同梱 changelog にも「keep the manifest in a `.antigravity-plugin/` or `.gemini-plugin/` folder」とある。
+- 覆す条件: 将来の agy でサブフォルダのマニフェストが validate / install で拒否されるようになった場合。

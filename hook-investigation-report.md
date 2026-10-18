@@ -86,11 +86,11 @@ Pythonで取得した `os.getcwd()` の結果は以下の通りだった。
 - 自動バリデーションの夢は一旦捨て、確実なコマンドトリガー（`/agy-plugin-kit:validate` や `:doctor`）に依存する設計を標準とする。
 - 将来のアップデートで、フックのペイロードに `toolCall` や `file_path` が格納されるようになり、変数置換バグが修正されたタイミングで再導入を検討する。
 
-**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 ＝§5、2026-06-20 / agy 1.0.10 ＝§6）**
-- [x] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）→ **✅ 1.0.9 で解消**（`toolCall.args.TargetFile`）／1.0.10 不変
-- [ ] `hooks.json` 内の `${extensionPath}` / `${/}` が実行時に置換されるようになったか（§2 事実2）→ **❌ 1.0.9／1.0.10 とも未置換**（`${/}` は `Bad substitution` でクラッシュ継続）
-- [x] フックが対話セッションで安定発火するようになったか（§2 事実4）→ **✅ 1.0.9 で改善**（n=2）／**1.0.10 で動的リロード確認**（親セッションに次ツール実行から自動適用＝§6.1）
-- [~] `rules/`（プラグイン内 / `plugin.json` / グローバル）がシステムプロンプトに注入されるか（§4）→ **❌ 3経路は 1.0.9／1.0.10 とも全滅**。ただし **1.0.10 でプロジェクト `.agents/AGENTS.md`（Workspace Customizations Root）のみ ✅ 注入**（§6.2／機構は §6.3）
+**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 ＝§5、2026-06-20 / agy 1.0.10 ＝§6、2026-10-18 / agy 1.4.2 ＝§8）**
+- [x] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）→ **✅ 1.0.9 で解消**（`toolCall.args.TargetFile`）／1.4.2 でも維持
+- [ ] `hooks.json` 内の `${extensionPath}` / `${PLUGIN_ROOT}` / `${/}` が実行時に置換されるようになったか（§2 事実2）→ **❌ 1.4.2 でも未置換**（`sh -c` が空文字展開、`${/}` は `Bad substitution`。引き続き PWD 相対パスで回避）
+- [x] フックが対話セッションで安定発火するようになったか（§2 事実4）→ **✅ 1.0.9 で改善**（n=2）／**1.0.10 で動的リロード確認**（§6.1）
+- [x] `rules/`（プラグイン内 / プロジェクト）がシステムプロンプトに注入されるか（§4）→ **✅ 1.0.10 でプロジェクト `.agents/AGENTS.md`、1.4.2 でプラグイン内 `rules/*.md`（要 frontmatter `trigger:`）の注入を確認**（§8.2）
 
 ---
 
@@ -217,3 +217,20 @@ agy バイナリの strings 解析で注入経路を特定した:
 ### 7.2 rules — プロンプト注入バグの継続
 - サブエージェントのシステムプロンプト内の `<user_rules>` セクションをダンプし、ルールの注入状況を調査しました。
 - 1.0.10と同様に、**プロジェクトルール（`.agents/AGENTS.md`）のみ**が注入され、プラグイン内のルール（`rules/*.md`）やグローバルルール（`~/.gemini/rules/*.md`）は一切読み込まれない状態が継続しています。
+
+---
+
+## 8. 追記: agy 1.4.2 での再検証（2026-10-18）
+
+**対象:** agy 1.4.2
+**結論: プラグイン内 `rules/*.md`（YAML frontmatter `trigger:` 付き）が `<user_rules>` に注入されるよう解消された。一方、`hooks.json` 内の変数置換は `${PLUGIN_ROOT}` を含め依然として未置換のため、PWD 相対パスを維持する。**
+
+### 8.1 hooks — `${PLUGIN_ROOT}` / `${extensionPath}` ともに未置換で継続
+- `hooks.json` の `PreInvocation` に (1) `sh ./hook.sh relative`、(2) `sh ${PLUGIN_ROOT}/hook.sh pluginroot`、(3) `sh ${extensionPath}/hook.sh extpath` の3ハンドラを設定して実測。
+- (1) の相対パスのみ `pwd=/home/.../.gemini/config/plugins/<name>` で正常実行され、(2) と (3) は `sh -c` が未定義環境変数として空文字展開したため `sh: 0: cannot open /hook.sh: No such file`（exit status 2）で失敗した。
+- **対策方針**: `hooks.json` では `${PLUGIN_ROOT}` も使用不可。引き続き PWD 相対パス（例: `validator/bin/validator --hook`）で記述する。
+
+### 8.2 rules — プラグイン内 `rules/*.md` の注入解消（frontmatter `trigger:` 必須）
+- プラグイン内に `rules/AGENTS.md`（先頭に YAML frontmatter `trigger: always_on`）を配置し、ワークスペース配置（`.agents/plugins/`）とグローバル install（`agy plugin install`）の両方で検証した結果、エージェントの `<user_rules>` にマーカー（`CANARY-RULE-7731`）が注入されることを確認した。
+- なお `agy 1.4.1` のバリデーション仕様により、プラグインの `rules/*.md` には有効な `trigger`（`always_on` / `model_decision` / `glob`）の frontmatter が必須となった（1ファイル 24KB 上限、常時ルール合計 20,000 トークン予算）。
+- **設計方針**: 常時ルールはコンテキスト予算を毎ターン消費するため、MCP ツールの引数リファレンスや手順書は引き続きオンデマンドの `skills/<name>/SKILL.md` で配布する。
