@@ -397,6 +397,50 @@ func TestRelayRejectsUnsafeLocations(t *testing.T) {
 	})
 }
 
+// 受け渡しファイルを消費できない（ディレクトリが読み取り専用になった等）時は、
+// 同じ検査結果を PreInvocation のたびに差し込み続けず、何も返さない。
+func TestTakeRelayDoesNotRepeatWhenUnconsumable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission bits are Unix-specific here")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	const conv = "ec33ebf9-0cba-4100-8142-c61503f6c587"
+	d := useRelayDir(t)
+	if err := appendRelay(conv, "finding"); err != nil {
+		t.Fatal(err)
+	}
+	// 0500 は safeRelayDir の検査（group/other 権限なし）は通るが、rename/remove はできない。
+	if err := os.Chmod(d, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(d, 0o700) })
+
+	for i := 0; i < 2; i++ {
+		if got := takeRelay(conv); got != "" {
+			t.Fatalf("takeRelay #%d returned %q from an unconsumable relay file; want \"\"", i+1, got)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(d, conv+".txt")); err != nil {
+		t.Fatalf("relay file should be left in place: %v", err)
+	}
+
+	// 書けるようになれば一度だけ届き、消費後の残骸も残らない。
+	if err := os.Chmod(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := takeRelay(conv); got != "finding" {
+		t.Errorf("takeRelay after restoring permissions = %q, want %q", got, "finding")
+	}
+	if got := takeRelay(conv); got != "" {
+		t.Errorf("relay should be consumed once, second take = %q", got)
+	}
+	if ents, err := os.ReadDir(d); err != nil || len(ents) != 0 {
+		t.Errorf("relay dir should be empty after consumption, got %v (err %v)", ents, err)
+	}
+}
+
 // C11: Claude Code のミリ秒の timeout を agy の hooks.json に持ち込むと警告する。
 func TestValidateHookTimeoutC11(t *testing.T) {
 	cases := []struct {

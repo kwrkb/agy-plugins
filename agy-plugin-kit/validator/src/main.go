@@ -294,7 +294,10 @@ func appendRelay(convID, msg string) error {
 	return f.Close()
 }
 
-// takeRelay は受け渡しファイルを読んで消し、中身を返す（無い・読めない時は ""）。
+// takeRelay は受け渡しファイルを消費して中身を返す（無い・読めない・消費できない時は ""）。
+// 読んでから消すのではなく、先に一意な名前へ rename して <id>.txt から外してから読む。
+// rename できない（読み取り専用になった等）なら何も返さない＝同じ検査結果を毎回差し込み続けない。
+// rename 後の削除に失敗しても、relayPath は <id>.txt しか指さないので二度と読まれない。
 func takeRelay(convID string) string {
 	p, ok := relayPath(convID, false)
 	if !ok {
@@ -304,11 +307,16 @@ func takeRelay(convID string) string {
 	if fi, err := os.Lstat(p); err != nil || !fi.Mode().IsRegular() {
 		return ""
 	}
-	b, err := os.ReadFile(p)
+	// Windows の os.Rename は既存の移動先を上書きしないので、固定名でなく pid 付きの名前にする。
+	taken := fmt.Sprintf("%s.%d.taken", p, os.Getpid())
+	if err := os.Rename(p, taken); err != nil {
+		return ""
+	}
+	defer os.Remove(taken)
+	b, err := os.ReadFile(taken)
 	if err != nil {
 		return ""
 	}
-	_ = os.Remove(p)
 	return strings.TrimRight(string(b), "\n")
 }
 
