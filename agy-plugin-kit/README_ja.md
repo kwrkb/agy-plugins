@@ -50,7 +50,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 
 > **対応 OS（Linux / macOS / Windows）**: 拡張子なし `validator/bin/validator` は `uname` で実機判定し
 > `validator-{linux-amd64,darwin-arm64}` を `exec` する POSIX sh **dispatcher**（テキスト＝OS 非依存。Windows は
-> `validator.exe` 直起動で非経由）。3 OS 共通で OS 別バイナリを単一 `command` に畳み込む標準構成。
+> フックの command 前半 `validator\bin\validator` で `validator.exe` を直起動し非経由）。3 OS 共通で OS 別バイナリを単一 `command` に畳み込む標準構成。
 > dispatcher・ネイティブとも実行ビット（`100755`）を git にコミット（`.gitignore` 対象外）。
 
 ## マニフェスト形式（このキット自身）
@@ -73,15 +73,22 @@ copy-only で問題ありません（自身が C1 を踏まない）。
   できない（`injectSteps` は unknown field としてツール結果ごとエラー化、`overwriteResult` は無視）ため、この形にしている（LESSONS 2026-10-18）。
 - `timeout` は**秒単位**（agy の既定は 30）。Claude Code のミリ秒とは違う。
 - 受け渡し方式は agy 1.4.2 で実機確認した。`PreInvocation` のフックが失敗してもモデル呼び出しは止まらない（CLI ログに残るだけ）。1.4.2 より前の agy で `PreInvocation` キーがどう扱われるかは未確認。
-- `PostToolUse` の `matcher: ".*"`、`command: "validator/bin/validator --hook"`（PWD=install 先の相対パス。
-  `${extensionPath}`/`${PLUGIN_ROOT}`/`${/}` は使わない＝C10/C2 を踏まない）。`validator/bin/validator` は OS 分岐 dispatcher で、
-  hook 経路でも shebang 解釈で実機ネイティブを `exec` する（実機検証: macOS arm64 で発火確認）。
+- `PostToolUse` の `matcher: ".*"`、`command: "validator\\bin\\validator --hook || validator/bin/validator --hook"`
+  （JSON 上の表記。PWD=install 先の相対パス。`${extensionPath}`/`${PLUGIN_ROOT}`/`${/}` は使わない＝C10/C2 を踏まない）。
+  `PreInvocation` も同じ形で `--inject`。
+- **なぜ `||` で 2 つ並べるか**: agy はフックを Windows では `cmd /c`、それ以外では `sh -c` で起動し、command は 1 本の固定文字列で
+  OS 別に分けられない。`cmd` は `validator/bin/validator` の `/bin` をスイッチとして読み、`validator` だけを PATH から探すので起動できない
+  （PATH に無ければ `PostToolUse` が失敗して全ツール結果がエラー化し、同名のコマンドがあればそれが黙って動く）。
+  そこで前半にバックスラッシュ形を置く（`cmd` は PATHEXT で `validator.exe` を選ぶ）。`sh` ではバックスラッシュがエスケープになり、
+  前半は not found（stderr のみ・stdin は消費しない）で、後半の OS 分岐 dispatcher が実機ネイティブを `exec` する。
+  パスをクォートで囲む案は、agy が内側の `"` を `\"` にエスケープし `cmd` が解釈できないため使えない
+  （Windows 実機検証: agy 1.4.2。macOS arm64 では旧 command で発火確認済み・新 command は未確認。Issue #30）。
 - ツール種別の選別は **validator 側のコードで** 行う（`toolCall.args.TargetFile` が入る編集系ステップだけ
   反応し、マニフェスト basename 以外は無音）。matcher にツール名を書かない（agy のツール名は
   新規作成=`write_to_file` / 既存編集=`replace_file_content` と版で異なるため）。
 
-> **3 OS 対応**: `command` は1本の固定文字列だが、`validator/bin/validator` を OS 分岐 dispatcher（shebang sh）にすることで
-> Linux / macOS（arm64）/ Windows を単一 command でカバーする（Windows は `.exe` を直接起動）。フックが使えない環境でも
+> **3 OS 対応**: `command` は1本の固定文字列だが、Linux / macOS（arm64）は後半の `validator/bin/validator`
+> （OS 分岐 dispatcher・shebang sh）、Windows は前半の `validator\bin\validator`（`cmd` が `validator.exe` を起動）で単一 command にまとめている。フックが使えない環境でも
 > `/agy-plugin-kit:validate` / `:doctor` を手動で使える。
 
 ### 経緯（1.0.8 では非機能 → 1.0.9 で再導入 → 1.4.2 での最新状況）

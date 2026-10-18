@@ -67,7 +67,13 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 - **`hooks.json`（agy 1.0.9〜で利用可）**: `PostToolUse` payload の `toolCall.args.TargetFile` で編集ファイルの絶対パスを取得可能。
   ただし **1.4.2 でも `hooks.json` の `command` 内では `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` は一切展開されない**
   （`sh -c` が未定義変数として空文字展開し `/hook.sh: No such file` になるか、`${/}` で `Bad substitution` になる＝C10 警告）。
-  フック実行時の `pwd` はプラグインルートになるため、command は必ず **PWD 相対パス**（例: `validator/bin/validator --hook`）で書く。
+  フック実行時の `pwd` はプラグインルートになるため、command は必ず **PWD 相対パス**で書く。
+  - **Windows は `cmd /c`、それ以外は `sh -c` で起動される**ので、同梱バイナリは Windows 形と Unix 形を `||` でつなぐ
+    （JSON では `"validator\\bin\\validator --hook || validator/bin/validator --hook"`）。`cmd` は `validator/bin/...` の `/bin` を
+    スイッチとして読み `validator` を PATH から探すため、スラッシュ区切りだけだと Windows で起動しない（PATH に無ければ
+    `PostToolUse` が失敗して全ツール結果がエラー化、同名コマンドがあればそれが黙って動く）。`sh` では前半のバックスラッシュが
+    エスケープになって not found で落ち、後半が動く。パスをクォートで囲む案は agy が `\"` にエスケープするので不可。
+    プラグインの `bin/` はフック実行時の PATH に入らない（1.4.2 Windows 実測・Issue #30）。
   - **`timeout` は秒単位**（既定 30）。Claude Code のミリ秒の値（例: `10000`）を書くと約 2.8 時間の意味になる（1.4.2 実測）。
   - **フックの出力は agy が JSON として厳格に解釈する**。`PostToolUse` の stdout は `{}` 以外を書かない。未知の項目を返したり
     異常終了・timeout したりすると、ツール結果全体がモデルからはエラーに見える（書き込み自体は成功していても）。

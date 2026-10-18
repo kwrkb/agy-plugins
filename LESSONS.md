@@ -561,3 +561,14 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: ツールの結果が正しく返ってきたことを、MCP 経由で実行できた証拠とする。
 - 決め手: agy 1.4.2 の tmux 対話セッションで、起動直後の最初の質問「worktree_list を使って」に対し、モデルが「MCP ツールとして登録されていない」と判断した。そのうえで `run_command` から同梱バイナリへ JSON-RPC を直接送り、正しい結果を返した。結果だけ見れば成功と区別できない。その時の CLI ログには `skipping component during resolution: empty component: prompt section "mcp_servers"` が出ていた。2 回目以降の質問ではこの警告は出ず、`/mcp` は 8 サーバーとも ✓ だった。2 回目以降は、モデルが `<tool>.json` を読んでから MCP を呼び、TUI に `Called 1 MCP tool (...)` が表示された。
 - 覆す条件: agy が、MCP サーバーの接続が終わるまで最初のプロンプトを待たせるようになった場合。または、モデルが MCP ツールを確実に優先すると確認できた場合。
+
+## 2026-10-18: フックの command は Windows 形と Unix 形を `||` でつなぐ（スラッシュ区切りの相対パスは Windows の `cmd /c` で起動しない）
+
+- 却下した案: (1) 従来どおり `validator/bin/validator --hook` と書き、Windows は agy が MCP と同様に `.exe` を補完してくれるとみなす。(2) バックスラッシュ区切り `validator\bin\validator` だけにする。(3) パスをダブルクォートで囲む（`"validator/bin/validator" --hook`）。(4) 裸のコマンド名にして、プラグインの `bin/` が PATH に入るのに任せる。
+- 決め手: agy 1.4.2 の Windows 実機で、プローブ exe を置いた使い捨てのプラグインで実測した（hook-investigation-report.md §10、Issue #30）。
+  - (1) フックは `cmd /c` で起動され、`bin/probe` は `'bin' is not recognized as an internal or external command` になった。キットの旧 command は、PATH 上に agy のモデルが過去に置いていた `validator.cmd`（`exit /b 0`）に解決され、検査が一度も走っていなかった。そのスタブが無い状態を別名で再現すると、`PostToolUse` が失敗して全ツール結果が `Encountered error in tool execution` になった。
+  - (2) Windows では起動する（PATHEXT で `.exe` が選ばれ、隣の拡張子なし sh スクリプトは選ばれない）。しかし POSIX sh では `\b` `\v` がエスケープとして消え `validatorbinvalidator` になるので、Linux / macOS で起動しない。
+  - (3) agy が内側の `"` を `\"` にエスケープして渡し、`'\"bin/probe\"' is not recognized` になった。
+  - (4) フック実行時の PATH にプラグインの `bin/` は入っておらず、`PLUGIN_ROOT` も空だった。`'hookprobe-bare' is not recognized`。
+  - 採用した `validator\bin\validator --hook || validator/bin/validator --hook` では、Windows 実機で Issue #30 の手順 3〜6 がすべて期待どおりになった。sh では前半が not found（stdin は消費されない）で、後半が起動して stdout は `{}`、終了コード 0 だった（Git Bash の `sh -c` で確認。Linux / macOS 実機は未確認）。
+- 覆す条件: agy が Windows でフックを `cmd /c` 以外（例: 引数を分割して直接 exec）で起動するようになる。または、hooks.json の command で `${PLUGIN_ROOT}` が展開されるようになる。前者は §10.1 のプローブで、後者は §8.1 の手順で確認する。
