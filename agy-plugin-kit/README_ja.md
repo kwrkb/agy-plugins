@@ -29,7 +29,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | C7 | トークン専用 MCP サーバーを wrapper 無しで直叩き（heuristic） | WARN |
 | C8 | `${CLAUDE_PLUGIN_ROOT}`（agy に存在しないトークン） | ERROR |
 | C9 | 同梱 Go ラッパーが自前で stdout に書く（NDJSON 破壊。heuristic） | WARN |
-| C10 | native `plugin.json` 形式の `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: 実行時に置換されず空文字展開または `Bad substitution` になり hook 起動失敗） | WARN |
+| C10 | `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: マニフェスト形式を問わず実行時に置換されず空文字展開または `Bad substitution` になり hook 起動失敗） | WARN |
 
 ## インストール
 

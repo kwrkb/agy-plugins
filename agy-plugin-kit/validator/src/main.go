@@ -257,16 +257,15 @@ func validate(dir string) []finding {
 		}
 	}
 
-	// C10: native plugin.json 形式の hooks.json で変数マクロを使用
-	// （実機検証: 実行時に ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA} は置換されず未定義 env として空文字に消え、
+	// C10: hooks.json で変数マクロを使用
+	// （実機検証: マニフェスト形式を問わず実行時に ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA} は置換されず未定義 env として空文字に消え、
 	//  ${/} は /bin/sh で Bad substitution になり hook プロセスが起動前にクラッシュする。LESSONS #20 / agy 1.4.2 再検証）
-	if hasPluginJSON && !hasGeminiExt &&
-		(strings.Contains(hooksRaw, "${extensionPath}") ||
-			strings.Contains(hooksRaw, "${/}") ||
-			strings.Contains(hooksRaw, "${PLUGIN_ROOT}") ||
-			strings.Contains(hooksRaw, "${PLUGIN_DATA}")) {
+	if strings.Contains(hooksRaw, "${extensionPath}") ||
+		strings.Contains(hooksRaw, "${/}") ||
+		strings.Contains(hooksRaw, "${PLUGIN_ROOT}") ||
+		strings.Contains(hooksRaw, "${PLUGIN_DATA}") {
 		out = append(out, finding{sevWarn, "C10",
-			"plugin.json 形式の hooks.json で ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA}/${/} を使用しています。実機検証では実行時に置換されず空文字展開または Bad substitution になり hook が起動しません（LESSONS #20）。フックの実行 cwd はプラグインルートになるため相対パスで指定してください。"})
+			"hooks.json で ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA}/${/} を使用しています。実機検証ではマニフェスト形式を問わず実行時に置換されず空文字展開または Bad substitution になり hook が起動しません（LESSONS #20）。フックの実行 cwd はプラグインルートになるため相対パスで指定してください。"})
 	}
 
 	for _, c := range mcpCmds {

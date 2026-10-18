@@ -27,7 +27,7 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 | C7 | Invoking token-only MCP servers directly without wrapper (heuristic) | WARN |
 | C8 | Using `${CLAUDE_PLUGIN_ROOT}` (Claude-only variable, invalid in agy) | ERROR |
 | C9 | Go wrappers writing diagnostic text to stdout instead of stderr | WARN |
-| C10 | Using `${extensionPath}`, `${PLUGIN_ROOT}`, `${PLUGIN_DATA}`, or `${/}` in native `plugin.json` hooks | WARN |
+| C10 | Using `${extensionPath}`, `${PLUGIN_ROOT}`, `${PLUGIN_DATA}`, or `${/}` in `hooks.json` (unexpanded regardless of manifest format) | WARN |
 
 ## Installation
 

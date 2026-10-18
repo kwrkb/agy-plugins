@@ -217,4 +217,14 @@ func TestValidateAgy142Rules(t *testing.T) {
 			t.Errorf("expected C8 error for ${CLAUDE_PLUGIN_ROOT} in agy named hooks.json, got %+v", fs)
 		}
 	})
+
+	t.Run("gemini-extension.json with hooks.json macros also triggers C10", func(t *testing.T) {
+		dir := t.TempDir()
+		_ = os.WriteFile(filepath.Join(dir, "gemini-extension.json"), []byte(`{"name":"p"}`), 0o644)
+		_ = os.WriteFile(filepath.Join(dir, "hooks.json"), []byte(`{"my-hook":{"PreInvocation":[{"type":"command","command":"${extensionPath}${/}h"}]}}`), 0o644)
+		fs := validate(dir)
+		if !hasCode(fs, "C10") {
+			t.Errorf("expected C10 warning for hooks.json macros in gemini-extension.json plugin, got %+v", fs)
+		}
+	})
 }
