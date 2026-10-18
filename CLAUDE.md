@@ -86,17 +86,18 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 - **引数のバイト列を問う検証は tmux 経由でやらない**。非印字文字や数十 KiB の値はシェル・プロンプト・モデルのどこかで壊れ、「通った」が「そもそも届いていない」を意味しうる。`bin/<name>` へ JSON-RPC を直接流す（`initialize` → `notifications/initialized` → `tools/call`）。
 - **相対パスはサーバーの cwd 基準**（`mcp_config.json` は `"cwd": ""`）。ワークスペース相対ではないので、引数のパスは絶対で渡す。
 
-## 非自明な地雷（詳細は LESSONS.md の番号付き教訓）
+## 非自明な地雷（詳細は LESSONS.md の番号付き教訓と末尾の判断ログ）
 
-以下のうちバージョンに言及する項目は 1.0.8〜1.0.15 で確かめたもの。**実機の agy は 1.2.7** で、install・`${extensionPath}` 解決・MCP 起動は 1.2.7 でも成立を再確認済みだが、`rules/` と hooks は 1.2.7 で再検証していない。
+**実機の agy は 1.4.2** で、install・`${extensionPath}` 解決・MCP 起動・`rules/`・`agents/`・`hooks.json`・`PLUGIN_DATA`・`bin/` PATH をすべて実機再検証済み（2026-10-18）。
 
 - **バイナリは追跡コミット必須**: `agy plugin install` はビルドせず git 追跡ファイルをコピーするだけ。`src/main.go` を変えたら全 OS 分（linux-amd64/darwin-arm64/windows）を再ビルド＆コミットしないと stale が配布される（#21）。
-- **単一 command を OS 分岐 dispatcher で全 OS 化**: `command` は1本の固定文字列で agy は `${extensionPath}` 以外を置換しない。拡張子なし `bin/<name>`（shebang sh）が `uname` で実機ネイティブを `exec` し、Linux/macOS(arm64)/Windows を単一指定でカバー（実機検証: macOS arm64 で MCP 起動・hook 発火・install コピーで +x 保持を確認 #40）。
-- **`${extensionPath}` 解決条件**: ソースに `gemini-extension.json` があり `plugin.json` が**無い**時のみ解決（#1）。同梱バイナリ参照プラグインは前者構成。
-- **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。
+- **単一 command を OS 分岐 dispatcher で全 OS 化**: `command` は1本の固定文字列で OS 別に切り替えられない。拡張子なし `bin/<name>`（shebang sh）が `uname` で実機ネイティブを `exec` し、Linux/macOS(arm64)/Windows を単一指定でカバー（実機検証: macOS arm64 で MCP 起動・hook 発火・install コピーで +x 保持を確認 #40）。
+- **`${extensionPath}` 解決条件と `${PLUGIN_ROOT}` の罠**: ソースに `gemini-extension.json` があり `plugin.json` が**無い**時のみ install 時に `${extensionPath}${/}` が絶対パスへ解決される（#1）。agy 1.3.2〜で native `plugin.json` 向けに `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` が入ったが、**`mcp_config.json` の `command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗する**（`args`/`env` のみ展開）。よって同梱バイナリ参照プラグインは引き続き `gemini-extension.json` 形式。
+- **ソース検査と install 後検査の使い分け**: agy 1.4.0〜の `agy plugin validate` は `plugin.json` を直接要求するため、`gemini-extension.json` 形式のソースディレクトリにはキットの `validator <src>` を使い、`agy plugin validate` は install 後（`~/.gemini/config/plugins/<name>`）または native `plugin.json` 形式に対して実行する。
+- **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。永続データは `~/.gemini/antigravity-cli/plugin_data/<name>`（環境変数 `PLUGIN_DATA`）へ。
 - **検証は MCP キャッシュのツール名で**: mtime 更新だけでなく中身（ツール名）で新サーバーを別人確認（#25）。キャッシュの場所は `mcp/<plugin>_<server>/`（上記「実機検証」参照）。
-- **agy の `rules/` は非機能（プラグイン経路）／プロジェクト `.agents/AGENTS.md` は 1.0.10 で機能化・1.0.15 でも進展なし**（#41 / #48）。1.0.10 でワークスペースルート `.agents/AGENTS.md` は `<user_rules>` に `<RULE[...]>` 注入される（`customizations.agentsCustomization`→`UserRulesSection`、Linux 再現済み）が、**プラグイン内 `rules/*.md`・`plugin.json "rules"`・グローバル `~/.gemini/rules` は依然非注入**（1.0.8/1.0.9 #22/#35、1.0.15 でも #48 で再確認）。**プラグインからエージェントへ渡す知識は引き続き `skills/` で**（`rules/` への移行は不可）。
-- **agy の hooks は 1.0.9 で部分機能化・1.0.10 で動的リロード確認**: `PostToolUse` payload の `toolCall.args.TargetFile` に編集ファイル絶対パスが入り、2回目以降の編集・`agy -p` でも発火、自前バイナリは PWD 相対で呼べる（#34）。1.0.10 では install したフックが**親セッションに次ツール実行から動的適用**される（再起動不要 #42）。ただし payload は agy 独自スキーマ／`${extensionPath}` 未置換・`${/}` は `Bad substitution` 継続は不変。1.0.8 では全面非機能だった（#18-21）。
+- **agy の `rules/` は 1.4.2 で機能化・ただしツール知識は引き続き `skills/` 主体**: 1.0.8〜1.0.15 ではプラグイン `rules/` が非注入だったが（#22/#35/#41/#48）、1.4.2 では YAML frontmatter（`trigger: always_on | model_decision | glob` 必須、24KB 上限）付きの `rules/AGENTS.md` が `<user_rules>` に注入されることを確認。ただし `always_on` は全ルール共有の常時 20,000 トークン予算を消費するため、MCP ツールの引数リファレンスや手順は引き続きオンデマンドの `skills/<name>/SKILL.md` で配布する。
+- **agy の hooks は 1.0.9〜で機能化・変数未置換は 1.4.2 でも継続**: `PostToolUse` payload の `toolCall.args.TargetFile` に編集ファイル絶対パスが入り、`agy -p` でも発火、自前バイナリは PWD 相対で呼べる（#34）。ただし `hooks.json` の `command` 内では 1.4.2 でも `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` は未置換（`sh -c` が空文字展開または `Bad substitution`）のため、PWD 相対パス指定を維持する。
 
 ## ドキュメント地図
 

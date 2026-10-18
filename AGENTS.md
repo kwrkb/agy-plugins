@@ -44,12 +44,12 @@ Go 製プラグインは原則として `<plugin>/src/` に独立した Go モ�
 
 ## Plugin Packaging Rules
 
-- 同梱バイナリを使うプラグインは `gemini-extension.json` と `${extensionPath}${/}bin${/}<name>` を使う。`plugin.json` を併置すると path 展開条件が変わるため、形式を混在させない。
+- 同梱バイナリを使うプラグインは `gemini-extension.json` と `${extensionPath}${/}bin${/}<name>` を使う。`plugin.json` を併置すると path 展開条件が変わるため、形式を混在させない（native `mcp_config.json` の `command` フィールドでは `${PLUGIN_ROOT}` も展開されないため、同梱バイナリ起動は `gemini-extension.json` 形式を維持する）。
 - Linux/macOS では拡張子なしの `bin/<name>` dispatcher が対応する native binary を起動する。dispatcher の executable bit を維持する。
 - 配布対象は `bin/<name>-linux-amd64`、`bin/<name>-darwin-arm64`、`bin/<name>.exe`。ソース変更後は対象バイナリも更新する。
-- プラグイン固有のエージェント知識は `skills/<name>/SKILL.md` に置く。プラグイン内 `rules/` や `plugin.json` の `rules` が注入される前提にしない。
+- プラグイン固有のツール知識・手順はオンデマンド読み込みの `skills/<name>/SKILL.md` に置く（agy 1.4.2 で frontmatter `trigger:` 付き `rules/*.md` の自動注入も機能するが、常時コンテキスト予算を消費するためツールリファレンスは `skills/` を主とする）。
 - skill を新規作成する場合は、対象 AI の接尾辞を skill 名、ディレクトリ名、frontmatter の `name:` で一致させる。Codex 用は `-codex`。
-- hook command では `${extensionPath}` や `${/}` の展開を前提にせず、既存の `agy-plugin-kit/hooks.json` の相対パス方式に従う。
+- hook command では `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` の展開を前提にせず、既存の `agy-plugin-kit/hooks.json` の相対パス方式に従う。
 
 ## Build and Test
 

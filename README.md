@@ -51,7 +51,7 @@ Please refer to the README in each plugin directory for specific prerequisites (
 
 ## Bundled Skills
 
-Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded upon tool invocation to instruct the model on argument formatting, repo conventions, and common patterns). In agy 1.0.10, project-level `.agents/AGENTS.md` is injected, but **plugin-level `rules/` and `plugin.json "rules"` remain non-functional** (LESSONS #22/#35/#41). Bundled skills serve as the primary communication channel to pass knowledge to agents.
+Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded on demand upon tool invocation to instruct the model on argument formatting, repo conventions, and common patterns). While agy 1.4+ also supports injecting `rules/*.md` with a `trigger:` frontmatter, bundled skills remain the primary way to deliver detailed tool reference knowledge without consuming the shared always-on rule token budget (20,000 tokens).
 
 ## Requirements
 
