@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# govulncheck の結果に「引き上げ方針」を適用するゲート（CLAUDE.md「Go バージョンの引き上げ方針」）。
+# govulncheck の結果に「引き上げ方針」を適用するゲート（VISION.md「Go バージョンの引き上げ方針」）。
 #
 #   到達可能な指摘なし                                        → pass
 #   到達可能な非 stdlib（依存モジュール）の指摘がある          → fail（stdlib 例外を適用しない）
@@ -83,5 +83,5 @@ if [ -n "$PATCHABLE" ]; then
 	exit 1
 fi
 
-echo "::warning::Tolerating reachable stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in CLAUDE.md)"
+echo "::warning::Tolerating reachable stdlib vulnerabilities that need a minor-version bump (see the Go upgrade policy in VISION.md)"
 exit 0

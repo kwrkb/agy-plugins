@@ -1,6 +1,8 @@
 # AGENTS.md
 
-このファイルは、このリポジトリで作業する AI エージェント向けの実務ガイドです。利用者向けの概要は `README.md`、過去の検証結果や agy 固有の罠は `LESSONS.md` と `plugin-gotchas.md` を参照してください。
+このファイルは、このリポジトリで作業する AI エージェント向けの実務ガイドです。目的・スコープと現在有効な設計判断は `VISION.md`（正典）、利用者向けの概要は `README.md`、過去の検証結果や agy 固有の罠は `LESSONS.md` と `plugin-gotchas.md` を参照してください。
+
+ドキュメントが矛盾した時の優先順は **VISION.md > PLAN.md > コード > NOTES.md** です（`LESSONS.md` は序列外の記録）。コードが `VISION.md` と矛盾していたら、どちらかに寄せる前に作業を止めて確認してください。
 
 ## Repository Overview
 
@@ -29,7 +31,7 @@ Go 製プラグインは原則として `<plugin>/src/` に独立した Go モ�
 1. `git status --short` で既存のユーザー変更を確認し、巻き戻さない。
 2. 変更対象の `README.md`、`src/main.go`、`src/main_test.go`、manifest、skill を読む。
 3. agy の manifest、path、hook、rule、install 動作に触れる場合は、先に `LESSONS.md` と `plugin-gotchas.md` を検索する。
-4. `PLAN.md` と `LESSONS.md` は履歴資料を含むため、現行コードや manifest と矛盾する場合は現行ファイルを優先する。
+4. 構成の当たりを付ける時は `NOTES.md`（内部構造の索引。鮮度非保証なのでコードで裏を取る）を見る。`LESSONS.md` は履歴の記録で仕様ではない。
 
 ## Implementation Conventions
 
@@ -44,12 +46,12 @@ Go 製プラグインは原則として `<plugin>/src/` に独立した Go モ�
 
 ## Plugin Packaging Rules
 
-- 同梱バイナリを使うプラグインは `gemini-extension.json` と `${extensionPath}${/}bin${/}<name>` を使う。`plugin.json` を併置すると path 展開条件が変わるため、形式を混在させない（native `mcp_config.json` の `command` フィールドでは `${PLUGIN_ROOT}` も展開されないため、同梱バイナリ起動は `gemini-extension.json` 形式を維持する）。
-- Linux/macOS では拡張子なしの `bin/<name>` dispatcher が対応する native binary を起動する。dispatcher の executable bit を維持する。
-- 配布対象は `bin/<name>-linux-amd64`、`bin/<name>-darwin-arm64`、`bin/<name>.exe`。ソース変更後は対象バイナリも更新する。
-- プラグイン固有のツール知識・手順はオンデマンド読み込みの `skills/<name>/SKILL.md` に置く（agy 1.4.2 で frontmatter `trigger:` 付き `rules/*.md` の自動注入も機能するが、常時コンテキスト予算を消費するためツールリファレンスは `skills/` を主とする）。
+マニフェスト形式・dispatcher・バイナリのコミット配布・skills 主体・フックの書き方は `VISION.md`「現在有効な設計判断」に従う。作業時の注意:
+
+- dispatcher（拡張子なし `bin/<name>`）の executable bit を維持する。
+- Go ソースを変えたら、配布対象 `bin/<name>-linux-amd64`・`bin/<name>-darwin-arm64`・`bin/<name>.exe` を再ビルドしてコミットする。
 - skill を新規作成する場合は、対象 AI の接尾辞を skill 名、ディレクトリ名、frontmatter の `name:` で一致させる。Codex 用は `-codex`。
-- hook command では `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` の展開を前提にせず、既存の `agy-plugin-kit/hooks.json` の相対パス方式に従う。
+- hook command は既存の `agy-plugin-kit/hooks.json` の書き方（変数を使わず、Windows 形 `||` Unix 形の相対パス）に従う。
 
 ## Build and Test
 
@@ -81,7 +83,7 @@ Go ソースを変更したら、リポジトリルートで対象を決定論�
 ./build.sh <github|validator|ast-grep|go-lsp|retro-status|settings-advisor|worktree-manager|test-runner>
 ```
 
-Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドが前提とする Go のパッチ版は `.go-version` に定義され、`build.sh`/`build.ps1` が `GOTOOLCHAIN` で強制します（未取得なら Go が自動ダウンロード）。素の `go build` で焼いたバイナリはローカル Go 版によって別物になるため、必ずビルドスクリプト経由で再ビルドしてください。`.go-version` を独断で書き換えないこと。引き上げ条件は CLAUDE.md「Go バージョンの引き上げ方針」に定義され、条件1（固定中のマイナー内のパッチで直る stdlib 脆弱性）は CI の govulncheck が fail で通知します。
+Windows PowerShell では同じ target を `./build.ps1` に渡します。決定論ビルドが前提とする Go のパッチ版は `.go-version` に定義され、`build.sh`/`build.ps1` が `GOTOOLCHAIN` で強制します（未取得なら Go が自動ダウンロード）。素の `go build` で焼いたバイナリはローカル Go 版によって別物になるため、必ずビルドスクリプト経由で再ビルドしてください。`.go-version` を独断で書き換えないこと。引き上げ条件は VISION.md「Go バージョンの引き上げ方針」に定義され、条件1（固定中のマイナー内のパッチで直る stdlib 脆弱性）は CI の govulncheck が fail で通知します。
 
 ## Verification and Review
 
@@ -94,7 +96,9 @@ Windows PowerShell では同じ target を `./build.ps1` に渡します。決�
 ## Documentation
 
 - 利用方法や前提条件が変わる場合は、ルートと対象プラグインの README を更新する。
-- agy の再利用可能な挙動・罠が判明した場合は `LESSONS.md` または `plugin-gotchas.md` に記録する。
+- 明白な代替案を却下する判断をしたら、その場で `LESSONS.md` の末尾に 1 エントリ追記する（「却下した案 / 決め手（観測事実のみ） / 覆す条件」。既存エントリは編集しない）。agy の罠の要約は `plugin-gotchas.md` にも反映する。
+- 構成（ファイルの置き場所・検査コード・agy 側のパス）が変わったら `NOTES.md` を更新する。
+- `VISION.md` の変更（スコープ・設計判断）はユーザーの承認を得てから行う。
 - `PLAN.md` は明示的に進捗更新を求められた場合、または現在の作業が既存 phase に直接対応する場合だけ更新する。
 
 完了報告では、変更したファイル、実行した検証、実行できなかった検証と残るリスクを簡潔に記載してください。

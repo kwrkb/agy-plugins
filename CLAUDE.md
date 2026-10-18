@@ -30,18 +30,10 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 **ソース変更時は必ず `./build.sh` で再ビルドしてコミット**（`agy plugin install` はビルドせず git 追跡バイナリをコピーするだけ）。決定論フラグは `build.sh` に、Go のパッチ版は `.go-version` に集約され（`build.sh`/`build.ps1`/CI が同じファイルを読む）、bit-identical になる。CI の stale 検出ゲート（`.github/workflows/build-verify.yml`）がこれを前提にする。
 
-## Go バージョンの引き上げ方針
+## Go バージョンの引き上げ
 
-固定版は `.go-version` の1箇所（`build.sh`/`build.ps1`/CI が読む）。**上げるのは以下のいずれかに当たる時だけ**で、「新しい版が出たから」では上げない。1回の引き上げは全ネイティブバイナリ（Go モジュール数 × 3 OS）の再ビルド＝大きな新規 blob を伴う。
-
-1. **到達可能な stdlib 脆弱性が、固定中のマイナー内のパッチで修正済み** → そのマイナーの最新パッチへ。言語変更が無く再ビルドのみで済む。**CI の govulncheck がこのケースを fail させる**ので、検知は自動。
-2. **固定中のマイナーが EOL**（Go は最新2マイナーのみ patch。1.28 リリース時点で 1.26 が該当）→ サポート内マイナーへ移行。`go vet` の新チェックや挙動変更を見込んでテストを流す。
-3. 依存の `go.mod` 下限が固定版を超えた。
-4. 必要な言語 / stdlib 機能がある。
-
-マイナー移行は **EOL 直前まで据え置く**（最新マイナーへの追従はしない）。
-
-手順は `.go-version` を書き換えて `./build.sh`（全プラグイン）→ 再ビルドされた全バイナリをコミット。`go.mod` の `go` ディレクティブは**言語の下限**であって固定版とは別の軸なので、引き上げに合わせて動かさない。
+固定版は `.go-version` の 1 か所。**上げてよい条件は VISION.md「Go バージョンの引き上げ方針」**（「新しい版が出たから」では上げない）。
+手順は `.go-version` を書き換えて `./build.sh`（全プラグイン）→ 再ビルドされた全バイナリをコミット。`go.mod` の `go` ディレクティブは動かさない。
 
 ## 実機検証（tmux + agy）
 
@@ -86,20 +78,28 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 - **引数のバイト列を問う検証は tmux 経由でやらない**。非印字文字や数十 KiB の値はシェル・プロンプト・モデルのどこかで壊れ、「通った」が「そもそも届いていない」を意味しうる。`bin/<name>` へ JSON-RPC を直接流す（`initialize` → `notifications/initialized` → `tools/call`）。
 - **相対パスはサーバーの cwd 基準**（`mcp_config.json` は `"cwd": ""`）。ワークスペース相対ではないので、引数のパスは絶対で渡す。
 
-## 非自明な地雷（詳細は LESSONS.md の番号付き教訓と末尾の判断ログ）
+## 非自明な地雷
 
-**実機の agy は 1.4.2** で、install・`${extensionPath}` 解決・MCP 起動・`rules/`・`agents/`・`hooks.json`・`PLUGIN_DATA`・`bin/` PATH をすべて実機再検証済み（2026-10-18）。
+現在有効な設計判断（マニフェスト形式・dispatcher・バイナリのコミット配布・skills 主体・フックの書き方と受け渡し）は **VISION.md** が正典。
+ここには作業中に踏みやすい手順上の注意だけを置く。根拠は LESSONS.md（`#N` は旧形式の番号付き教訓）。
 
-- **バイナリは追跡コミット必須**: `agy plugin install` はビルドせず git 追跡ファイルをコピーするだけ。`src/main.go` を変えたら全 OS 分（linux-amd64/darwin-arm64/windows）を再ビルド＆コミットしないと stale が配布される（#21）。
-- **単一 command を OS 分岐 dispatcher で全 OS 化**: `command` は1本の固定文字列で OS 別に切り替えられない。拡張子なし `bin/<name>`（shebang sh）が `uname` で実機ネイティブを `exec` し、Linux/macOS(arm64)/Windows を単一指定でカバー（実機検証: macOS arm64 で MCP 起動・hook 発火・install コピーで +x 保持を確認 #40）。
-- **`${extensionPath}` 解決条件と `${PLUGIN_ROOT}` の罠**: ソースに `gemini-extension.json` があり `plugin.json` が**無い**時のみ install 時に `${extensionPath}${/}` が絶対パスへ解決される（#1）。agy 1.3.2〜で native `plugin.json` 向けに `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` が入ったが、**`mcp_config.json` の `command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗する**（`args`/`env` のみ展開）。よって同梱バイナリ参照プラグインは引き続き `gemini-extension.json` 形式。
-- **ソース検査と install 後検査の使い分け**: agy 1.4.0〜の `agy plugin validate` は `plugin.json` を直接要求するため、`gemini-extension.json` 形式のソースディレクトリにはキットの `validator <src>` を使い、`agy plugin validate` は install 後（`~/.gemini/config/plugins/<name>`）または native `plugin.json` 形式に対して実行する。
-- **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。永続データは `~/.gemini/antigravity-cli/plugin_data/<name>`（環境変数 `PLUGIN_DATA`）へ。
-- **検証は MCP キャッシュのツール名で**: mtime 更新だけでなく中身（ツール名）で新サーバーを別人確認（#25）。キャッシュの場所は `mcp/<plugin>_<server>/`（上記「実機検証」参照）。
-- **agy の `rules/` は 1.4.2 で機能化・ただしツール知識は引き続き `skills/` 主体**: 1.0.8〜1.0.15 ではプラグイン `rules/` が非注入だったが（#22/#35/#41/#48）、1.4.2 では YAML frontmatter（`trigger: always_on | model_decision | glob` 必須、24KB 上限）付きの `rules/AGENTS.md` が `<user_rules>` に注入されることを確認。ただし `always_on` は全ルール共有の常時 20,000 トークン予算を消費するため、MCP ツールの引数リファレンスや手順は引き続きオンデマンドの `skills/<name>/SKILL.md` で配布する。
-- **agy の hooks は 1.0.9〜で機能化・変数未置換は 1.4.2 でも継続**: `PostToolUse` payload の `toolCall.args.TargetFile` に編集ファイル絶対パスが入り、`agy -p` でも発火、自前バイナリは PWD 相対で呼べる（#34）。ただし Windows はフックを `cmd /c` で起動し `validator/bin/...` の `/bin` をスイッチと読むため、command は `validator\bin\validator --hook || validator/bin/validator --hook`（JSON では `\\`）のように Windows 形と Unix 形を `||` でつなぐ（スラッシュ区切りだけだと Windows で全ツール結果がエラー化。Issue #30）。ただし `hooks.json` の `command` 内では 1.4.2 でも `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` は未置換（`sh -c` が空文字展開または `Bad substitution`）のため、PWD 相対パス指定を維持する。**`timeout` は秒単位**。**`PostToolUse` の出力（stderr / stdout）はモデルに届かない**ので、validator は `PreInvocation` の `--inject` で `ephemeralMessage` として差し込む（LESSONS 2026-10-18）。
+**実機の agy は 1.4.2**（2026-10-18 に install・MCP 起動・`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH を再検証）。
+
+- **ソースを変えたら全 OS 分のバイナリを再ビルドしてコミット**。忘れると stale が配布される（#21。CI の stale ゲートでも落ちる）。
+- **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。
+  install 先の名前はマニフェストの `name` で決まるので、削除はその名前で行う。
+- **ソース検査は `validator <src>`、install 後の検査は `agy plugin validate`**（後者は `plugin.json` を直接要求する）。
+- **起動の証拠は MCP キャッシュのツール名**: mtime だけでなく中身で新サーバーを確認する（#25）。場所は `mcp/<plugin>_<server>/`。
+- **フックの差し込みの確認**: `ephemeralMessage` は直後の 1 回のモデル呼び出しにしか見えない。検証プロンプトは「書いた直後に報告」させ、
+  届いたかは transcript の `EPHEMERAL_MESSAGE` で判定する（LESSONS 2026-10-18）。
 
 ## ドキュメント地図
 
-- `LESSONS.md` — 番号付き実装教訓（最重要・着手前に grep）＋ 末尾に設計判断ログ（意思決定の経緯）
-- `PLAN.md` — フェーズ境界と現在地 / `README.md` — 利用者向け
+矛盾時の優先順は **VISION.md > PLAN.md > コード > NOTES.md**（`LESSONS.md` は序列外＝仕様ではなく記録）。
+
+- `VISION.md` — 正典（目的・スコープ・非スコープ・現在有効な設計判断）。更新はユーザー承認が必要
+- `PLAN.md` — フェーズ境界と現在地だけ
+- `NOTES.md` — 内部構造の索引（揮発・鮮度非保証）。agy 側のログ・キャッシュ・transcript の場所もここ
+- `LESSONS.md` — 追記専用の判断記録（冒頭に区画の説明。新エントリは末尾へ）。着手前に grep する
+- `hook-investigation-report.md` / `plugin-gotchas.md` / `claude-import-investigation.md` — 調査資料（NOTES.md に索引）
+- `README.md` — 利用者向け
