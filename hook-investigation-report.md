@@ -269,7 +269,8 @@ agy バイナリの strings 解析で注入経路を特定した:
 ### 9.4 未検証
 
 - ~~Windows（`cmd /c` で実行される）~~ → §10 で検証済み（旧 command は起動しない。`||` でつなぐ形で解消）。
-- macOS の実機で、§10 の新しい command の `--hook` / `--inject` が起動するか。
+- ~~macOS の実機で、§10 の新しい command の `--hook` / `--inject` が起動するか~~ → §10.4 で検証済み。
+- Linux の実機で、§10 の新しい command に回帰が無いか。
 - 1.4.2 より前の agy で `PreInvocation` キーがどう扱われるか。
 
 ---
@@ -305,5 +306,19 @@ agy バイナリの strings 解析で注入経路を特定した:
 
 - Windows（`cmd /c`）: 前半が `validator.exe` に解決されて起動し、常に 0 で終わるので後半は走らない。
 - Linux / macOS（`sh -c`）: 前半はバックスラッシュがエスケープになって `validatorbinvalidator: not found`（stderr のみ・stdin は消費しない）。後半の OS 分岐 dispatcher が起動し、stdout は `{}` だけになる。
-- Windows 実機で Issue #30 の手順 3〜6 がすべて期待どおりになった。C2 が逐語でモデルに届き、`post-tool hooks failed` / `failed to call custom pre-invocation hook` / `unmarshal result` は 0 件、relay は空、マニフェスト以外の書き込みは成功として返った。Unix 側は Git Bash の `sh -c` で解釈を確認しただけで、Linux / macOS の実機では未確認。
+- Windows 実機で Issue #30 の手順 3〜6 がすべて期待どおりになった。C2 が逐語でモデルに届き、`post-tool hooks failed` / `failed to call custom pre-invocation hook` / `unmarshal result` は 0 件、relay は空、マニフェスト以外の書き込みは成功として返った。macOS は §10.4 で実機確認した。Linux は実機では未確認。
 
+### 10.4 macOS での確認（2026-10-18）
+
+**対象:** agy 1.4.2（macOS arm64）、master @ a443caf。Issue #30 の手順 1〜6 を、新しい command（`validator\bin\validator --hook || validator/bin/validator --hook`）で実施した。手順 3・6 は書き込みの許可が要るため、headless（`agy -p` は `write_file` を自動拒否）ではなく tmux の対話モードで行った。
+
+| 手順 | 結果 |
+|---|---|
+| 1 クリーン install | OK。`hooks : 1 processed`。`validator/bin/*` は `cmp` で一致し、4 ファイルとも +x |
+| 2 読み込み | OK。CLI ログに `loaded 1 named hooks from 1 hooks.json file(s)` |
+| 3 通し試験 | OK。モデルが `[agy-plugin-kit validator] ...` と `[ERROR] C2 ...` を逐語で返した |
+| 4 ログ | OK。`post-tool hooks failed` / `failed to call custom pre-invocation hook` / `unmarshal result` は 0 件。`JSON hook command stderr:` に前半の `sh: validatorbinvalidator: command not found` と、後半の validator が出した C2 の検査結果が残る |
+| 5 relay | OK。`~/Library/Caches/agy-plugin-kit/relay/` は空 |
+| 6 ツール結果 | OK。`note.txt` の書き込みは `Created file ... with requested content.` として返った |
+
+- 前半の not found はフックごとに毎回 CLI ログへ出るが、終了コードは後半で決まるので失敗扱いにはならない。

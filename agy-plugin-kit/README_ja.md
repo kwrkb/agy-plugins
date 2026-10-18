@@ -82,7 +82,7 @@ copy-only で問題ありません（自身が C1 を踏まない）。
   そこで前半にバックスラッシュ形を置く（`cmd` は PATHEXT で `validator.exe` を選ぶ）。`sh` ではバックスラッシュがエスケープになり、
   前半は not found（stderr のみ・stdin は消費しない）で、後半の OS 分岐 dispatcher が実機ネイティブを `exec` する。
   パスをクォートで囲む案は、agy が内側の `"` を `\"` にエスケープし `cmd` が解釈できないため使えない
-  （Windows 実機検証: agy 1.4.2。macOS arm64 では旧 command で発火確認済み・新 command は未確認。Issue #30）。
+  （実機検証: agy 1.4.2 の Windows と macOS arm64。Issue #30）。
 - ツール種別の選別は **validator 側のコードで** 行う（`toolCall.args.TargetFile` が入る編集系ステップだけ
   反応し、マニフェスト basename 以外は無音）。matcher にツール名を書かない（agy のツール名は
   新規作成=`write_to_file` / 既存編集=`replace_file_content` と版で異なるため）。
