@@ -8,7 +8,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 
 | コンポーネント | 内容 |
 | :-- | :-- |
-| **`validator/`**（Go・`src/`＋`bin/`） | agy 非依存の決定的バリデータ。C1〜C10 のトラップを検出（下表）。`--fix-paths` モードあり。`bin/` に linux-amd64 / darwin-arm64 / windows のネイティブと OS 分岐 dispatcher を同梱 |
+| **`validator/`**（Go・`src/`＋`bin/`） | agy 非依存の決定的バリデータ。C1〜C11 のトラップを検出（下表）。`--fix-paths` モードあり。`bin/` に linux-amd64 / darwin-arm64 / windows のネイティブと OS 分岐 dispatcher を同梱 |
 | **コマンド** `/agy-plugin-kit:new` | マニフェスト形式を自動選択して正しい雛形を生成（量産エンジン） |
 | **コマンド** `/agy-plugin-kit:validate` | 対象プラグインを静的検査して要約 |
 | **コマンド** `/agy-plugin-kit:doctor` | `agy plugin validate` ＋ キット検査 ＋ 修正（Issue #390 の絶対パス自動埋め込み含む） |
@@ -30,6 +30,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | C8 | `${CLAUDE_PLUGIN_ROOT}`（agy に存在しないトークン） | ERROR |
 | C9 | 同梱 Go ラッパーが自前で stdout に書く（NDJSON 破壊。heuristic） | WARN |
 | C10 | `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: マニフェスト形式を問わず `${extensionPath}`/`${PLUGIN_ROOT}` は空文字展開、`${/}` は `Bad substitution` になり hook 起動失敗。`${PLUGIN_DATA}` は未実測だが同種として扱う） | WARN |
+| C11 | `hooks.json` の `timeout` が 600 を超える（agy の `timeout` は**秒単位**・既定 30。Claude Code のミリ秒の値 `10000` は約 2.8 時間になる） | WARN |
 
 ## インストール
 
@@ -60,9 +61,18 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 ## `hooks.json` の自動バリデーション（agy 1.0.9〜、Linux / macOS / Windows）
 
 `hooks.json` を同梱し、**マニフェスト（`plugin.json` / `gemini-extension.json` / `mcp_config.json` /
-`hooks.json`）を編集すると validator が自動で走り**、見つかった問題を stderr に助言として出します
+`hooks.json`）を編集すると validator が自動で走り**、見つかった問題をエージェントに助言として届けます
 （非ブロッキング・常に exit 0）。仕組み:
 
+- **2 つのフックで受け渡す**: `PostToolUse` の `validator --hook` が検査結果を stderr（CLI ログ）に出すとともに、
+  ユーザーごとのキャッシュディレクトリ（`os.UserCacheDir()` 配下の `agy-plugin-kit/relay/<conversationId>.txt`、0700）に書く（stdout は常に `{}`）。
+  中身はそのままエージェントに差し込まれるので、共有の `/tmp` は使わず、シンボリックリンクや他ユーザーが触れる場所なら受け渡しを諦める。
+  `PreInvocation` の `validator --inject` がそれを読んで消し、`injectSteps` の `ephemeralMessage` として
+  次のモデル呼び出しの直前（同じターン内）に差し込む。
+  agy 1.4.2 では `PostToolUse` の stderr はモデルにも TUI にも届かず（CLI ログのみ）、stdout での差し込みも
+  できない（`injectSteps` は unknown field としてツール結果ごとエラー化、`overwriteResult` は無視）ため、この形にしている（LESSONS 2026-10-18）。
+- `timeout` は**秒単位**（agy の既定は 30）。Claude Code のミリ秒とは違う。
+- 受け渡し方式は agy 1.4.2 で実機確認した。`PreInvocation` のフックが失敗してもモデル呼び出しは止まらない（CLI ログに残るだけ）。1.4.2 より前の agy で `PreInvocation` キーがどう扱われるかは未確認。
 - `PostToolUse` の `matcher: ".*"`、`command: "validator/bin/validator --hook"`（PWD=install 先の相対パス。
   `${extensionPath}`/`${PLUGIN_ROOT}`/`${/}` は使わない＝C10/C2 を踏まない）。`validator/bin/validator` は OS 分岐 dispatcher で、
   hook 経路でも shebang 解釈で実機ネイティブを `exec` する（実機検証: macOS arm64 で発火確認）。

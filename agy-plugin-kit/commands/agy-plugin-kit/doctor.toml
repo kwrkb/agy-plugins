@@ -20,6 +20,7 @@ agy プラグインを診断して修正します。対象パス: {{args}}。
    - **C4**（同梱バイナリが gitignore 対象）: `.gitignore` を修正し対象を明示コミットする。
    - **C8**（`${CLAUDE_PLUGIN_ROOT}`）: agy には無いので除去し、MCP `args`/`env` なら `${PLUGIN_ROOT}`、同梱バイナリ `command` なら `gemini-extension.json` の `${extensionPath}` 方式へ。
    - **C10**（`hooks.json` で変数使用）: `hooks.json` では `${extensionPath}` も `${PLUGIN_ROOT}` も展開されないため、プラグインルートからの PWD 相対パスへ書き換える。
+   - **C11**（`hooks.json` の `timeout` が長すぎる）: agy の `timeout` は秒単位。ミリ秒のつもりで書いた値なら 1000 で割った秒数に直す（例: `10000` → `10`）。
 4. 破壊的な書き換え（--fix-paths や .gitignore 変更）は実行前に必ず差分と意図を説明し、同意を取る。
 5. 修正後に再度 validator を実行して 0 エラーを確認する。
 """

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -251,4 +254,220 @@ func TestValidateAgy142Rules(t *testing.T) {
 			t.Errorf("expected no C2 for ${extensionPath}${/} in gemini-extension.json command, got %+v", fs)
 		}
 	})
+}
+
+// useRelayDir は受け渡しファイルの置き場をテスト用の一時ディレクトリに差し替える。
+func useRelayDir(t *testing.T) string {
+	t.Helper()
+	d := filepath.Join(t.TempDir(), "relay")
+	orig := relayDir
+	relayDir = func() string { return d }
+	t.Cleanup(func() { relayDir = orig })
+	return d
+}
+
+func TestRelayPath(t *testing.T) {
+	useRelayDir(t)
+	for _, id := range []string{"ec33ebf9-0cba-4100-8142-c61503f6c587", "abc_DEF-1"} {
+		if _, ok := relayPath(id, true); !ok {
+			t.Errorf("relayPath(%q) rejected a valid id", id)
+		}
+	}
+	for _, id := range []string{"", "../x", "a/b", `a\b`, "a.b", strings.Repeat("a", 129)} {
+		if _, ok := relayPath(id, true); ok {
+			t.Errorf("relayPath(%q) accepted an unsafe id", id)
+		}
+	}
+}
+
+// --hook が残した検査結果を --inject が ephemeralMessage として 1 回だけ差し込むことを検証する。
+func TestHookInjectRelay(t *testing.T) {
+	useRelayDir(t)
+	plugin := t.TempDir()
+	mustWrite(t, filepath.Join(plugin, "plugin.json"), `{"name":"p"}`)
+	mustWrite(t, filepath.Join(plugin, "mcp_config.json"), `{"mcpServers":{"s":{"command":"${PLUGIN_ROOT}/bin/srv"}}}`)
+	const conv = "ec33ebf9-0cba-4100-8142-c61503f6c587"
+	hookPayload := func(target string) []byte {
+		b, _ := json.Marshal(map[string]any{
+			"conversationId": conv,
+			"toolCall":       map[string]any{"name": "write_to_file", "args": map[string]string{"TargetFile": target}},
+		})
+		return b
+	}
+	injectPayload := []byte(`{"conversationId":"` + conv + `","invocationNum":2}`)
+
+	var log bytes.Buffer
+	handleHook(hookPayload(filepath.Join(plugin, "plugin.json")), &log)
+	if !strings.Contains(log.String(), "C2") {
+		t.Fatalf("hook log should contain C2, got %q", log.String())
+	}
+
+	var got struct {
+		InjectSteps []struct {
+			EphemeralMessage string `json:"ephemeralMessage"`
+		} `json:"injectSteps"`
+	}
+	if err := json.Unmarshal(injectOutput(injectPayload), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.InjectSteps) != 1 || !strings.Contains(got.InjectSteps[0].EphemeralMessage, "C2") {
+		t.Fatalf("expected one ephemeralMessage containing C2, got %+v", got)
+	}
+	if out := string(injectOutput(injectPayload)); out != "{}" {
+		t.Errorf("relay should be consumed once, second inject = %s", out)
+	}
+
+	t.Run("non-manifest edit leaves nothing to inject", func(t *testing.T) {
+		handleHook(hookPayload(filepath.Join(plugin, "README.md")), &bytes.Buffer{})
+		if out := string(injectOutput(injectPayload)); out != "{}" {
+			t.Errorf("inject after non-manifest edit = %s, want {}", out)
+		}
+	})
+
+	t.Run("Claude payload without conversationId does not relay", func(t *testing.T) {
+		claude, _ := json.Marshal(map[string]string{"file_path": filepath.Join(plugin, "plugin.json")})
+		handleHook(claude, &bytes.Buffer{})
+		if out := string(injectOutput(injectPayload)); out != "{}" {
+			t.Errorf("inject after Claude payload = %s, want {}", out)
+		}
+	})
+
+	t.Run("unparsable inject payload yields {}", func(t *testing.T) {
+		if out := string(injectOutput([]byte("not json"))); out != "{}" {
+			t.Errorf("injectOutput(garbage) = %s, want {}", out)
+		}
+	})
+}
+
+// 他ユーザーが書ける・シンボリックリンクの受け渡し先は使わない（中身がエージェントに差し込まれるため）。
+func TestRelayRejectsUnsafeLocations(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits and symlinks are Unix-specific here")
+	}
+	const conv = "ec33ebf9-0cba-4100-8142-c61503f6c587"
+
+	t.Run("group/world-writable dir", func(t *testing.T) {
+		d := useRelayDir(t)
+		if err := os.MkdirAll(d, 0o777); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(d, 0o777); err != nil {
+			t.Fatal(err)
+		}
+		mustWrite(t, filepath.Join(d, conv+".txt"), "planted")
+		if got := takeRelay(conv); got != "" {
+			t.Errorf("takeRelay read from a 0777 dir: %q", got)
+		}
+		if err := appendRelay(conv, "x"); err == nil {
+			t.Error("appendRelay wrote into a 0777 dir")
+		}
+	})
+
+	t.Run("symlinked dir", func(t *testing.T) {
+		d := useRelayDir(t)
+		real := t.TempDir()
+		if err := os.Chmod(real, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(real, d); err != nil {
+			t.Fatal(err)
+		}
+		mustWrite(t, filepath.Join(real, conv+".txt"), "planted")
+		if got := takeRelay(conv); got != "" {
+			t.Errorf("takeRelay followed a symlinked dir: %q", got)
+		}
+	})
+
+	t.Run("symlinked relay file", func(t *testing.T) {
+		d := useRelayDir(t)
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		target := filepath.Join(t.TempDir(), "secret")
+		mustWrite(t, target, "planted")
+		if err := os.Symlink(target, filepath.Join(d, conv+".txt")); err != nil {
+			t.Fatal(err)
+		}
+		if got := takeRelay(conv); got != "" {
+			t.Errorf("takeRelay followed a symlinked file: %q", got)
+		}
+		if err := appendRelay(conv, "x"); err == nil {
+			t.Error("appendRelay wrote through a symlinked file")
+		}
+	})
+}
+
+// 受け渡しファイルを消費できない（ディレクトリが読み取り専用になった等）時は、
+// 同じ検査結果を PreInvocation のたびに差し込み続けず、何も返さない。
+func TestTakeRelayDoesNotRepeatWhenUnconsumable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission bits are Unix-specific here")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	const conv = "ec33ebf9-0cba-4100-8142-c61503f6c587"
+	d := useRelayDir(t)
+	if err := appendRelay(conv, "finding"); err != nil {
+		t.Fatal(err)
+	}
+	// 0500 は safeRelayDir の検査（group/other 権限なし）は通るが、rename/remove はできない。
+	if err := os.Chmod(d, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(d, 0o700) })
+
+	for i := 0; i < 2; i++ {
+		if got := takeRelay(conv); got != "" {
+			t.Fatalf("takeRelay #%d returned %q from an unconsumable relay file; want \"\"", i+1, got)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(d, conv+".txt")); err != nil {
+		t.Fatalf("relay file should be left in place: %v", err)
+	}
+
+	// 書けるようになれば一度だけ届き、消費後の残骸も残らない。
+	if err := os.Chmod(d, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if got := takeRelay(conv); got != "finding" {
+		t.Errorf("takeRelay after restoring permissions = %q, want %q", got, "finding")
+	}
+	if got := takeRelay(conv); got != "" {
+		t.Errorf("relay should be consumed once, second take = %q", got)
+	}
+	if ents, err := os.ReadDir(d); err != nil || len(ents) != 0 {
+		t.Errorf("relay dir should be empty after consumption, got %v (err %v)", ents, err)
+	}
+}
+
+// C11: Claude Code のミリ秒の timeout を agy の hooks.json に持ち込むと警告する。
+func TestValidateHookTimeoutC11(t *testing.T) {
+	cases := []struct {
+		name  string
+		hooks string
+		want  bool
+	}{
+		{"agy named hook with ms value", `{"h":{"PostToolUse":[{"matcher":".*","hooks":[{"type":"command","command":"x","timeout":10000}]}]}}`, true},
+		{"legacy top-level hooks with ms value", `{"hooks":{"PostToolUse":[{"matcher":".*","hooks":[{"command":"x","timeout":10000}]}]}}`, true},
+		{"seconds value", `{"h":{"PreInvocation":[{"type":"command","command":"x","timeout":10}]}}`, false},
+		{"boundary 600 is allowed", `{"h":{"PreInvocation":[{"command":"x","timeout":600}]}}`, false},
+		{"no timeout", `{"h":{"PreInvocation":[{"command":"x"}]}}`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+			mustWrite(t, filepath.Join(dir, "hooks.json"), c.hooks)
+			got := false
+			for _, f := range validate(dir) {
+				if f.code == "C11" {
+					got = true
+				}
+			}
+			if got != c.want {
+				t.Errorf("C11 = %v, want %v", got, c.want)
+			}
+		})
+	}
 }

@@ -86,11 +86,12 @@ Pythonで取得した `os.getcwd()` の結果は以下の通りだった。
 - 自動バリデーションの夢は一旦捨て、確実なコマンドトリガー（`/agy-plugin-kit:validate` や `:doctor`）に依存する設計を標準とする。
 - 将来のアップデートで、フックのペイロードに `toolCall` や `file_path` が格納されるようになり、変数置換バグが修正されたタイミングで再導入を検討する。
 
-**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 ＝§5、2026-06-20 / agy 1.0.10 ＝§6、2026-10-18 / agy 1.4.2 ＝§8）**
+**再評価トリガー（agy バージョンアップ時）:** agy を更新したら `agy changelog` を確認し、以下が改善されていれば本調査をやり直してフック／`rules` の再導入を判断する。**（2026-06-17 / agy 1.0.9 ＝§5、2026-06-20 / agy 1.0.10 ＝§6、2026-10-18 / agy 1.4.2 ＝§8・§9）**
 - [x] フック payload に `toolCall` / `file_path`（編集ファイルパス）が入るようになったか（§2 事実1）→ **✅ 1.0.9 で解消**（`toolCall.args.TargetFile`）／1.4.2 でも維持
 - [ ] `hooks.json` 内の `${extensionPath}` / `${PLUGIN_ROOT}` / `${/}` が実行時に置換されるようになったか（§2 事実2）→ **❌ 1.4.2 でも未置換**（`sh -c` が空文字展開、`${/}` は `Bad substitution`。引き続き PWD 相対パスで回避）
 - [x] フックが対話セッションで安定発火するようになったか（§2 事実4）→ **✅ 1.0.9 で改善**（n=2）／**1.0.10 で動的リロード確認**（§6.1）
 - [x] `rules/`（プラグイン内 / プロジェクト）がシステムプロンプトに注入されるか（§4）→ **✅ 1.0.10 でプロジェクト `.agents/AGENTS.md`、1.4.2 でプラグイン内 `rules/*.md`（要 frontmatter `trigger:`）の注入を確認**（§8.2）
+- [ ] フックの出力がモデルに届くようになったか（`PostToolUse` の stderr、または stdout の `injectSteps` / `overwriteResult`）→ **❌ 1.4.2 では届かない**（stderr は CLI ログのみ、`injectSteps` は unknown field でツール結果ごとエラー化、`overwriteResult` は無視。`PreInvocation` の `ephemeralMessage` で受け渡して回避＝§9）
 
 ---
 
@@ -234,3 +235,39 @@ agy バイナリの strings 解析で注入経路を特定した:
 - プラグイン内に `rules/AGENTS.md`（先頭に YAML frontmatter `trigger: always_on`）を配置し、ワークスペース配置（`.agents/plugins/`）とグローバル install（`agy plugin install`）の両方で検証した結果、エージェントの `<user_rules>` にマーカー（`CANARY-RULE-7731`）が注入されることを確認した。
 - なお `agy 1.4.1` のバリデーション仕様により、プラグインの `rules/*.md` には有効な `trigger`（`always_on` / `model_decision` / `glob`）の frontmatter が必須となった（1ファイル 24KB 上限、常時ルール合計 20,000 トークン予算）。
 - **設計方針**: 常時ルールはコンテキスト予算を毎ターン消費するため、MCP ツールの引数リファレンスや手順書は引き続きオンデマンドの `skills/<name>/SKILL.md` で配布する。
+
+---
+
+## 9. 追記: agy 1.4.2 でのフック出力経路と timeout の実測（2026-10-18）
+
+**対象:** agy 1.4.2（Linux）。きっかけは、tmux の対話検証で validator フックが起動して C2 を出しているのに、結果がモデルにも TUI にも出なかったこと。使い捨てのプラグインを install し、目印の文字列でモデルの返答と transcript の両方を確かめた。
+**結論: `PostToolUse` からはモデルに何も届かない。`PostToolUse` がファイルに書き、`PreInvocation` の `ephemeralMessage` で差し込めば同じターン内に届く。`timeout` は秒単位。**
+
+### 9.1 フックの出力経路
+
+| 経路 | 結果 |
+|---|---|
+| `PostToolUse` の stderr | CLI ログ（`~/.gemini/antigravity-cli/log/cli-*.log`）に `JSON hook command stderr:` として残るだけ。TUI にもモデルの文脈にも出ない |
+| `PostToolUse` の stdout に `{"injectSteps":[...]}` | `failed to unmarshal result from hook ... via protojson: ... unknown field "injectSteps"`。ファイルは書けているのに、ツール結果全体が `Encountered error in tool execution` に置き換わる |
+| `PostToolUse` の stdout に `{"overwriteResult":"..."}` | エラーにはならないが無視される（`write_to_file` / `view_file` で確認）。フックへの入力にも `result` は入っていない |
+| `PreInvocation` の stdout に `{"injectSteps":[{"ephemeralMessage":"..."}]}` | headless・対話のどちらでもモデルに届く |
+| `PostToolUse` → `conversationId` ごとのファイル → `PreInvocation` | 書き込み直後、同じターン内のモデル呼び出しに届く。transcript ではツールのステップ直後に `EPHEMERAL_MESSAGE`、その次がモデルの応答。`PreInvocation` は `PostToolUse` の約 1ms 後に起動した |
+
+- 本体に埋め込まれたフック仕様（strings で確認）でも、`PostToolUse` の出力は「`{}` を期待」とされている。`overwriteResult` は出力の proto には定義されているが、仕様書には無い（未対応の `type: "prompt"` フック向けの定義と見られる）。
+- 本キットの validator はこの結果を受けて、`--hook`（`PostToolUse`）と `--inject`（`PreInvocation`）の受け渡し方式に改めた。受け渡しファイルは `os.UserCacheDir()/agy-plugin-kit/relay/<conversationId>.txt`（0700）に置く。
+
+### 9.2 フックの失敗の扱い
+
+- **`PostToolUse`**: 1 つでも失敗（打ち切り・出力の解析エラー）すると、ツールの呼び出し全体がモデルからはエラーに見える（書き込み自体は成功していても）。
+- **`PreInvocation`**: 非 0 終了・JSON でない出力・コマンドが見つからない（127）のいずれでも、モデルの呼び出しは止まらず、返答が届いた。CLI ログに `failed to call custom pre-invocation hook` が残るだけ。
+
+### 9.3 timeout の単位
+
+- `timeout: 2` で `sleep 1` するハンドラはエラーなく完了し、`timeout: 1` で `sleep 3` するハンドラは起動から約 1〜2 秒後に `signal: killed` になった。**秒単位**（埋め込み仕様も「seconds, default 30」）。キットの旧 `"timeout": 10000` は約 2.8 時間を意味していた（validator の C11 で検出するようにした）。
+- 打ち切られるのは `sh -c` の外側のプロセスだけで、その中から起動した子のスクリプトは残って最後まで走った。
+
+### 9.4 未検証
+
+- Windows（`cmd /c` で実行される）と macOS の実機で、`--hook` / `--inject` が起動するか。
+- 1.4.2 より前の agy で `PreInvocation` キーがどう扱われるか。
+

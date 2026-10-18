@@ -68,6 +68,15 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
   ただし **1.4.2 でも `hooks.json` の `command` 内では `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` は一切展開されない**
   （`sh -c` が未定義変数として空文字展開し `/hook.sh: No such file` になるか、`${/}` で `Bad substitution` になる＝C10 警告）。
   フック実行時の `pwd` はプラグインルートになるため、command は必ず **PWD 相対パス**（例: `validator/bin/validator --hook`）で書く。
+  - **`timeout` は秒単位**（既定 30）。Claude Code のミリ秒の値（例: `10000`）を書くと約 2.8 時間の意味になる（1.4.2 実測）。
+  - **フックの出力は agy が JSON として厳格に解釈する**。`PostToolUse` の stdout は `{}` 以外を書かない。未知の項目を返したり
+    異常終了・timeout したりすると、ツール結果全体がモデルからはエラーに見える（書き込み自体は成功していても）。
+  - **`PostToolUse` からはモデルに何も届かない**（1.4.2 実測）: stderr は CLI ログにしか出ず、stdout の `injectSteps` は
+    unknown field でエラー、`overwriteResult` は無視される。モデルに届けたい時は、`PostToolUse` が `conversationId` ごとの
+    ファイルに書き、`PreInvocation` が読んで `{"injectSteps":[{"ephemeralMessage":"..."}]}` を返す（同じターン内に届く。本キットの validator がこの方式）。
+    `PreInvocation` のフックが失敗（非 0 終了・JSON でない出力・コマンド不在）してもモデル呼び出しは止まらず、CLI ログに残るだけ（1.4.2 実測）。
+  - 構造は agy の名前付き形式 `{"<hook-name>": {"PostToolUse": [{"matcher": ".*", "hooks": [...]}], "PreInvocation": [{...}]}}`。
+    `PreToolUse`/`PostToolUse` は `matcher`＋`hooks` のグループ、`PreInvocation`/`PostInvocation`/`SessionStart`/`Stop` はハンドラを直接並べる。
 - **`rules/*.md`（agy 1.4.2 で機能化確認・用途を絞って使う）**: 1.0.8〜1.0.15 ではプラグイン `rules/` が `<user_rules>` に
   注入されなかったが、**1.4.2 実機検証で YAML frontmatter（`trigger: always_on | model_decision | glob` 必須、24KB 上限）付きの
   `rules/AGENTS.md` が `<user_rules>` に自動注入されることを確認**（ルート直下の `AGENTS.md` は validate 警告となるため `rules/` 配下に置く）。

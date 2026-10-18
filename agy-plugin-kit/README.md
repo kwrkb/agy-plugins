@@ -6,7 +6,7 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 
 | Component | Description |
 | :-- | :-- |
-| **`validator/`** (Go `src/` + `bin/`) | Deterministic validator detecting traps C1–C10. Includes `--fix-paths` mode and precompiled multi-platform binaries |
+| **`validator/`** (Go `src/` + `bin/`) | Deterministic validator detecting traps C1–C11. Includes `--fix-paths` mode and precompiled multi-platform binaries |
 | **Command** `/agy-plugin-kit:new` | Scaffolds compliant plugins with automatic manifest format selection |
 | **Command** `/agy-plugin-kit:validate` | Statically checks target plugin and provides structured summary |
 | **Command** `/agy-plugin-kit:doctor` | Combines `agy plugin validate` + kit checks + automated path fixes (Issue #390 workaround) |
@@ -28,6 +28,7 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 | C8 | Using `${CLAUDE_PLUGIN_ROOT}` (Claude-only variable, invalid in agy) | ERROR |
 | C9 | Go wrappers writing diagnostic text to stdout instead of stderr | WARN |
 | C10 | Using `${extensionPath}`, `${PLUGIN_ROOT}`, `${PLUGIN_DATA}`, or `${/}` in `hooks.json` (verified on real devices: `${extensionPath}`/`${PLUGIN_ROOT}` expand to empty and `${/}` causes `Bad substitution` regardless of manifest format; `${PLUGIN_DATA}` treated the same) | WARN |
+| C11 | `timeout` in `hooks.json` above 600 (agy `timeout` is in **seconds**, default 30; a Claude Code millisecond value such as `10000` means ~2.8 hours) | WARN |
 
 ## Installation
 
@@ -37,4 +38,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 
 ## Automatic Validation Hook (`hooks.json`)
 
-Includes `hooks.json` to automatically trigger validation on editing plugin manifests (`plugin.json`, `gemini-extension.json`, `mcp_config.json`, `hooks.json`), outputting non-blocking feedback to stderr.
+Includes `hooks.json` to automatically trigger validation on editing plugin manifests (`plugin.json`, `gemini-extension.json`, `mcp_config.json`, `hooks.json`), and delivering the findings to the agent (non-blocking, always exit 0).
+
+- `PostToolUse` → `validator/bin/validator --hook`: validates when a manifest was edited, logs the findings to stderr, and stores them in a per-`conversationId` relay file under the per-user cache directory (`os.UserCacheDir()/agy-plugin-kit/relay`, mode 0700; symlinks and group/world-accessible locations are refused because the contents are injected into the agent). Its stdout is always `{}`.
+- `PreInvocation` → `validator/bin/validator --inject`: consumes the relay file and injects the findings as an `ephemeralMessage` right before the next model call (same turn).
+- Why the relay: on agy 1.4.2, `PostToolUse` stderr reaches neither the model nor the TUI (CLI log only), and `PostToolUse` stdout cannot inject anything (`injectSteps` is rejected as an unknown field and turns the whole tool result into an error; `overwriteResult` is ignored).
+- `timeout` in agy `hooks.json` is in **seconds** (default 30), not milliseconds.
