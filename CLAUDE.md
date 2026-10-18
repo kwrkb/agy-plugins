@@ -12,7 +12,7 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 - `github/` — `gh` CLI を exec する自作 Go 製 MCP サーバー。module `github.com/kwrkb/agy-plugins/github`（`github/src/`）。
 - `ast-grep/` — `ast-grep` CLI を exec。`retro-status/` — リポジトリ解析。`settings-advisor/` — Gemini の settings 助言。`go-lsp/` — `gopls` 経由の Go LSP（definition/references/hover）。`worktree-manager/` — Git worktree 管理。`test-runner/` — Go テスト実行と失敗ログ・再実行引数の返却。いずれも Go 製 MCP サーバーで src/bin 構成、module パスは `github.com/kwrkb/agy-plugins/<name>`。
 - `gitlab/` — `glab mcp serve` を呼ぶ薄い設定のみ（`plugin.json` + `mcp_config.json`、Go バイナリ無し＝src/bin 非対象）。
-- `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/` `commands/` `templates/`。hook は `validator/bin/validator --hook`。
+- `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/` `commands/` `templates/`。フックは `hooks.json`（PostToolUse → `--hook`、PreInvocation → `--inject`）。
 
 ## コマンド
 
@@ -37,7 +37,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 ## 実機検証（tmux + agy）
 
-agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.2 では install・`agy plugin validate`・MCP 起動まで再確認済み（tmux 経由のツール実行の通しは 1.4.2 で未再実施。注意点は末尾の注記）。
+agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.2 でも tmux 経由のツール実行まで通しで再確認済み（2026-10-18。注意点は末尾の注記）。
 
 ```bash
 # 1) クリーン install を再現（git 追跡ファイルのみ＝URL install と等価）
@@ -76,6 +76,9 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 - **キャッシュのディレクトリ名は `<plugin>_<server>`**（例 `test-runner_test-runner`）。`mcp/<plugin>` を消しても**何も消えず**、残った古いキャッシュを新サーバーと誤認する。
 - **`agy -p`（headless）では MCP ツールが自動拒否される**（`a tool required the "mcp" permission that headless mode cannot prompt for`）。ツール実行の検証は対話モードで行う。サーバー起動とツール探索だけなら headless でもキャッシュに現れる。
 - **引数のバイト列を問う検証は tmux 経由でやらない**。非印字文字や数十 KiB の値はシェル・プロンプト・モデルのどこかで壊れ、「通った」が「そもそも届いていない」を意味しうる。`bin/<name>` へ JSON-RPC を直接流す（`initialize` → `notifications/initialized` → `tools/call`）。
+- **起動直後の最初のプロンプトは、MCP 一覧が空のままモデルに送られることがある**（ログに `prompt section "mcp_servers"` が空という警告）。
+  モデルが `run_command` でバイナリへ JSON-RPC を直接送って結果を返し、MCP 経由と区別できなくなる。`/mcp` で全サーバー ✓ を確認してから送り、
+  証拠は TUI の `Called N MCP tool (<plugin>_<server>/<tool>)` 表示で取る（LESSONS 2026-10-18）。
 - **相対パスはサーバーの cwd 基準**（`mcp_config.json` は `"cwd": ""`）。ワークスペース相対ではないので、引数のパスは絶対で渡す。
 
 ## 非自明な地雷

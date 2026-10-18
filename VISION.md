@@ -15,7 +15,7 @@ Linux / macOS / Windows のどれでも動く形**で配布する。あわせて
 - 外部 CLI（`gh` / `ast-grep` / `gopls` / `git` / `go`）を呼ぶ、またはリポジトリを解析する Go 製 MCP サーバー:
   github / ast-grep / go-lsp / worktree-manager / test-runner / retro-status / settings-advisor
 - 公式 MCP サーバーを設定だけで使うプラグイン: gitlab（`glab mcp serve`）
-- agy-plugin-kit: 雛形・スラッシュコマンド・オーサリング skill と、agy 非依存の決定的な validator（C1〜C11）。
+- agy-plugin-kit: 雛形・スラッシュコマンド・オーサリング skill と、agy 非依存の決定的な validator。
   マニフェスト編集時に validator を走らせ、結果をエージェントへ届けるフックを同梱する
 - 配布対象の OS/arch: linux-amd64 / darwin-arm64 / windows-amd64
 
@@ -23,8 +23,10 @@ Linux / macOS / Windows のどれでも動く形**で配布する。あわせて
 
 - 上記 3 つ以外の OS/arch 向けバイナリ（darwin-amd64、linux-arm64 など）
 - 公式の MCP 機能を持つ CLI のラッパーを自前で再実装すること（gitlab は `glab mcp serve` をそのまま使う）
-- API ラッパー型 MCP サーバーの中で commit / push などの git 操作を行うこと（ホストエージェントの責務）
-- 利用者に手作業の環境設定（トークンの export、PATH へのバイナリ配置など）を求める配布方法
+- API ラッパー型 MCP サーバー（github / gitlab など）の中で commit / push などの git 操作を行うこと（ホストエージェントの責務。
+  worktree-manager の worktree 操作はこれに当たらない）
+- プラグイン自身の MCP サーバーバイナリを利用者に PATH へ置かせる、またはトークンを手動で export させる配布方法
+  （`gh` / `glab` / `ast-grep` / `gopls` などの外部 CLI への依存は、各 README の前提条件として許容する）
 - 実機で確かめていない方式への一斉移行・未検証コードの同梱
 
 ## 現在有効な設計判断
