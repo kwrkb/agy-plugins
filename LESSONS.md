@@ -572,3 +572,9 @@ response = json.loads(proc.stdout.readline())
   - (4) フック実行時の PATH にプラグインの `bin/` は入っておらず、`PLUGIN_ROOT` も空だった。`'hookprobe-bare' is not recognized`。
   - 採用した `validator\bin\validator --hook || validator/bin/validator --hook` では、Windows 実機で Issue #30 の手順 3〜6 がすべて期待どおりになった。sh では前半が not found（stdin は消費されない）で、後半が起動して stdout は `{}`、終了コード 0 だった（Git Bash の `sh -c` で確認。Linux / macOS 実機は未確認）。
 - 覆す条件: agy が Windows でフックを `cmd /c` 以外（例: 引数を分割して直接 exec）で起動するようになる。または、hooks.json の command で `${PLUGIN_ROOT}` が展開されるようになる。前者は §10.1 のプローブで、後者は §8.1 の手順で確認する。
+
+## 2026-10-18: フックの差し込みが届いたかは、モデルの最終報告ではなく transcript の `EPHEMERAL_MESSAGE` で判定する（`ephemeralMessage` は直後の 1 回のモデル呼び出しにしか見えない）
+
+- 却下した案: 「ファイルを書く → 別の作業をする → 最後にまとめて報告」という検証プロンプトで、モデルが最終報告で `NO FEEDBACK` と答えたことをもって、受け渡し（PostToolUse → PreInvocation）が壊れていると判断する。あわせて、その原因を「別プラグインの PreInvocation が失敗すると、差し込みが巻き添えで捨てられる」とする仮説も却下した。
+- 決め手: Linux（agy 1.4.2）で、plugin.json を書いてから note.txt を書き、最後に報告させたところ `NO FEEDBACK` だった。transcript には、plugin.json の書き込み（step 2）の直後に `EPHEMERAL_MESSAGE`（step 3、C2 の指摘）が入っていた。モデルは step 4 で次の書き込み（step 5）へ進み、step 6 の最終報告の時点ではこれが文脈に無かった。埋め込み仕様にも「transient message dropped after the current turn」とある。書いた直後に報告させる指示に変えると、指摘は逐語で返った。また、存在しないコマンドを呼ぶ別プラグインの PreInvocation（exit 127）が同時に入っていた回でも、step 3 の `EPHEMERAL_MESSAGE` は届いていた（そのプラグインを削除した回と同じ）。
+- 覆す条件: agy が `ephemeralMessage` を複数回のモデル呼び出しにわたって保持するようになった場合。または、validator の差し込みを、ターンをまたいで残る `systemMessage` に切り替えた場合（その時は判定方法を見直す）。
