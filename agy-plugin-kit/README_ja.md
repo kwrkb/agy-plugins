@@ -70,6 +70,7 @@ copy-only で問題ありません（自身が C1 を踏まない）。
   agy 1.4.2 では `PostToolUse` の stderr はモデルにも TUI にも届かず（CLI ログのみ）、stdout での差し込みも
   できない（`injectSteps` は unknown field としてツール結果ごとエラー化、`overwriteResult` は無視）ため、この形にしている（LESSONS 2026-10-18）。
 - `timeout` は**秒単位**（agy の既定は 30）。Claude Code のミリ秒とは違う。
+- 受け渡し方式は agy 1.4.2 で実機確認した。`PreInvocation` のフックが失敗してもモデル呼び出しは止まらない（CLI ログに残るだけ）。1.4.2 より前の agy で `PreInvocation` キーがどう扱われるかは未確認。
 - `PostToolUse` の `matcher: ".*"`、`command: "validator/bin/validator --hook"`（PWD=install 先の相対パス。
   `${extensionPath}`/`${PLUGIN_ROOT}`/`${/}` は使わない＝C10/C2 を踏まない）。`validator/bin/validator` は OS 分岐 dispatcher で、
   hook 経路でも shebang 解釈で実機ネイティブを `exec` する（実機検証: macOS arm64 で発火確認）。

@@ -74,6 +74,7 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
   - **`PostToolUse` からはモデルに何も届かない**（1.4.2 実測）: stderr は CLI ログにしか出ず、stdout の `injectSteps` は
     unknown field でエラー、`overwriteResult` は無視される。モデルに届けたい時は、`PostToolUse` が `conversationId` ごとの
     ファイルに書き、`PreInvocation` が読んで `{"injectSteps":[{"ephemeralMessage":"..."}]}` を返す（同じターン内に届く。本キットの validator がこの方式）。
+    `PreInvocation` のフックが失敗（非 0 終了・JSON でない出力・コマンド不在）してもモデル呼び出しは止まらず、CLI ログに残るだけ（1.4.2 実測）。
   - 構造は agy の名前付き形式 `{"<hook-name>": {"PostToolUse": [{"matcher": ".*", "hooks": [...]}], "PreInvocation": [{...}]}}`。
     `PreToolUse`/`PostToolUse` は `matcher`＋`hooks` のグループ、`PreInvocation`/`PostInvocation`/`SessionStart`/`Stop` はハンドラを直接並べる。
 - **`rules/*.md`（agy 1.4.2 で機能化確認・用途を絞って使う）**: 1.0.8〜1.0.15 ではプラグイン `rules/` が `<user_rules>` に
