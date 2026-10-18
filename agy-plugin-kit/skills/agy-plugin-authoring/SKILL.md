@@ -30,8 +30,10 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
   - native `mcp_config.json` の **`args` / `env`（および 1.4.0〜 の HTTP `headers`）では実行時に絶対パスへ展開される**。
   - **罠**: native `mcp_config.json` の **`command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗する**（1.4.2 実機検証済み、C2 エラー）。
     `gemini-extension.json` の `command` に書いても install は `${PLUGIN_ROOT}` を書き換えず、生成先 `mcp_config.json` に literal のまま残る（1.4.2 実測。マニフェスト形式を問わず C2 エラー）。
-- **対処**: (a) 同梱バイナリを MCP `command` で起動するなら `gemini-extension.json` 形式にする / (b) `/agy-plugin-kit:doctor` の
-  path-fix（validator `--fix-paths`）で install 先を絶対パスへ書き換える / (c) PATH 上のコマンドにして同梱をやめる。
+- **対処**: (a) 同梱バイナリを MCP `command` で起動するなら `gemini-extension.json` 形式にし `${extensionPath}${/}bin${/}<name>` と書く
+  （`command` の `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` はこれで置き換える） / (b) **`${extensionPath}` の場合に限り** `/agy-plugin-kit:doctor` の
+  path-fix（validator `--fix-paths`）で install 先を絶対パスへ書き換える（`--fix-paths` は `${extensionPath}`/`${/}` しか置換しないため
+  `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` は直らない） / (c) PATH 上のコマンドにして同梱をやめる。
 
 ## マルチプラットフォーム対応（同梱 Go バイナリ・`src/`＋`bin/`）
 
