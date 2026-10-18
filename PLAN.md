@@ -2,7 +2,7 @@
 
 ## 現在地
 
-フェーズ1〜14 完了。次はフェーズ15（未着手）。
+フェーズ1〜14・16 完了。次はフェーズ15（未着手）。
 
 ## フェーズ15: mcp-go v1 移行（未着手）
 
@@ -30,3 +30,4 @@
 | 12 | settings-advisor の検知精度向上（PR #20） | スキャン検知拡充、`models.json` 更新と traits 駆動のモデル選定 |
 | 13 | test-runner プラグイン追加（PR #23） | `go test -json` の集計と失敗テストの `rerun` 引数を返す MCP サーバー。CI 3 OS pass で squash マージ |
 | 14 | test-runner レビュー指摘修正と実機検証（PR #24, #25, #26） | `go list` によるパッケージ探索バリデーション、`rewriteRun` の Unicode Cn 素通し・サイズ上限（PR #24）。Linux / Windows 実機検証（PR #25）、起動検証前の稼働中 MCP キャッシュ削除（承認必須）をスキルに明記（PR #26） |
+| 16 | agy 1.4.2 でのプラグイン仕様再検証（PR #28） | プラグイン `rules/`・`agents/*.md`・`PLUGIN_DATA`・`bin/` PATH の機能化を確認。MCP `command` の `${PLUGIN_ROOT}` 未展開を受けて同梱バイナリは `gemini-extension.json` 形式を維持。validator の C2/C10 を拡張し、サブディレクトリ配置のマニフェストに対応 |
