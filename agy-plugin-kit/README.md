@@ -6,7 +6,7 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 
 | Component | Description |
 | :-- | :-- |
-| **`validator/`** (Go `src/` + `bin/`) | Deterministic validator detecting traps C1–C10. Includes `--fix-paths` mode and precompiled multi-platform binaries |
+| **`validator/`** (Go `src/` + `bin/`) | Deterministic validator detecting traps C1–C11. Includes `--fix-paths` mode and precompiled multi-platform binaries |
 | **Command** `/agy-plugin-kit:new` | Scaffolds compliant plugins with automatic manifest format selection |
 | **Command** `/agy-plugin-kit:validate` | Statically checks target plugin and provides structured summary |
 | **Command** `/agy-plugin-kit:doctor` | Combines `agy plugin validate` + kit checks + automated path fixes (Issue #390 workaround) |
@@ -28,6 +28,7 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 | C8 | Using `${CLAUDE_PLUGIN_ROOT}` (Claude-only variable, invalid in agy) | ERROR |
 | C9 | Go wrappers writing diagnostic text to stdout instead of stderr | WARN |
 | C10 | Using `${extensionPath}`, `${PLUGIN_ROOT}`, `${PLUGIN_DATA}`, or `${/}` in `hooks.json` (verified on real devices: `${extensionPath}`/`${PLUGIN_ROOT}` expand to empty and `${/}` causes `Bad substitution` regardless of manifest format; `${PLUGIN_DATA}` treated the same) | WARN |
+| C11 | `timeout` in `hooks.json` above 600 (agy `timeout` is in **seconds**, default 30; a Claude Code millisecond value such as `10000` means ~2.8 hours) | WARN |
 
 ## Installation
 

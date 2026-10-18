@@ -8,7 +8,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 
 | コンポーネント | 内容 |
 | :-- | :-- |
-| **`validator/`**（Go・`src/`＋`bin/`） | agy 非依存の決定的バリデータ。C1〜C10 のトラップを検出（下表）。`--fix-paths` モードあり。`bin/` に linux-amd64 / darwin-arm64 / windows のネイティブと OS 分岐 dispatcher を同梱 |
+| **`validator/`**（Go・`src/`＋`bin/`） | agy 非依存の決定的バリデータ。C1〜C11 のトラップを検出（下表）。`--fix-paths` モードあり。`bin/` に linux-amd64 / darwin-arm64 / windows のネイティブと OS 分岐 dispatcher を同梱 |
 | **コマンド** `/agy-plugin-kit:new` | マニフェスト形式を自動選択して正しい雛形を生成（量産エンジン） |
 | **コマンド** `/agy-plugin-kit:validate` | 対象プラグインを静的検査して要約 |
 | **コマンド** `/agy-plugin-kit:doctor` | `agy plugin validate` ＋ キット検査 ＋ 修正（Issue #390 の絶対パス自動埋め込み含む） |
@@ -30,6 +30,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | C8 | `${CLAUDE_PLUGIN_ROOT}`（agy に存在しないトークン） | ERROR |
 | C9 | 同梱 Go ラッパーが自前で stdout に書く（NDJSON 破壊。heuristic） | WARN |
 | C10 | `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: マニフェスト形式を問わず `${extensionPath}`/`${PLUGIN_ROOT}` は空文字展開、`${/}` は `Bad substitution` になり hook 起動失敗。`${PLUGIN_DATA}` は未実測だが同種として扱う） | WARN |
+| C11 | `hooks.json` の `timeout` が 600 を超える（agy の `timeout` は**秒単位**・既定 30。Claude Code のミリ秒の値 `10000` は約 2.8 時間になる） | WARN |
 
 ## インストール
 

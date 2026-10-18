@@ -396,3 +396,34 @@ func TestRelayRejectsUnsafeLocations(t *testing.T) {
 		}
 	})
 }
+
+// C11: Claude Code のミリ秒の timeout を agy の hooks.json に持ち込むと警告する。
+func TestValidateHookTimeoutC11(t *testing.T) {
+	cases := []struct {
+		name  string
+		hooks string
+		want  bool
+	}{
+		{"agy named hook with ms value", `{"h":{"PostToolUse":[{"matcher":".*","hooks":[{"type":"command","command":"x","timeout":10000}]}]}}`, true},
+		{"legacy top-level hooks with ms value", `{"hooks":{"PostToolUse":[{"matcher":".*","hooks":[{"command":"x","timeout":10000}]}]}}`, true},
+		{"seconds value", `{"h":{"PreInvocation":[{"type":"command","command":"x","timeout":10}]}}`, false},
+		{"boundary 600 is allowed", `{"h":{"PreInvocation":[{"command":"x","timeout":600}]}}`, false},
+		{"no timeout", `{"h":{"PreInvocation":[{"command":"x"}]}}`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+			mustWrite(t, filepath.Join(dir, "hooks.json"), c.hooks)
+			got := false
+			for _, f := range validate(dir) {
+				if f.code == "C11" {
+					got = true
+				}
+			}
+			if got != c.want {
+				t.Errorf("C11 = %v, want %v", got, c.want)
+			}
+		})
+	}
+}

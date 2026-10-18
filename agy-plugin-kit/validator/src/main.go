@@ -438,6 +438,15 @@ func validate(dir string) []finding {
 			"hooks.json で ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA}/${/} を使用しています。実機検証ではマニフェスト形式を問わず ${extensionPath}/${PLUGIN_ROOT} は実行時に置換されず空文字展開、${/} は Bad substitution になり hook が起動しません（LESSONS #20。${PLUGIN_DATA} も同種として扱う）。フックの実行 cwd はプラグインルートになるため相対パスで指定してください。"})
 	}
 
+	// C11: hooks.json の timeout が秒としては長すぎる（Claude Code のミリ秒の値の持ち込み）。
+	// agy の timeout は秒単位で既定 30（実機検証: timeout 1 で sleep 3 が killed。LESSONS 2026-10-18）。
+	for _, sec := range collectHookTimeouts(hooksRaw) {
+		if sec > hookTimeoutWarnSec {
+			out = append(out, finding{sevWarn, "C11",
+				fmt.Sprintf("hooks.json の timeout が %g です。agy の timeout は秒単位（既定 30）なので約 %.1f 時間の意味になります。ミリ秒のつもりなら %g に直してください（LESSONS 2026-10-18）。", sec, sec/3600, sec/1000)})
+		}
+	}
+
 	for _, c := range mcpCmds {
 		exe := strings.ToLower(c.command)
 		// C3: executable が .sh/.cmd/.bat（Windows で spawn 不可）
@@ -562,6 +571,42 @@ func firstShellToken(s string) string {
 		return s[:i]
 	}
 	return s
+}
+
+// hookTimeoutWarnSec を超える timeout は秒ではなくミリ秒の書き間違いとみなす（10 分。agy の既定は 30 秒）。
+const hookTimeoutWarnSec = 600
+
+// collectHookTimeouts は hooks.json のハンドラにある数値の timeout をすべて集める（形式を問わず再帰的に探す）。
+func collectHookTimeouts(hooksRaw string) []float64 {
+	var out []float64
+	var root any
+	if hooksRaw == "" || json.Unmarshal([]byte(hooksRaw), &root) != nil {
+		return out
+	}
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case map[string]any:
+			keys := make([]string, 0, len(x))
+			for k := range x {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				if n, ok := x[k].(float64); ok && k == "timeout" {
+					out = append(out, n)
+					continue
+				}
+				walk(x[k])
+			}
+		case []any:
+			for _, e := range x {
+				walk(e)
+			}
+		}
+	}
+	walk(root)
+	return out
 }
 
 // collectHookCommands は hooks.json の各 hook command を抽出する。
