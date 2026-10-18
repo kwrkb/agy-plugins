@@ -536,3 +536,28 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: 「`plugin.json` はプラグインルート直下必須で、サブフォルダは代替配置ではない」という bot レビューの指摘に従い、サブフォルダのマニフェストでは C5（マニフェスト無し）を出す。
 - 決め手: agy 1.4.2 で実測した。(1) `.antigravity-plugin/plugin.json` だけを置き `mcp_config.json` をルートに置いたディレクトリは `agy plugin validate` が pass し（`mcpServers 1`）、`agy plugin install` 後も `agy plugin list` に enabled で載った。`.gemini-plugin/plugin.json` も validate が pass した。(2) マニフェストが無いディレクトリに対する validate のエラー文は `no plugin.json found at the plugin root or in .antigravity-plugin or .gemini-plugin`。(3) `mcp_config.json`・`hooks.json` を `.antigravity-plugin/` 内に置くと `never loaded: components are read from the plugin root, not .antigravity-plugin` と警告され、`mcpServers 0` になった。コンポーネントはルート直下から読まれるので、ルート直下だけを読む `validate()` の現実装と一致する。同梱 changelog にも「keep the manifest in a `.antigravity-plugin/` or `.gemini-plugin/` folder」とある。
 - 覆す条件: 将来の agy でサブフォルダのマニフェストが validate / install で拒否されるようになった場合。
+
+## 2026-10-18: agy 1.4.2 でフックの指摘をモデルへ届けるには PostToolUse → PreInvocation の受け渡しを使う（stderr も PostToolUse の stdout も届かない）
+
+- 却下した案: (1) 現行どおり validator フックが stderr に助言を書けば、エージェントかユーザーの目に入るとする。(2) PostToolUse の stdout に `injectSteps` を返して差し込む。(3) PostToolUse の出力定義にある `overwriteResult` でツール結果を置き換え、指摘を付け足す。
+- 決め手: agy 1.4.2 で使い捨てのプラグインを作り、目印の文字列で実測した。
+  - (1) validator フックは実際に起動されて C2 を出したが、stderr は CLI ログに `JSON hook command stderr:` として残るだけだった。TUI にも、モデルの文脈にも出なかった（モデルは「フック出力は何も返っていない」と回答）。
+  - (2) `failed to unmarshal result from hook ... via protojson: ... unknown field "injectSteps"` となった。ツール結果全体が `Encountered error in tool execution` に置き換わり、ファイルは書けていたのにモデルからは失敗に見えた。
+  - (3) `write_to_file` / `view_file` のどちらでも、エラーにはならないが結果は元のままだった。フックへの入力にも `result` は入っていなかった。
+  - 本体に埋め込まれたフック仕様でも、PostToolUse の stdout は「`{}` を期待」とされている。
+  - 一方 PreInvocation の `{"injectSteps":[{"ephemeralMessage":"..."}]}` は、headless でもモデルに届いた。受け渡しの手順は次のとおり。PostToolUse が `conversationId` ごとのファイルを cwd（hooks.json のあるディレクトリ）に書く。PreInvocation がそれを読んで差し込み、ファイルを消す。これで目印は、書き込みの直後、同じターン内のモデル呼び出しに届いた。transcript でも、ツールのステップ直後に `EPHEMERAL_MESSAGE` があり、次がモデルの応答だった。PreInvocation は PostToolUse の約 1ms 後に起動していた。
+- 覆す条件: agy の PostToolUse が stdout で差し込み（`injectSteps` など）を受け付けるか、フックの stderr を TUI かモデルに出すようになった場合。どちらも、目印が transcript に載ることで確認する。
+
+## 2026-10-18: agy の hooks.json の `timeout` は秒単位として扱う（Claude Code のミリ秒の慣習を持ち込まない）
+
+- 却下した案: Claude Code の hooks と同じくミリ秒とみなし、`"timeout": 10000`（10 秒のつもり）をそのまま使う。
+- 決め手: agy 1.4.2 で実測した。`timeout: 2` で `sleep 1` するハンドラはエラーなく完了した。`timeout: 1` で `sleep 3` するハンドラは、起動から約 1〜2 秒後に `JSON hook "..." failed: command failed: signal: killed` になった。本体に埋め込まれた仕様も「Execution timeout in seconds. Defaults to 30」としている。したがって `10000` は約 2.8 時間の意味になる。あわせて次の 2 点も観測した。
+  - PostToolUse のフックが 1 つでも失敗（打ち切り・出力の解析エラー）すると、ツールの呼び出し全体がモデルからはエラーに見える。
+  - 打ち切られるのは `sh -c` の外側のプロセスだけで、その中で起動した子のスクリプトは残って最後まで走った。
+- 覆す条件: agy が `timeout` の単位を変えたと changelog か実測で確認できた場合。
+
+## 2026-10-18: agy 1.4.2 の対話検証では、ツールの結果ではなく TUI の `Called N MCP tool (<plugin>_<server>/<tool>)` 表示を MCP 経由の証拠にする
+
+- 却下した案: ツールの結果が正しく返ってきたことを、MCP 経由で実行できた証拠とする。
+- 決め手: agy 1.4.2 の tmux 対話セッションで、起動直後の最初の質問「worktree_list を使って」に対し、モデルが「MCP ツールとして登録されていない」と判断した。そのうえで `run_command` から同梱バイナリへ JSON-RPC を直接送り、正しい結果を返した。結果だけ見れば成功と区別できない。その時の CLI ログには `skipping component during resolution: empty component: prompt section "mcp_servers"` が出ていた。2 回目以降の質問ではこの警告は出ず、`/mcp` は 8 サーバーとも ✓ だった。2 回目以降は、モデルが `<tool>.json` を読んでから MCP を呼び、TUI に `Called 1 MCP tool (...)` が表示された。
+- 覆す条件: agy が、MCP サーバーの接続が終わるまで最初のプロンプトを待たせるようになった場合。または、モデルが MCP ツールを確実に優先すると確認できた場合。
