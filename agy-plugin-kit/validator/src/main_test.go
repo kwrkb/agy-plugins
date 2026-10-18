@@ -160,6 +160,13 @@ func TestPluginRootFromManifest(t *testing.T) {
 	}
 }
 
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestValidateAgy142Rules(t *testing.T) {
 	hasCode := func(fs []finding, code string) bool {
 		for _, f := range fs {
@@ -176,9 +183,7 @@ func TestValidateAgy142Rules(t *testing.T) {
 		if err := os.MkdirAll(sub, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(sub, "plugin.json"), []byte(`{"name":"sub"}`), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		mustWrite(t, filepath.Join(sub, "plugin.json"), `{"name":"sub"}`)
 		fs := validate(dir)
 		if hasCode(fs, "C5") {
 			t.Errorf("expected no C5 error for .antigravity-plugin/plugin.json, got %+v", fs)
@@ -187,8 +192,8 @@ func TestValidateAgy142Rules(t *testing.T) {
 
 	t.Run("native mcp_config command with ${PLUGIN_ROOT} triggers C2", func(t *testing.T) {
 		dir := t.TempDir()
-		_ = os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"name":"p"}`), 0o644)
-		_ = os.WriteFile(filepath.Join(dir, "mcp_config.json"), []byte(`{"mcpServers":{"s":{"command":"${PLUGIN_ROOT}/bin/srv"}}}`), 0o644)
+		mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "mcp_config.json"), `{"mcpServers":{"s":{"command":"${PLUGIN_ROOT}/bin/srv"}}}`)
 		fs := validate(dir)
 		if !hasCode(fs, "C2") {
 			t.Errorf("expected C2 error when ${PLUGIN_ROOT} is used in command, got %+v", fs)
@@ -197,8 +202,8 @@ func TestValidateAgy142Rules(t *testing.T) {
 
 	t.Run("native mcp_config args/env with ${PLUGIN_ROOT} and ${PLUGIN_DATA} is allowed", func(t *testing.T) {
 		dir := t.TempDir()
-		_ = os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"name":"p"}`), 0o644)
-		_ = os.WriteFile(filepath.Join(dir, "mcp_config.json"), []byte(`{"mcpServers":{"s":{"command":"glab","args":["${PLUGIN_ROOT}/cfg","${PLUGIN_DATA}"],"env":{"D":"${PLUGIN_DATA}"}}}}`), 0o644)
+		mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "mcp_config.json"), `{"mcpServers":{"s":{"command":"glab","args":["${PLUGIN_ROOT}/cfg","${PLUGIN_DATA}"],"env":{"D":"${PLUGIN_DATA}"}}}}`)
 		fs := validate(dir)
 		if hasCode(fs, "C2") {
 			t.Errorf("expected no C2 when ${PLUGIN_ROOT}/${PLUGIN_DATA} is only in args/env, got %+v", fs)
@@ -207,8 +212,8 @@ func TestValidateAgy142Rules(t *testing.T) {
 
 	t.Run("hooks.json with ${PLUGIN_ROOT} triggers C10 and agy named hook schema detects C8", func(t *testing.T) {
 		dir := t.TempDir()
-		_ = os.WriteFile(filepath.Join(dir, "plugin.json"), []byte(`{"name":"p"}`), 0o644)
-		_ = os.WriteFile(filepath.Join(dir, "hooks.json"), []byte(`{"my-hook":{"PreInvocation":[{"type":"command","command":"${PLUGIN_ROOT}/h"},{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/c"}]}}`), 0o644)
+		mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "hooks.json"), `{"my-hook":{"PreInvocation":[{"type":"command","command":"${PLUGIN_ROOT}/h"},{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/c"}]}}`)
 		fs := validate(dir)
 		if !hasCode(fs, "C10") {
 			t.Errorf("expected C10 warning for ${PLUGIN_ROOT} in hooks.json, got %+v", fs)
@@ -220,11 +225,30 @@ func TestValidateAgy142Rules(t *testing.T) {
 
 	t.Run("gemini-extension.json with hooks.json macros also triggers C10", func(t *testing.T) {
 		dir := t.TempDir()
-		_ = os.WriteFile(filepath.Join(dir, "gemini-extension.json"), []byte(`{"name":"p"}`), 0o644)
-		_ = os.WriteFile(filepath.Join(dir, "hooks.json"), []byte(`{"my-hook":{"PreInvocation":[{"type":"command","command":"${extensionPath}${/}h"}]}}`), 0o644)
+		mustWrite(t, filepath.Join(dir, "gemini-extension.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "hooks.json"), `{"my-hook":{"PreInvocation":[{"type":"command","command":"${extensionPath}${/}h"}]}}`)
 		fs := validate(dir)
 		if !hasCode(fs, "C10") {
 			t.Errorf("expected C10 warning for hooks.json macros in gemini-extension.json plugin, got %+v", fs)
+		}
+	})
+
+	t.Run("gemini-extension.json command with ${PLUGIN_ROOT} triggers C2", func(t *testing.T) {
+		// install は ${PLUGIN_ROOT} を書き換えず生成先 mcp_config.json の command に literal で残す（agy 1.4.2 実測）
+		dir := t.TempDir()
+		mustWrite(t, filepath.Join(dir, "gemini-extension.json"), `{"name":"p","mcpServers":{"s":{"command":"${PLUGIN_ROOT}/bin/srv"}}}`)
+		fs := validate(dir)
+		if !hasCode(fs, "C2") {
+			t.Errorf("expected C2 error for ${PLUGIN_ROOT} in gemini-extension.json command, got %+v", fs)
+		}
+	})
+
+	t.Run("gemini-extension.json command with ${extensionPath}${/} does not trigger C2", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWrite(t, filepath.Join(dir, "gemini-extension.json"), `{"name":"p","mcpServers":{"s":{"command":"${extensionPath}${/}bin${/}srv"}}}`)
+		fs := validate(dir)
+		if hasCode(fs, "C2") {
+			t.Errorf("expected no C2 for ${extensionPath}${/} in gemini-extension.json command, got %+v", fs)
 		}
 	})
 }

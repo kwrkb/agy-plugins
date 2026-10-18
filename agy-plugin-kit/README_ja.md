@@ -21,7 +21,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | # | 検出内容 | 重大度 |
 | :-- | :-- | :-- |
 | C1 | `plugin.json` と `gemini-extension.json` の二重マニフェスト | WARN |
-| C2 | native `plugin.json` 形式で `${extensionPath}` 使用（**Issue #390**）、または MCP `command` フィールドで `${PLUGIN_ROOT}` 使用（`args`/`env` と異なり `command` 本体では未展開） | ERROR |
+| C2 | native `plugin.json` 形式で `${extensionPath}` 使用（**Issue #390**）、または MCP `command` フィールドで `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 使用（マニフェスト形式を問わない。`args`/`env` と異なり `command` 本体では未展開、`gemini-extension.json` の install でも literal のまま） | ERROR |
 | C3 | `.sh`/`.cmd`/`.bat` を `command` に直接指定（Windows で spawn 不可） | ERROR |
 | C4 | マニフェスト参照バイナリが `.gitignore` 対象（URL install で消える。`git check-ignore` 判定） | ERROR |
 | C5 | `plugin.json`（`.antigravity-plugin/plugin.json`・`.gemini-plugin/plugin.json` 含む）/`gemini-extension.json` が無い・不正 JSON | ERROR |
@@ -29,7 +29,7 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | C7 | トークン専用 MCP サーバーを wrapper 無しで直叩き（heuristic） | WARN |
 | C8 | `${CLAUDE_PLUGIN_ROOT}`（agy に存在しないトークン） | ERROR |
 | C9 | 同梱 Go ラッパーが自前で stdout に書く（NDJSON 破壊。heuristic） | WARN |
-| C10 | `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: マニフェスト形式を問わず実行時に置換されず空文字展開または `Bad substitution` になり hook 起動失敗） | WARN |
+| C10 | `hooks.json` で `${extensionPath}` / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` / `${/}` 使用（実機検証: マニフェスト形式を問わず `${extensionPath}`/`${PLUGIN_ROOT}` は空文字展開、`${/}` は `Bad substitution` になり hook 起動失敗。`${PLUGIN_DATA}` は未実測だが同種として扱う） | WARN |
 
 ## インストール
 

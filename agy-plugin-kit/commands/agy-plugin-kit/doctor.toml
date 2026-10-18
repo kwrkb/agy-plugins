@@ -9,8 +9,8 @@ agy プラグインを診断して修正します。対象パス: {{args}}。
    - **注意（agy 1.4.0〜）**: `agy plugin validate` は `plugin.json` を直接要求するため、`gemini-extension.json` 形式のソースディレクトリに直接かけると `no plugin.json found` エラーになる（これは `agy plugin install` で変換されるため正常）。`gemini-extension.json` 形式の場合は install 先（`~/.gemini/config/plugins/<name>`）に対して `agy plugin validate` を実行する。
 3. 検出した各問題を、skill `agy-plugin-authoring` の規則に対応づけて修正案を提示する。代表的な修正:
    - **C2 / Issue #390・`command` 変数未展開**:
-     - `mcp_config.json` の `command` フィールド自体で `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` を使用している場合:
-       `--fix-paths` は `${extensionPath}` 専用で `${PLUGIN_ROOT}` は置換しないため、ソースを `gemini-extension.json` 形式（`${extensionPath}${/}bin${/}<name>`）へ移行する。
+     - MCP の `command` フィールド自体で `${PLUGIN_ROOT}` / `${PLUGIN_DATA}` を使用している場合（`mcp_config.json`・`gemini-extension.json` のどちらでも）:
+       `--fix-paths` は `${extensionPath}` 専用で `${PLUGIN_ROOT}` は置換しないため、ソースを `gemini-extension.json` 形式にし `command` を `${extensionPath}${/}bin${/}<name>` へ書き換える（既に `gemini-extension.json` 形式なら `command` の書き換えだけでよい。install は `${PLUGIN_ROOT}` を展開しない）。
      - native `plugin.json` の `mcp_config.json` で `${extensionPath}` を使用している場合（Issue #390）:
        ソースを `gemini-extension.json` 形式へ移行するか、ユーザー合意のうえ install 先に対して `validator/bin/validator --fix-paths <対象>` を実行し `${extensionPath}` を絶対パスへ書き換える。
      **注意**: `--fix-paths` は**install 先のプラグインディレクトリ**（`~/.gemini/config/plugins/<name>`）に対して

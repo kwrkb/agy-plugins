@@ -241,31 +241,34 @@ func validate(dir string) []finding {
 	mcpCmds := collectMCPCommands(mcpRaw, read("gemini-extension.json"))
 	hookCmds := collectHookCommands(hooksRaw)
 
-	// C2: plugin.json 形式なのに mcp_config.json で未解決変数を参照
-	// - ${extensionPath}/${/} は native 形式ではどこでも未解決（Issue #390）
-	// - ${PLUGIN_ROOT}/${PLUGIN_DATA} は args/env では解決されるが、command フィールド自体では未解決で起動不能（agy 1.4.2 実機検証）
+	// C2: MCP 定義で未解決変数を参照
+	// - ${extensionPath}/${/} は native 形式ではどこでも未解決（Issue #390）。gemini-extension.json 形式では install 時に解決されるので native 限定。
+	// - ${PLUGIN_ROOT}/${PLUGIN_DATA} は args/env では解決されるが、command フィールド自体では未解決で起動不能（agy 1.4.2 実機検証は ${PLUGIN_ROOT}）。
+	//   gemini-extension.json 形式でも install は ${PLUGIN_ROOT} を書き換えず生成先 mcp_config.json の command に literal で残すため
+	//   （agy 1.4.2 実測）、マニフェスト形式を問わず mcp_config.json と gemini-extension.json の両方の command を検査する。
 	if hasPluginJSON && !hasGeminiExt && mcpRaw != "" {
 		if strings.Contains(mcpRaw, "${extensionPath}") || strings.Contains(mcpRaw, "${/}") {
 			out = append(out, finding{sevError, "C2",
 				"plugin.json 形式の mcp_config.json で ${extensionPath}/${/} を使用しています。native 形式では解決されず（Issue #390）パスが literal のまま壊れます。gemini-extension.json 形式にするか、/agy-plugin-kit:doctor の --fix-paths で絶対パス化してください。"})
 		}
-		for _, c := range mcpCmds {
-			if strings.Contains(c.command, "${PLUGIN_ROOT}") || strings.Contains(c.command, "${PLUGIN_DATA}") {
-				out = append(out, finding{sevError, "C2",
-					fmt.Sprintf("plugin.json 形式の mcp_config.json の command フィールドで ${PLUGIN_ROOT}/${PLUGIN_DATA} を使用しています: %q。args/env では展開されますが command 本体では展開されず起動に失敗します（agy 1.4.2 実機検証）。同梱バイナリ起動は gemini-extension.json 形式を使ってください。", c.command)})
-			}
+	}
+	for _, c := range mcpCmds {
+		if strings.Contains(c.command, "${PLUGIN_ROOT}") || strings.Contains(c.command, "${PLUGIN_DATA}") {
+			out = append(out, finding{sevError, "C2",
+				fmt.Sprintf("MCP の command フィールドで ${PLUGIN_ROOT}/${PLUGIN_DATA} を使用しています: %q。args/env では展開されますが command 本体では展開されず起動に失敗します（agy 1.4.2 で ${PLUGIN_ROOT} を実機検証。gemini-extension.json 形式でも install 時に書き換えられず literal のまま残る）。同梱バイナリ起動は gemini-extension.json 形式で ${extensionPath}${/}bin${/}<name> を指定してください。", c.command)})
 		}
 	}
 
 	// C10: hooks.json で変数マクロを使用
-	// （実機検証: マニフェスト形式を問わず実行時に ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA} は置換されず未定義 env として空文字に消え、
-	//  ${/} は /bin/sh で Bad substitution になり hook プロセスが起動前にクラッシュする。LESSONS #20 / agy 1.4.2 再検証）
+	// （実機検証: マニフェスト形式を問わず実行時に ${extensionPath}/${PLUGIN_ROOT} は置換されず未定義 env として空文字に消え、
+	//  ${/} は /bin/sh で Bad substitution になり hook プロセスが起動前にクラッシュする。LESSONS #20 / agy 1.4.2 再検証。
+	//  ${PLUGIN_DATA} は個別には未実測だが、PLUGIN_ROOT と同じく hook 環境に注入されない同種のマクロとして検出する）
 	if strings.Contains(hooksRaw, "${extensionPath}") ||
 		strings.Contains(hooksRaw, "${/}") ||
 		strings.Contains(hooksRaw, "${PLUGIN_ROOT}") ||
 		strings.Contains(hooksRaw, "${PLUGIN_DATA}") {
 		out = append(out, finding{sevWarn, "C10",
-			"hooks.json で ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA}/${/} を使用しています。実機検証ではマニフェスト形式を問わず実行時に置換されず空文字展開または Bad substitution になり hook が起動しません（LESSONS #20）。フックの実行 cwd はプラグインルートになるため相対パスで指定してください。"})
+			"hooks.json で ${extensionPath}/${PLUGIN_ROOT}/${PLUGIN_DATA}/${/} を使用しています。実機検証ではマニフェスト形式を問わず ${extensionPath}/${PLUGIN_ROOT} は実行時に置換されず空文字展開、${/} は Bad substitution になり hook が起動しません（LESSONS #20。${PLUGIN_DATA} も同種として扱う）。フックの実行 cwd はプラグインルートになるため相対パスで指定してください。"})
 	}
 
 	for _, c := range mcpCmds {

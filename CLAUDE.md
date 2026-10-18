@@ -45,7 +45,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 ## 実機検証（tmux + agy）
 
-agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で実測した手順**（注意点は末尾の注記）。
+agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.2 では install・`agy plugin validate`・MCP 起動まで再確認済み（tmux 経由のツール実行の通しは 1.4.2 で未再実施。注意点は末尾の注記）。
 
 ```bash
 # 1) クリーン install を再現（git 追跡ファイルのみ＝URL install と等価）

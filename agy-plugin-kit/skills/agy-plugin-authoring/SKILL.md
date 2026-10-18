@@ -15,6 +15,8 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
   **絶対パスへ解決**し、install 先に `plugin.json`+`mcp_config.json` を生成する。**3 OS 共通で同梱バイナリを MCP `command` に指定する場合は引き続きこれ**。
 - **`plugin.json` 形式**（native。ルート直下または `.antigravity-plugin/plugin.json` / `.gemini-plugin/plugin.json`）:
   `mcp_config.json` はそのままコピーされ **`${extensionPath}` は解決されない**（= Issue #390。1.4.2 でも継続）。
+  マニフェストをサブフォルダに置いても `mcp_config.json`・`hooks.json`・`skills/` 等のコンポーネントは**プラグインルート直下**に置く
+  （`.antigravity-plugin/` 内に置くと読まれない。1.4.2 で `agy plugin validate` / `install` により確認、出典は同梱 changelog）。
   PATH 上のコマンドを使う場合、または `command` に変数展開が不要な場合のみこれ。
 - **両方置かない**（C1 警告対象）。曖昧になり `plugin.json` 側が優先され copy-only 化する。
 
@@ -27,6 +29,7 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
     （`~/.gemini/antigravity-cli/plugin_data/<name>`、install 更新でも消えない永続領域＝Issue #554 解消。ただし `.agents/plugins/` 直置き時は空文字）が自動注入される。
   - native `mcp_config.json` の **`args` / `env`（および 1.4.0〜 の HTTP `headers`）では実行時に絶対パスへ展開される**。
   - **罠**: native `mcp_config.json` の **`command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗する**（1.4.2 実機検証済み、C2 エラー）。
+    `gemini-extension.json` の `command` に書いても install は `${PLUGIN_ROOT}` を書き換えず、生成先 `mcp_config.json` に literal のまま残る（1.4.2 実測。マニフェスト形式を問わず C2 エラー）。
 - **対処**: (a) 同梱バイナリを MCP `command` で起動するなら `gemini-extension.json` 形式にする / (b) `/agy-plugin-kit:doctor` の
   path-fix（validator `--fix-paths`）で install 先を絶対パスへ書き換える / (c) PATH 上のコマンドにして同梱をやめる。
 
