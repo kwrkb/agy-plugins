@@ -60,9 +60,16 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 ## `hooks.json` の自動バリデーション（agy 1.0.9〜、Linux / macOS / Windows）
 
 `hooks.json` を同梱し、**マニフェスト（`plugin.json` / `gemini-extension.json` / `mcp_config.json` /
-`hooks.json`）を編集すると validator が自動で走り**、見つかった問題を stderr に助言として出します
+`hooks.json`）を編集すると validator が自動で走り**、見つかった問題をエージェントに助言として届けます
 （非ブロッキング・常に exit 0）。仕組み:
 
+- **2 つのフックで受け渡す**: `PostToolUse` の `validator --hook` が検査結果を stderr（CLI ログ）に出すとともに、
+  OS の一時ディレクトリの `agy-plugin-kit-relay/<conversationId>.txt` に書く（stdout は常に `{}`）。
+  `PreInvocation` の `validator --inject` がそれを読んで消し、`injectSteps` の `ephemeralMessage` として
+  次のモデル呼び出しの直前（同じターン内）に差し込む。
+  agy 1.4.2 では `PostToolUse` の stderr はモデルにも TUI にも届かず（CLI ログのみ）、stdout での差し込みも
+  できない（`injectSteps` は unknown field としてツール結果ごとエラー化、`overwriteResult` は無視）ため、この形にしている（LESSONS 2026-10-18）。
+- `timeout` は**秒単位**（agy の既定は 30）。Claude Code のミリ秒とは違う。
 - `PostToolUse` の `matcher: ".*"`、`command: "validator/bin/validator --hook"`（PWD=install 先の相対パス。
   `${extensionPath}`/`${PLUGIN_ROOT}`/`${/}` は使わない＝C10/C2 を踏まない）。`validator/bin/validator` は OS 分岐 dispatcher で、
   hook 経路でも shebang 解釈で実機ネイティブを `exec` する（実機検証: macOS arm64 で発火確認）。

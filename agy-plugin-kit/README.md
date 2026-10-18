@@ -37,4 +37,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 
 ## Automatic Validation Hook (`hooks.json`)
 
-Includes `hooks.json` to automatically trigger validation on editing plugin manifests (`plugin.json`, `gemini-extension.json`, `mcp_config.json`, `hooks.json`), outputting non-blocking feedback to stderr.
+Includes `hooks.json` to automatically trigger validation on editing plugin manifests (`plugin.json`, `gemini-extension.json`, `mcp_config.json`, `hooks.json`), and delivering the findings to the agent (non-blocking, always exit 0).
+
+- `PostToolUse` → `validator/bin/validator --hook`: validates when a manifest was edited, logs the findings to stderr, and stores them in a per-`conversationId` relay file in the OS temp directory. Its stdout is always `{}`.
+- `PreInvocation` → `validator/bin/validator --inject`: consumes the relay file and injects the findings as an `ephemeralMessage` right before the next model call (same turn).
+- Why the relay: on agy 1.4.2, `PostToolUse` stderr reaches neither the model nor the TUI (CLI log only), and `PostToolUse` stdout cannot inject anything (`injectSteps` is rejected as an unknown field and turns the whole tool result into an error; `overwriteResult` is ignored).
+- `timeout` in agy `hooks.json` is in **seconds** (default 30), not milliseconds.
