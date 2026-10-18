@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -211,13 +212,42 @@ func injectOutput(payload []byte) []byte {
 	return b
 }
 
-// relayDir は --hook から --inject への受け渡しファイルの置き場（テストで差し替える）。
-// install 先は再 install で置き換わり、ソースツリーに書くと作業ツリーを汚すので一時ディレクトリに置く。
-var relayDir = func() string { return filepath.Join(os.TempDir(), "agy-plugin-kit-relay") }
+// relayDir は --hook から --inject への受け渡しファイルの置き場（テストで差し替える。"" なら受け渡し無効）。
+// 中身はそのままエージェントに差し込まれるので、他ユーザーが先回りして作れる共有の /tmp ではなく
+// ユーザーごとのキャッシュディレクトリに置く。install 先は再 install で置き換わり、ソースツリーは汚したくない。
+var relayDir = func() string {
+	d, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(d, "agy-plugin-kit", "relay")
+}
+
+// safeRelayDir は受け渡し用ディレクトリを用意し、シンボリックリンクでない実ディレクトリで、
+// Unix では自分以外に権限が無い（0700）ことを確かめてから返す。満たさなければ受け渡しを諦める。
+func safeRelayDir(create bool) (string, bool) {
+	d := relayDir()
+	if d == "" {
+		return "", false
+	}
+	if create {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return "", false
+		}
+	}
+	fi, err := os.Lstat(d)
+	if err != nil || !fi.IsDir() || fi.Mode()&os.ModeSymlink != 0 {
+		return "", false
+	}
+	if runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0 {
+		return "", false
+	}
+	return d, true
+}
 
 // relayPath は conversationId に対応する受け渡しファイルのパスを返す。
 // ID はファイル名になるので英数字・ハイフン・アンダースコアだけを許す（パス区切りや .. を通さない）。
-func relayPath(convID string) (string, bool) {
+func relayPath(convID string, create bool) (string, bool) {
 	if convID == "" || len(convID) > 128 {
 		return "", false
 	}
@@ -226,7 +256,11 @@ func relayPath(convID string) (string, bool) {
 			return "", false
 		}
 	}
-	return filepath.Join(relayDir(), convID+".txt"), true
+	d, ok := safeRelayDir(create)
+	if !ok {
+		return "", false
+	}
+	return filepath.Join(d, convID+".txt"), true
 }
 
 // conversationID は agy のフック payload から conversationId を取り出す（無ければ ""）。
@@ -242,12 +276,12 @@ func conversationID(payload []byte) string {
 
 // appendRelay は msg を受け渡しファイルに追記する（1 ステップで複数のマニフェストを編集した場合に備えて追記）。
 func appendRelay(convID, msg string) error {
-	p, ok := relayPath(convID)
+	p, ok := relayPath(convID, true)
 	if !ok {
-		return fmt.Errorf("conversationId が不正です: %q", convID)
+		return fmt.Errorf("受け渡し先を用意できません（conversationId %q）", convID)
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		return err
+	if fi, err := os.Lstat(p); err == nil && !fi.Mode().IsRegular() {
+		return fmt.Errorf("受け渡しファイルが通常ファイルではありません: %s", p)
 	}
 	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -262,8 +296,12 @@ func appendRelay(convID, msg string) error {
 
 // takeRelay は受け渡しファイルを読んで消し、中身を返す（無い・読めない時は ""）。
 func takeRelay(convID string) string {
-	p, ok := relayPath(convID)
+	p, ok := relayPath(convID, false)
 	if !ok {
+		return ""
+	}
+	// シンボリックリンク等は読まない（ディレクトリ自体は safeRelayDir で検査済み）。
+	if fi, err := os.Lstat(p); err != nil || !fi.Mode().IsRegular() {
 		return ""
 	}
 	b, err := os.ReadFile(p)

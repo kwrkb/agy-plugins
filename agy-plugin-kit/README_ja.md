@@ -64,7 +64,8 @@ copy-only で問題ありません（自身が C1 を踏まない）。
 （非ブロッキング・常に exit 0）。仕組み:
 
 - **2 つのフックで受け渡す**: `PostToolUse` の `validator --hook` が検査結果を stderr（CLI ログ）に出すとともに、
-  OS の一時ディレクトリの `agy-plugin-kit-relay/<conversationId>.txt` に書く（stdout は常に `{}`）。
+  ユーザーごとのキャッシュディレクトリ（`os.UserCacheDir()` 配下の `agy-plugin-kit/relay/<conversationId>.txt`、0700）に書く（stdout は常に `{}`）。
+  中身はそのままエージェントに差し込まれるので、共有の `/tmp` は使わず、シンボリックリンクや他ユーザーが触れる場所なら受け渡しを諦める。
   `PreInvocation` の `validator --inject` がそれを読んで消し、`injectSteps` の `ephemeralMessage` として
   次のモデル呼び出しの直前（同じターン内）に差し込む。
   agy 1.4.2 では `PostToolUse` の stderr はモデルにも TUI にも届かず（CLI ログのみ）、stdout での差し込みも

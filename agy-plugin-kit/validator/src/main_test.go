@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -258,7 +259,7 @@ func TestValidateAgy142Rules(t *testing.T) {
 // useRelayDir は受け渡しファイルの置き場をテスト用の一時ディレクトリに差し替える。
 func useRelayDir(t *testing.T) string {
 	t.Helper()
-	d := t.TempDir()
+	d := filepath.Join(t.TempDir(), "relay")
 	orig := relayDir
 	relayDir = func() string { return d }
 	t.Cleanup(func() { relayDir = orig })
@@ -268,12 +269,12 @@ func useRelayDir(t *testing.T) string {
 func TestRelayPath(t *testing.T) {
 	useRelayDir(t)
 	for _, id := range []string{"ec33ebf9-0cba-4100-8142-c61503f6c587", "abc_DEF-1"} {
-		if _, ok := relayPath(id); !ok {
+		if _, ok := relayPath(id, true); !ok {
 			t.Errorf("relayPath(%q) rejected a valid id", id)
 		}
 	}
 	for _, id := range []string{"", "../x", "a/b", `a\b`, "a.b", strings.Repeat("a", 129)} {
-		if _, ok := relayPath(id); ok {
+		if _, ok := relayPath(id, true); ok {
 			t.Errorf("relayPath(%q) accepted an unsafe id", id)
 		}
 	}
@@ -334,6 +335,64 @@ func TestHookInjectRelay(t *testing.T) {
 	t.Run("unparsable inject payload yields {}", func(t *testing.T) {
 		if out := string(injectOutput([]byte("not json"))); out != "{}" {
 			t.Errorf("injectOutput(garbage) = %s, want {}", out)
+		}
+	})
+}
+
+// 他ユーザーが書ける・シンボリックリンクの受け渡し先は使わない（中身がエージェントに差し込まれるため）。
+func TestRelayRejectsUnsafeLocations(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits and symlinks are Unix-specific here")
+	}
+	const conv = "ec33ebf9-0cba-4100-8142-c61503f6c587"
+
+	t.Run("group/world-writable dir", func(t *testing.T) {
+		d := useRelayDir(t)
+		if err := os.MkdirAll(d, 0o777); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(d, 0o777); err != nil {
+			t.Fatal(err)
+		}
+		mustWrite(t, filepath.Join(d, conv+".txt"), "planted")
+		if got := takeRelay(conv); got != "" {
+			t.Errorf("takeRelay read from a 0777 dir: %q", got)
+		}
+		if err := appendRelay(conv, "x"); err == nil {
+			t.Error("appendRelay wrote into a 0777 dir")
+		}
+	})
+
+	t.Run("symlinked dir", func(t *testing.T) {
+		d := useRelayDir(t)
+		real := t.TempDir()
+		if err := os.Chmod(real, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(real, d); err != nil {
+			t.Fatal(err)
+		}
+		mustWrite(t, filepath.Join(real, conv+".txt"), "planted")
+		if got := takeRelay(conv); got != "" {
+			t.Errorf("takeRelay followed a symlinked dir: %q", got)
+		}
+	})
+
+	t.Run("symlinked relay file", func(t *testing.T) {
+		d := useRelayDir(t)
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		target := filepath.Join(t.TempDir(), "secret")
+		mustWrite(t, target, "planted")
+		if err := os.Symlink(target, filepath.Join(d, conv+".txt")); err != nil {
+			t.Fatal(err)
+		}
+		if got := takeRelay(conv); got != "" {
+			t.Errorf("takeRelay followed a symlinked file: %q", got)
+		}
+		if err := appendRelay(conv, "x"); err == nil {
+			t.Error("appendRelay wrote through a symlinked file")
 		}
 	})
 }
