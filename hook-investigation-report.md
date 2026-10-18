@@ -268,6 +268,42 @@ agy バイナリの strings 解析で注入経路を特定した:
 
 ### 9.4 未検証
 
-- Windows（`cmd /c` で実行される）と macOS の実機で、`--hook` / `--inject` が起動するか。
+- ~~Windows（`cmd /c` で実行される）~~ → §10 で検証済み（旧 command は起動しない。`||` でつなぐ形で解消）。
+- macOS の実機で、§10 の新しい command の `--hook` / `--inject` が起動するか。
 - 1.4.2 より前の agy で `PreInvocation` キーがどう扱われるか。
+
+---
+
+## 10. 追記: Windows でのフック起動経路（2026-10-18）
+
+**対象:** agy 1.4.2（Windows 11 ネイティブ）。Issue #30 の手順で agy-plugin-kit をクリーン install して検証した。
+**結論: Windows はフックを `cmd /c` で起動し、スラッシュ区切りの相対パス（`validator/bin/validator`）は起動できない。Windows 形と Unix 形を `||` でつなぐと全 OS で 1 本の command にまとまる。**
+
+### 10.1 書き方ごとの起動結果
+
+使い捨てのプラグインの `PreInvocation` に、argv・cwd・stdin・PATH を記録するプローブ exe を置いて調べた。
+
+| command | 結果 |
+|---|---|
+| `bin/probe x` / `bin/probe.exe x` | ✗ `'bin' is not recognized as an internal or external command`（`/probe` がスイッチ扱い） |
+| `bin\probe.exe x` / `bin\probe x` / `.\bin\probe.exe x` | ✓ 起動。cwd はプラグインルート |
+| `bin\probe x`（隣に拡張子なし sh スクリプト `bin/probe` あり） | ✓ PATHEXT で `probe.exe` が選ばれる。sh スクリプトは実行されない |
+| `"bin/probe" x` / `"bin/probe.exe" x` / `"./bin/probe" x` | ✗ agy（Go の exec）が内側の `"` を `\"` にエスケープし、`'\"bin/probe\"' is not recognized` |
+| `hookprobe-bare x`（`bin/hookprobe-bare.exe` を置いた） | ✗ プラグインの `bin/` はフック実行時の PATH に入らない。`PLUGIN_ROOT` / `PLUGIN_DATA` も空 |
+
+### 10.2 起動に失敗したときの影響
+
+- `PostToolUse` の起動に失敗すると、ファイルは書けているのにツール結果全体が `Encountered error in tool execution: JSON hook "..." failed: command failed: exit status 1, stderr: '...' is not recognized ...` に置き換わる（CLI ログは `post-tool hooks failed for step N`）。§9.2 と同じ扱いで、`matcher: ".*"` なら全ツール呼び出しが対象になる。
+- 旧 command `validator/bin/validator --hook` は、`cmd` から見ると「`validator` に `/bin/validator` スイッチを付けたもの」。PATH に `validator` が無ければ上記のエラーになり、あれば**その別プログラムが黙って起動する**。
+- 実例: 2026-09-19 に別プロジェクトで agy を使った際、全ツール結果がこのエラーになった。agy のモデルが回避策として `%LocalAppData%\Microsoft\WindowsApps\validator.cmd`（`exit /b 0` だけ）を書き込み、ユーザーに報告しなかった。以後フックはこのスタブを呼んで「成功」し続け、検査は一度も走らなかった（2026-10-18 に発見し、削除）。
+
+### 10.3 対処
+
+```json
+"command": "validator\\bin\\validator --hook || validator/bin/validator --hook"
+```
+
+- Windows（`cmd /c`）: 前半が `validator.exe` に解決されて起動し、常に 0 で終わるので後半は走らない。
+- Linux / macOS（`sh -c`）: 前半はバックスラッシュがエスケープになって `validatorbinvalidator: not found`（stderr のみ・stdin は消費しない）。後半の OS 分岐 dispatcher が起動し、stdout は `{}` だけになる。
+- Windows 実機で Issue #30 の手順 3〜6 がすべて期待どおりになった。C2 が逐語でモデルに届き、`post-tool hooks failed` / `failed to call custom pre-invocation hook` / `unmarshal result` は 0 件、relay は空、マニフェスト以外の書き込みは成功として返った。Unix 側は Git Bash の `sh -c` で解釈を確認しただけで、Linux / macOS の実機では未確認。
 

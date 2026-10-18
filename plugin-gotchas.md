@@ -13,7 +13,7 @@
 > **回避策**
 > - **同梱バイナリを起動する MCP サーバー**: 3 OS（Linux / macOS / Windows）共通で確実に絶対パス起動するため、ソースは `gemini-extension.json` 形式（`plugin.json` を併置しない）で作成し、`"command": "${extensionPath}${/}bin${/}<name>"` と記述します（`agy plugin install` 時に絶対パス解決済みの `mcp_config.json` と `plugin.json` が生成されます）。
 > - **`agy plugin validate` の使い分け（v1.4.0〜）**: `agy plugin validate` は `plugin.json` を直接要求するため、`gemini-extension.json` 形式のソースディレクトリには直接かけず、ソース検査には `agy-plugin-kit` の `validator <src>` を、install 後検査には `agy plugin validate ~/.gemini/config/plugins/<name>` を使います。
-> - **`hooks.json`**: 変数を使わず、プラグインルートからの相対パス（例: `"command": "validator/bin/validator --hook"`）で記述します（フック実行時の `pwd` はプラグインルートになります）。
+> - **`hooks.json`**: 変数を使わず、プラグインルートからの相対パスで記述します（フック実行時の `pwd` はプラグインルートになります）。フックは Windows では `cmd /c`、それ以外では `sh -c` で起動され、`cmd` はスラッシュ区切りの `validator/bin/validator` の `/bin` をスイッチとして読むため起動できません。Windows 形と Unix 形を `||` でつなぎます（例: `"command": "validator\\bin\\validator --hook || validator/bin/validator --hook"`。`sh` では前半が not found になり後半が動く）。
 > - **`hooks.json` の `timeout` は秒単位**（既定 30）です。Claude Code のミリ秒の感覚で `10000` と書くと約 2.8 時間になります。
 > - **`PostToolUse` フックの出力はモデルに届きません**（stderr は CLI ログのみ、stdout の `injectSteps` はツール結果ごとエラー化、`overwriteResult` は無視）。モデルに伝えたい内容は `conversationId` ごとのファイルに書き、`PreInvocation` フックの `injectSteps`（`ephemeralMessage`）で差し込みます。
 

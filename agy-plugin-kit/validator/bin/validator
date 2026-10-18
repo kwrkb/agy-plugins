@@ -2,9 +2,12 @@
 # Platform dispatcher: exec the native binary for this OS/arch.
 # This file is plain text (OS-independent) and is committed to git so that
 # `agy plugin install` (which only copies files, no build) ships a single
-# hook `command` target that works on every Unix platform. Windows is
-# unaffected: the hook runner appends `.exe` and runs `<base>.exe` directly,
-# bypassing this script. Keep stdout clean — errors go to stderr only.
+# hook `command` target that works on every Unix platform. Windows does not
+# use this script: agy runs hooks via `cmd /c`, where `validator/bin/...`
+# breaks (`/bin` is read as a switch), so hooks.json first tries
+# `validator\bin\validator` (cmd resolves it to `<base>.exe` via PATHEXT) and
+# falls back to this script with `||` (sh turns the backslash form into a
+# not-found command). Keep stdout clean — errors go to stderr only.
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 base=validator
 # Compute Go GOOS/GOARCH from uname; the binary name matches build.sh output.
