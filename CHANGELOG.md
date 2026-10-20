@@ -9,7 +9,8 @@
 - **settings-advisor**: Broader scan detection and traits-driven model selection (`models.json` updated).
 - **agy-plugin-kit/validator**: Checks updated for agy 1.4.2. C2 now flags `${PLUGIN_ROOT}` /
   `${PLUGIN_DATA}` in MCP `command` (including `gemini-extension.json` `mcpServers`), since agy 1.4.2
-  leaves them unexpanded; manifests placed in a subdirectory are accepted. New check C11 warns when a
+  leaves them unexpanded; manifests at `.antigravity-plugin/plugin.json` or `.gemini-plugin/plugin.json`
+  are accepted. New check C11 warns when a
   `hooks.json` `timeout` looks like milliseconds (agy uses seconds).
 - **agy-plugin-kit/validator**: New `--inject` mode (PreInvocation hook). `--hook` (PostToolUse) writes
   its findings to a per-conversation relay file and `--inject` delivers them to the model as an
