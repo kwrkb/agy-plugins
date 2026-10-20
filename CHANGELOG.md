@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.6.0] - 2026-10-20
+
+### Added
+- **test-runner**: New MCP plugin (`go_test`) that runs `go test -json`, summarizes results, and returns
+  failure logs plus `rerun` arguments for the failing tests. Includes bundled skill `test-runner-gemini`
+  and native prebuilt binaries (`darwin-arm64`, `linux-amd64`, `windows`).
+- **settings-advisor**: Broader scan detection and traits-driven model selection (`models.json` updated).
+- **agy-plugin-kit/validator**: Checks updated for agy 1.4.2. C2 now flags `${PLUGIN_ROOT}` /
+  `${PLUGIN_DATA}` in MCP `command` (including `gemini-extension.json` `mcpServers`), since agy 1.4.2
+  leaves them unexpanded; manifests placed in a subdirectory are accepted. New check C11 warns when a
+  `hooks.json` `timeout` looks like milliseconds (agy uses seconds).
+- **agy-plugin-kit/validator**: New `--inject` mode (PreInvocation hook). `--hook` (PostToolUse) writes
+  its findings to a per-conversation relay file and `--inject` delivers them to the model as an
+  `ephemeralMessage`, because agy 1.4.2 drops PostToolUse hook output.
+
+### Changed
+- **mcp-go**: Migrated all seven MCP server modules from v0.54.1 to v1.3.0. No source changes; old and
+  new binaries return byte-identical `initialize` / `tools/list` responses and matching `tools/call`
+  results, and all seven servers were re-verified on agy 1.4.2.
+- **Go toolchain**: The pinned patch version now lives in `.go-version`; `build.sh`, `build.ps1` and CI
+  enforce it via `GOTOOLCHAIN`. Bumped to 1.26.9 (via 1.26.8) to pick up fixes for reachable stdlib
+  vulnerabilities, and rebuilt all native binaries. `go.mod` directives are unchanged.
+- **CI / Build Verification**: `govulncheck` now fails when a stdlib finding is fixable by a patch bump
+  within the pinned minor; findings that need a minor bump remain warnings.
+- **agy-plugin-kit**: `hooks.json` uses agy's named hook format with `timeout` in seconds (`10`; the
+  previous `10000` meant about 2.8 hours).
+
+### Fixed
+- **test-runner**: Invalid `packages` (resolved via `go list` discovery) and malformed `-run`
+  expressions are rejected up front as input errors instead of surfacing as package failures; the
+  `-run` expression is capped at 64 KiB.
+- **settings-advisor**: Path-based CI / production-config detection is scoped to the scan root, the
+  scan root itself is no longer skipped when named like a build directory, and qualified `.env`
+  templates are excluded.
+- **agy-plugin-kit**: Hook `command`s chain the Windows form and the Unix dispatcher with `||`, so the
+  bundled validator starts on Windows (`cmd /c` previously read `/bin` as a switch). Verified on Linux,
+  macOS and Windows.
+
 ## [0.5.0] - 2026-09-10
 
 ### Added
