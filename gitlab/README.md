@@ -3,10 +3,11 @@
 This plugin enables Antigravity (`agy`) to interface with GitLab using the built-in **`glab mcp serve`** feature of the official GitLab CLI [`glab`](https://gitlab.com/gitlab-org/cli).
 
 > **Note**: `glab mcp serve` is marked as **EXPERIMENTAL** by GitLab and its specifications may change in future releases.
+> As of **glab v1.124.0 it is deprecated** in favor of the [GitLab MCP Server](https://docs.gitlab.com/user/model_context_protocol/mcp_server/). It still works (verified with agy 1.4.2: the server starts and all 217 tools are discovered); only a deprecation warning is printed to stderr on startup.
 
 ## Features (MCP Tools)
 
-`glab mcp serve` exposes subcommands of `glab` as MCP tools (around 190 tools in `glab_<command>_<subcommand>` format). Major categories include:
+`glab mcp serve` exposes subcommands of `glab` as MCP tools (217 tools as of glab v1.124.0, in `glab_<command>_<subcommand>` format). Major categories include:
 
 - **Issues** (`glab_issue_*`): list, create, update, close, add notes, view, etc.
 - **Merge Requests** (`glab_mr_*`): list, create, update, merge, diff, approve, notes, etc.
@@ -16,11 +17,11 @@ This plugin enables Antigravity (`agy`) to interface with GitLab using the built
 
 ## Bundled Skill
 
-`skills/gitlab/SKILL.md` provides an operational guide for AI agents (loaded upon invocation). It details invocation argument formats (`args`, `flags`, `limit`, `offset`), project specification rules (`flags.repo`), and common usage patterns.
+`skills/gitlab/SKILL.md` provides an operational guide for AI agents (loaded upon invocation). It details invocation argument formats (`args`, `flags`), response size limits and paging (`per_page` / `page` / `jq`), project specification rules (`flags.repo`), and common usage patterns.
 
 ## Prerequisites
 
-- **`glab` >= v1.74.0** with `mcp serve` support (v1.102.0+ recommended)
+- **`glab` >= v1.74.0** with `mcp serve` support (**v1.117.0+ recommended**: from this version `flags.repo` is available on issue / MR / CI view and write tools; the bundled skill assumes it. Verified with v1.124.0)
   - Installation via Go:
     ```bash
     go install gitlab.com/gitlab-org/cli/cmd/glab@latest
