@@ -21,7 +21,7 @@ This plugin enables Antigravity (`agy`) to interface with GitLab using the built
 
 ## Prerequisites
 
-- **`glab` >= v1.74.0** with `mcp serve` support (**v1.117.0+ recommended**: from this version `flags.repo` is available on issue / MR / CI view and write tools; the bundled skill assumes it. Verified with v1.124.0)
+- **`glab` >= v1.117.0** (verified with v1.124.0). `mcp serve` itself exists since v1.74.0, but the bundled skill always passes `flags.repo`, which issue / MR / CI view and write tools only accept from v1.117.0. On older versions the flag is silently ignored and the command falls back to the repository of the server's working directory, so a write could hit the wrong project.
   - Installation via Go:
     ```bash
     go install gitlab.com/gitlab-org/cli/cmd/glab@latest

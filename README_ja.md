@@ -58,7 +58,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/test-runner
 | プラグイン | 必要な CLI / バイナリ | 認証 |
 | :-- | :-- | :-- |
 | github | `gh`（PATH 上） | `gh auth login` 済み |
-| gitlab | `glab` >= v1.74.0（PATH 上） | `glab auth login` 済み |
+| gitlab | `glab` >= v1.117.0（PATH 上） | `glab auth login` 済み |
 | agy-plugin-kit | （任意）`go` ※validator 再ビルド時のみ。バイナリ同梱のため通常不要 | 不要 |
 | ast-grep | `ast-grep`（CLI, PATH 上） | 不要 |
 | go-lsp | `gopls`（PATH 上） | 不要 |

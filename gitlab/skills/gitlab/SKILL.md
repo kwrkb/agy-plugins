@@ -43,6 +43,7 @@ glab_mr_list(flags={"repo": "myorg/myapp", "jq": ".[] | {iid, title}"})
 
 issue / mr / ci 系は view・write を含め **`flags.repo`（string）でプロジェクトを明示指定できる**（glab v1.117.0 以降、継承フラグがスキーマに載るようになった）。
 **常に `flags.repo` を渡す**: 省略すると `glab mcp serve` が起動された CWD の git remote から検出し、agy が GitLab リモートのないディレクトリで起動していると「Could not determine base repository」エラーになる。
+スキーマに `repo` が無い場合（v1.116 以前の glab）は渡しても無視されて CWD のプロジェクトが対象になるので、**write 系はスキーマに `repo` があることを確かめてから呼ぶ**。
 
 ```
 glab_issue_view(args=["42"], flags={"repo": "myorg/myapp"})
