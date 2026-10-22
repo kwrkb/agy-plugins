@@ -27,6 +27,7 @@ GitHub CLI (`gh`) を利用して、GitHub の各種操作（Issues, Pull Reques
 
 ### 1. `gh` コマンドを PATH に追加
 [GitHub CLI](https://cli.github.com/) をインストールし、コマンドプロンプトやターミナルで `gh` コマンドが実行できる状態にしてください。
+**v2.102.0 以降を推奨**します（`gh release download` / `gh run download` のシンボリックリンク経由の書き込みなど、4 件の脆弱性修正を含む）。v2.103.0 で動作確認済み。
 
 ### 2. GitHub 認証
 ターミナル上で以下を実行し、GitHub へのログインを済ませておいてください。

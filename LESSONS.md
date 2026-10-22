@@ -597,3 +597,15 @@ response = json.loads(proc.stdout.readline())
 - 覆す条件: 依存の更新がツールの挙動そのものを意図的に変える場合（そのときは応答の一致ではなく、期待する差分を判定基準にする）。
 
 **注意**: 旧バイナリを `git show` で取り出して単体で起動すると、実行ファイルの位置からデータファイル（例: settings-advisor の `models.json`）を探すプラグインはエラーを返し、偽の差分になる。比較するときは `git archive` でプラグインのディレクトリ構成ごと取り出して、その中のバイナリを起動する。
+
+## 2026-10-22: glab v1.117.0 以降の `glab mcp serve` では issue / MR / CI の全ツールが `flags.repo` を持つ — スキルは「常に `flags.repo` を渡す」に改める（#29 の前提が逆転）
+
+- 却下した案: #29 の「`flags.repo` の有無はツール単位で異なる（`glab_ci_list`・view 系・write 系は CWD 依存）」という表を残したまま、ツール数と推奨版だけを更新する。
+- 決め手: glab v1.124.0 の `tools/list`（217 ツール）を直接取得して確認した。`glab_ci_list`・`glab_issue_view`・`glab_mr_view`・`glab_mr_diff`・`glab_issue_create`・`glab_mr_create`・`glab_ci_*` がすべて `flags.repo`（string）を持つ。持たないのは 51 ツールで、`repo`（`contributors` / `members_*` を除く）・`api`・`auth`・`user`・`todo` などのカテゴリ。git リポジトリでないディレクトリから `glab_issue_view` を呼ぶと、`flags.repo` なしでは `could not determine base repository`、ありではリポジトリ検出を通過して認証エラーまで進んだ（サーバーが実際にフラグを使っている）。リリースノートでは v1.117.0 の「advertise inherited flags in tool schemas」が該当し、v1.117.0 を別途入れた `tools/list` でも上記のツールが `flags.repo` を持っていた（200 ツール）。あわせて共通パラメータ `limit` / `offset` は、v1.117.0 ではまだスキーマにあったが v1.124.0 では消えた。呼べば今も効くが、プレーンテキストの応答を続きから読む用途に限られる。JSON の list には `flags` の `per_page` / `page` / `jq` を使うよう、サーバーの `instructions` が案内している（応答の上限は 50,000 文字）。`assignee` の型の違い（#30）は今も残り、array 側に `issue_create` / `mr_create` / `issue_update` / `mr_update` が加わる。
+- 覆す条件: glab が継承フラグをスキーマに載せなくなった場合。または `glab mcp serve` をやめて別の MCP サーバーへ移った場合（v1.124.0 で `glab mcp serve` は deprecated。後継は GitLab の MCP Server）。どちらの場合もスキルは `tools/list` で取り直す。
+
+## 2026-10-22: スキルが前提にする版を「推奨」ではなく「最低要件」にする — 黙って無視される引数は書き込み先を取り違える
+
+- 却下した案: 最低要件を `mcp serve` が入った v1.74.0 のまま残し、スキルが前提にする v1.117.0 を「推奨」として併記する。
+- 決め手: glab v1.116.0 の `internal/commands/mcp/serve/server.go` はスキーマを `cmd.Flags()` だけから作り、v1.117.0 で `cmd.InheritedFlags()` が加わる（`flags.repo` は継承フラグ）。スキーマ外のフラグはサーバーが転送しないので、v1.116 以前で「常に `flags.repo` を渡す」スキルに従うと、エラーにならず CWD のリポジトリへ write が行く。同じ PR のレビューで「v1.124.0 は打ち切り時に `next_offset` を返さない」という指摘も来たが、v1.124.0 の同ファイルは打ち切り時に `structuredContent.next_offset` と `offset` を案内する通知を本文に付けており、指摘は誤りだったので採らなかった。
+- 覆す条件: スキルが `flags.repo` を前提にしなくなった場合。またはスキーマ外のフラグをサーバーがエラーにするようになった場合（黙って無視されなければ「推奨」で足りる）。

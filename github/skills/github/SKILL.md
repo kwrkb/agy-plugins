@@ -145,7 +145,7 @@ gh_command(args=["run", "list", "-R", "org/repo", "--limit", "5", "--json", "sta
 | Actions | `run` / `workflow` / `cache` |
 | 検索 | `search` の `repos` / `issues` / `prs` / `commits` / `code` |
 | 低レベル | `api` |
-| その他 | `gist` / `org` / `project` / `label` / `secret` / `variable` |
+| その他 | `discussion` / `gist` / `org` / `project` / `label` / `secret` / `variable` / `skill` |
 
 ## 注意: 破壊的操作
 

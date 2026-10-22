@@ -27,6 +27,7 @@ This provides several key advantages:
 
 ### 1. GitHub CLI (`gh`) on PATH
 Install the [GitHub CLI](https://cli.github.com/) and ensure `gh` is accessible from your terminal/command prompt.
+**v2.102.0 or later is recommended** (it fixes four security vulnerabilities, including file writes through symbolic links in `gh release download` / `gh run download`). Verified with v2.103.0.
 
 ### 2. GitHub Authentication
 Authenticate with GitHub:

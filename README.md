@@ -58,7 +58,7 @@ Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded on deman
 | Plugin | Required CLI / Binary | Authentication |
 | :-- | :-- | :-- |
 | github | `gh` (on PATH) | Authenticated with `gh auth login` |
-| gitlab | `glab` >= v1.74.0 (on PATH) | Authenticated with `glab auth login` |
+| gitlab | `glab` >= v1.117.0 (on PATH) | Authenticated with `glab auth login` |
 | agy-plugin-kit | (Optional) `go` (only needed for rebuilding validator; prebuilt binaries included) | None |
 | ast-grep | `ast-grep` (CLI on PATH) | None |
 | go-lsp | `gopls` (on PATH) | None |

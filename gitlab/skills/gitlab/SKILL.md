@@ -7,7 +7,7 @@ description: GitLab の issue/MR/CI/repo を glab_* MCP ツール群で操作す
 
 ## ツール概要
 
-このプラグインは `glab mcp serve` を通じて**約190個の MCP ツール**を提供する（バージョン依存で変動）。
+このプラグインは `glab mcp serve` を通じて**約220個の MCP ツール**を提供する（glab v1.124.0 で 217。バージョン依存で変動）。
 
 ツール名は `glab_<command>_<subcommand>` 形式:
 - `glab_issue_list` / `glab_issue_create` / `glab_issue_view`
@@ -19,38 +19,39 @@ description: GitLab の issue/MR/CI/repo を glab_* MCP ツール群で操作す
 
 ## 呼び出し形式（最重要）
 
-各ツールは以下の共通パラメータを持つ:
+各ツールのスキーマは `args` と `flags` の 2 つ:
 
 ```
 glab_<cmd>_<subcmd>(
   args=[...],      # positional arguments（<id> 等）
-  flags={...},     # コマンドフラグ（--repo, --title 等）
-  limit=50,        # レスポンスサイズ上限（オプション）
-  offset=0         # ページネーションオフセット（オプション）
+  flags={...}      # コマンドフラグ（repo, title, per_page 等）
 )
+```
+
+### レスポンスサイズとページング
+
+- レスポンスは **50,000 文字で打ち切られる**。打ち切られた JSON は断片になりパースできない
+- list 系は `flags` の **`per_page` / `page` / `jq`** で最初から絞る（JSON 出力時の推奨）
+- `limit` / `offset`（スキーマには出ない）は**プレーンテキスト出力を続きから読む**ためのもの。打ち切られると `next_offset` 付きで「`offset` を指定して再呼び出し」と返る
+
+```
+glab_issue_list(flags={"repo": "myorg/myapp", "per_page": 20})
+glab_mr_list(flags={"repo": "myorg/myapp", "jq": ".[] | {iid, title}"})
 ```
 
 ## プロジェクトの指定方法
 
-`repo` フラグの有無は**ツール単位**で異なる（「list 系なら一律あり」ではない）。使う前にスキーマで確認すること:
-
-| ツール | `flags.repo` | 動作 |
-|---|---|---|
-| `glab_issue_list`, `glab_mr_list` | あり（string） | `flags.repo` で明示指定できる |
-| `glab_ci_list` | **なし** | CWD 依存（※）。`ref` 等で絞り込むがプロジェクト指定はできない |
-| view 系（`glab_issue_view`, `glab_mr_view`, `glab_mr_diff`） | なし | CWD 依存（※） |
-| write 系（`glab_issue_create`, `glab_mr_create` 等） | なし | CWD 依存（※） |
-
-**※ CWD 依存の制限**: `repo` フラグがないツールは、`glab mcp serve` が起動された CWD の git remote からプロジェクトを検出する。agy が GitLab リモートのないディレクトリで起動した場合は「Could not determine base repository」エラーになる。`flags.repo` を渡してもスキーマにないツールでは無視される。
+issue / mr / ci 系は view・write を含め **`flags.repo`（string）でプロジェクトを明示指定できる**（glab v1.117.0 以降、継承フラグがスキーマに載るようになった）。
+**常に `flags.repo` を渡す**: 省略すると `glab mcp serve` が起動された CWD の git remote から検出し、agy が GitLab リモートのないディレクトリで起動していると「Could not determine base repository」エラーになる。
+スキーマに `repo` が無い場合（v1.116 以前の glab）は渡しても無視されて CWD のプロジェクトが対象になるので、**write 系はスキーマに `repo` があることを確かめてから呼ぶ**。
 
 ```
-# list 系は flags.repo で明示指定（推奨）
-glab_issue_list(flags={"repo": "myorg/myapp"}, limit=20)
-
-# view/write 系は repo 指定不可（CWD の git remote に依存）
-glab_issue_view(args=["42"])
-glab_issue_create(flags={"title": "Bug: login fails", "description": "Steps: ..."})
+glab_issue_view(args=["42"], flags={"repo": "myorg/myapp"})
+glab_issue_create(flags={"repo": "myorg/myapp", "title": "Bug: login fails", "description": "Steps: ..."})
 ```
+
+`flags.repo` を**持たない**ツールもある（`glab_repo_*` の大半〈`view` / `list` / `create` / `search` など〉・`glab_api`・`glab_auth_*`・`glab_user_*`・`glab_todo_*` など）。
+`glab_repo_view` はプロジェクトを `args=["group/project"]` で渡す。スキーマにないフラグは無視されるので、使う前にスキーマで確認すること。
 
 プロジェクトパスの形式は `group/project`（または `group/sub/project`）。
 
@@ -115,33 +116,34 @@ glab_issue_create(flags={"title": "Bug: login fails", "description": "Steps: ...
 
 ```
 # イシュー一覧（オープン、デフォルト）
-glab_issue_list(flags={"repo": "myorg/myapp"}, limit=20)
+glab_issue_list(flags={"repo": "myorg/myapp", "per_page": 20})
 
 # イシュー一覧（クローズ済み）
-glab_issue_list(flags={"repo": "myorg/myapp", "closed": true}, limit=20)
+glab_issue_list(flags={"repo": "myorg/myapp", "closed": true, "per_page": 20})
 
-# イシュー詳細（repo 指定不可 → CWD の git remote から検出）
-glab_issue_view(args=["42"])
+# イシュー詳細
+glab_issue_view(args=["42"], flags={"repo": "myorg/myapp"})
 
-# イシュー作成（repo 指定不可 → CWD 依存）
-glab_issue_create(flags={"title": "Bug: login fails", "description": "Steps: ..."})
+# イシュー作成
+glab_issue_create(flags={"repo": "myorg/myapp", "title": "Bug: login fails", "description": "Steps: ..."})
 
-# MR 一覧（自分担当）。mr_list の assignee は配列（issue_list は string）
-glab_mr_list(flags={"repo": "myorg/myapp", "assignee": ["@me"]}, limit=20)
+# MR 一覧（自分担当）。assignee の型はツールで違う:
+#   string = glab_issue_list / array = glab_mr_list・issue_create・mr_create・issue_update・mr_update
+glab_mr_list(flags={"repo": "myorg/myapp", "assignee": ["@me"], "per_page": 20})
 
-# MR 作成（repo 指定不可 → CWD 依存）
-glab_mr_create(flags={"source_branch": "feature/oauth", "target_branch": "main", "title": "Add OAuth support"})
+# MR 作成
+glab_mr_create(flags={"repo": "myorg/myapp", "source_branch": "feature/oauth", "target_branch": "main", "title": "Add OAuth support"})
 
-# パイプライン一覧（ci_list に repo フラグはない → CWD 依存）
-glab_ci_list(flags={"ref": "main"}, limit=10)
+# パイプライン一覧
+glab_ci_list(flags={"repo": "myorg/myapp", "ref": "main", "per_page": 10})
 
 # ジョブログ確認（job_id は positional）
-glab_ci_trace(args=["12345"])
+glab_ci_trace(args=["12345"], flags={"repo": "myorg/myapp"})
 
-# リポジトリ確認（group/project は positional）
+# リポジトリ確認（repo_view に flags.repo はない。group/project は positional）
 glab_repo_view(args=["myorg/myapp"])
 ```
 
-## EXPERIMENTAL について
+## EXPERIMENTAL / deprecated について
 
-`glab mcp serve` は GitLab により EXPERIMENTAL と位置づけられている。ツールの仕様・引数名・ツール数はバージョンアップで変更される可能性がある。パラメータ名は必ずツールスキーマ（エージェントのツールリスト）を参照する。
+`glab mcp serve` は GitLab により EXPERIMENTAL と位置づけられ、**glab v1.124.0 で deprecated** になった（起動時に stderr へ警告が出るが動作は継続する。後継は GitLab 公式の MCP Server）。ツールの仕様・引数名・ツール数はバージョンアップで変更される可能性がある。パラメータ名は必ずツールスキーマ（エージェントのツールリスト）を参照する。
