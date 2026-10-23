@@ -1,149 +1,157 @@
 ---
 name: gitlab
-description: GitLab の issue/MR/CI/repo を glab_* MCP ツール群で操作する際のルールと頻出パターン。agy 経由で GitLab 操作を行う前に参照する。
+description: GitLab の issue/MR/CI/release/project を glab_command MCP ツールで操作する際のルールと頻出パターン。agy 経由で GitLab 操作を行う前に参照する。
 ---
 
-# GitLab MCP プラグイン（glab_* ツール群）使用ガイド
+# GitLab MCP プラグイン（glab_command）使用ガイド
 
 ## ツール概要
 
-このプラグインは `glab mcp serve` を通じて**約220個の MCP ツール**を提供する（glab v1.124.0 で 217。バージョン依存で変動）。
-
-ツール名は `glab_<command>_<subcommand>` 形式:
-- `glab_issue_list` / `glab_issue_create` / `glab_issue_view`
-- `glab_mr_list` / `glab_mr_create` / `glab_mr_merge`
-- `glab_ci_list` / `glab_ci_status` / `glab_ci_trace`
-- `glab_repo_view` / `glab_repo_list`
-
-ツール一覧はエージェントのツールリストに既にある。**パラメータは各ツールのスキーマを確認して使う**（バージョンにより変わる可能性があるため）。
-
-## 呼び出し形式（最重要）
-
-各ツールのスキーマは `args` と `flags` の 2 つ:
+このプラグインは `glab_command` という**単一の MCP ツール**を提供する。`glab` CLI の任意のサブコマンドを実行できる。
 
 ```
-glab_<cmd>_<subcmd>(
-  args=[...],      # positional arguments（<id> 等）
-  flags={...}      # コマンドフラグ（repo, title, per_page 等）
-)
+glab_command(args=["<subcommand>", "<args...>"])
 ```
 
-### レスポンスサイズとページング
+成功時は glab の stdout が、失敗時は終了コードと stderr（` ERROR ` の見出し付き）がエラーとして返る。
 
-- レスポンスは **50,000 文字で打ち切られる**。打ち切られた JSON は断片になりパースできない
-- list 系は `flags` の **`per_page` / `page` / `jq`** で最初から絞る（JSON 出力時の推奨）
-- `limit` / `offset`（スキーマには出ない）は**プレーンテキスト出力を続きから読む**ためのもの。打ち切られると `next_offset` 付きで「`offset` を指定して再呼び出し」と返る
+## args 配列のルール（最重要）
+
+- `args` は `["issue", "list", "-R", "group/project"]` のようにトークンを**1要素ずつ**渡す配列
+- `"glab"` 自体は含めない
+- スペースを含む値（タイトル・説明・検索クエリ）は**1要素にまとめる**:
+  - 正: `["mr", "create", "-R", "group/project", "--title", "Fix the bug in login flow", ...]`
+  - 誤: `["mr", "create", "--title", "Fix", "the", "bug"]`（glab が複数引数として受け取る）
+
+## CWD 非定常 — プロジェクトは必ず明示する
+
+`glab_command` は MCP サーバーが agy に起動されたディレクトリを CWD として継承する。暗黙のカレントリポジトリ検出は**信頼できない**
+（GitLab リモートのないディレクトリでは `not a git repository` などで失敗し、別のリポジトリにいれば**そちらが操作対象になる**）。
+
+**常に `-R group/project` を指定する**（`group/sub/project`、`https://gitlab.com/group/project` も可）:
 
 ```
-glab_issue_list(flags={"repo": "myorg/myapp", "per_page": 20})
-glab_mr_list(flags={"repo": "myorg/myapp", "jq": ".[] | {iid, title}"})
+glab_command(args=["issue", "list", "-R", "myorg/myapp", "--output", "json"])
+glab_command(args=["mr", "view", "42", "-R", "myorg/myapp"])
 ```
 
-## プロジェクトの指定方法
+`-R` が使えるのは issue / mr / ci / release / label / variable / schedule など**プロジェクト単位のコマンド**。例外:
 
-issue / mr / ci 系は view・write を含め **`flags.repo`（string）でプロジェクトを明示指定できる**（glab v1.117.0 以降、継承フラグがスキーマに載るようになった）。
-**常に `flags.repo` を渡す**: 省略すると `glab mcp serve` が起動された CWD の git remote から検出し、agy が GitLab リモートのないディレクトリで起動していると「Could not determine base repository」エラーになる。
-スキーマに `repo` が無い場合（v1.116 以前の glab）は渡しても無視されて CWD のプロジェクトが対象になるので、**write 系はスキーマに `repo` があることを確かめてから呼ぶ**。
-
-```
-glab_issue_view(args=["42"], flags={"repo": "myorg/myapp"})
-glab_issue_create(flags={"repo": "myorg/myapp", "title": "Bug: login fails", "description": "Steps: ..."})
-```
-
-`flags.repo` を**持たない**ツールもある（`glab_repo_*` の大半〈`view` / `list` / `create` / `search` など〉・`glab_api`・`glab_auth_*`・`glab_user_*`・`glab_todo_*` など）。
-`glab_repo_view` はプロジェクトを `args=["group/project"]` で渡す。スキーマにないフラグは無視されるので、使う前にスキーマで確認すること。
-
-プロジェクトパスの形式は `group/project`（または `group/sub/project`）。
-
-## カテゴリ別主要ツール
-
-### Issues (`glab_issue_*`)
-
-| ツール | 説明 |
+| コマンド | プロジェクトの渡し方 |
 |---|---|
-| `glab_issue_list` | イシュー一覧 |
-| `glab_issue_create` | イシュー作成 |
-| `glab_issue_view` | イシュー詳細（`args=["<id>"]`） |
-| `glab_issue_update` | ラベル・マイルストーン等の更新 |
-| `glab_issue_close` | イシューをクローズ |
-| `glab_issue_reopen` | イシューを再オープン |
-| `glab_issue_note` | コメント追加 |
+| `repo view` / `repo list` / `repo search` など `repo` の大半 | `-R` なし。`repo view` は位置引数 `["repo", "view", "myorg/myapp"]` |
+| `milestone list` | `-R` は効かず `--project myorg/myapp`（グループなら `--group myorg`） |
+| `api` | `-R` なし。パスにプロジェクトを直接書く（下記） |
+| `auth` / `user` / `todo` / `alias` / `runner-controller` / `skills` | プロジェクトに属さない（`user events` は `--all` を付けないと CWD のリポジトリを要求する） |
 
-### Merge Requests (`glab_mr_*`)
+## 使わないコマンド
 
-| ツール | 説明 |
-|---|---|
-| `glab_mr_list` | MR 一覧 |
-| `glab_mr_create` | MR 作成 |
-| `glab_mr_view` | MR 詳細（`args=["<id>"]`） |
-| `glab_mr_update` | MR 属性更新 |
-| `glab_mr_merge` | MR をマージ |
-| `glab_mr_approve` | MR を承認 |
-| `glab_mr_diff` | MR の変更差分表示 |
-| `glab_mr_note` | コメント追加 |
+- **ローカルの git 作業ツリーを前提にするもの**: `mr checkout` / `repo clone` / `mr create --fill`（`--push`）/ `stack` など。
+  `-R` を付けても CWD の git を見て失敗する。git 操作はホストエージェントの責務で、このツールの範囲外。
+- **ID を省くと現在のブランチから探すもの**: `ci view` / `ci trace` / `ci status` は、パイプライン ID・ジョブ ID か `--branch` を必ず渡す
+  （省くと CWD のブランチを使う。`ci view` は TUI なので使わず、`ci get` / `ci list` を使う）。
+- **`duo` / `orbit`**: 初回に外部バイナリのダウンロード確認を求める。このツールでは応答できないので使わない。
+- **エディタを開く値**: `--description "-"` などは使わない。値は引数で直接渡す。
 
-### CI/CD (`glab_ci_*`)
+対話プロンプトは無効にしてある（`GLAB_NO_PROMPT=1`・stdin なし）。必須フラグが足りないと、待たずに
+`required for non-interactive mode` のエラーで返るので、足りないフラグを追加して呼び直す。
 
-| ツール | 説明 |
-|---|---|
-| `glab_ci_list` | パイプライン一覧 |
-| `glab_ci_get` | パイプライン詳細 |
-| `glab_ci_status` | パイプラインステータス |
-| `glab_ci_run` | パイプライン手動実行 |
-| `glab_ci_retry` | リトライ |
-| `glab_ci_trace` | ジョブログ追跡（`args=["<job-id>"]`） |
-| `glab_ci_cancel_pipeline` | パイプラインキャンセル |
+## JSON 出力
 
-### Projects (`glab_repo_*`)
+JSON を出せるのは**一部のコマンドだけ**（list / view / get 系が中心）。対応コマンドでは長い形の `--output json` を明示する
+（短い形は `-F` と `-O` がコマンドで違う）。`--jq` でフィルタもできる。対応していないコマンド（`mr diff`・`ci trace`・`issue note` など）はテキストで返る。
+付けられるかは `glab_command(args=["<cmd>", "<sub>", "--help"])` の FLAGS に `--output` があるかで確かめる。
 
-| ツール | 説明 |
-|---|---|
-| `glab_repo_view` | プロジェクト詳細（`args=["group/project"]`） |
-| `glab_repo_list` | プロジェクト一覧 |
-| `glab_repo_create` | 新規プロジェクト作成 |
-| `glab_repo_search` | プロジェクト検索 |
-
-### その他の主要カテゴリ
-
-- `glab_release_*`: リリース管理
-- `glab_label_*`: ラベル管理
-- `glab_milestone_*`: マイルストーン管理
-- `glab_variable_*`: CI/CD 変数管理
-- `glab_schedule_*`: パイプラインスケジュール
-- `glab_api`: GitLab REST API v4 直接呼び出し
+```
+glab_command(args=["issue", "list", "-R", "myorg/myapp", "--output", "json", "--per-page", "20"])
+glab_command(args=["mr", "list", "-R", "myorg/myapp", "--output", "json", "--jq", ".[] | {iid, title}"])
+```
 
 ## 頻出パターン
 
+### issue
+
 ```
-# イシュー一覧（オープン、デフォルト）
-glab_issue_list(flags={"repo": "myorg/myapp", "per_page": 20})
+# 一覧（既定はオープンのみ。--all / --closed で切り替え）
+glab_command(args=["issue", "list", "-R", "myorg/myapp", "--output", "json", "--per-page", "20"])
 
-# イシュー一覧（クローズ済み）
-glab_issue_list(flags={"repo": "myorg/myapp", "closed": true, "per_page": 20})
+# 検索（スペースを含むクエリは1要素）
+glab_command(args=["issue", "list", "-R", "myorg/myapp", "--search", "login error", "--output", "json"])
 
-# イシュー詳細
-glab_issue_view(args=["42"], flags={"repo": "myorg/myapp"})
+# 表示（コメント込み）
+glab_command(args=["issue", "view", "42", "-R", "myorg/myapp", "--comments"])
 
-# イシュー作成
-glab_issue_create(flags={"repo": "myorg/myapp", "title": "Bug: login fails", "description": "Steps: ..."})
+# 作成
+glab_command(args=["issue", "create", "-R", "myorg/myapp", "--title", "Bug: login fails on mobile", "--description", "Steps to reproduce: ...", "--yes"])
 
-# MR 一覧（自分担当）。assignee の型はツールで違う:
-#   string = glab_issue_list / array = glab_mr_list・issue_create・mr_create・issue_update・mr_update
-glab_mr_list(flags={"repo": "myorg/myapp", "assignee": ["@me"], "per_page": 20})
+# コメント
+glab_command(args=["issue", "note", "42", "-R", "myorg/myapp", "--message", "Fixed in !17"])
 
-# MR 作成
-glab_mr_create(flags={"repo": "myorg/myapp", "source_branch": "feature/oauth", "target_branch": "main", "title": "Add OAuth support"})
+# クローズ
+glab_command(args=["issue", "close", "42", "-R", "myorg/myapp"])
+```
 
+### mr
+
+```
+# 一覧（自分担当）
+glab_command(args=["mr", "list", "-R", "myorg/myapp", "--assignee=@me", "--output", "json"])
+
+# 表示
+glab_command(args=["mr", "view", "17", "-R", "myorg/myapp", "--output", "json"])
+
+# diff
+glab_command(args=["mr", "diff", "17", "-R", "myorg/myapp"])
+
+# 作成（ブランチは push 済みであること。ローカルクローンなしで作るので全項目をフラグで渡す）
+glab_command(args=["mr", "create", "-R", "myorg/myapp", "--source-branch", "feature/oauth", "--target-branch", "main", "--title", "Add OAuth support", "--description", "Closes #42", "--yes"])
+
+# 承認・マージ
+glab_command(args=["mr", "approve", "17", "-R", "myorg/myapp"])
+glab_command(args=["mr", "merge", "17", "-R", "myorg/myapp", "--squash", "--yes"])
+```
+
+### CI/CD
+
+```
 # パイプライン一覧
-glab_ci_list(flags={"repo": "myorg/myapp", "ref": "main", "per_page": 10})
+glab_command(args=["ci", "list", "-R", "myorg/myapp", "--output", "json", "--per-page", "10"])
 
-# ジョブログ確認（job_id は positional）
-glab_ci_trace(args=["12345"], flags={"repo": "myorg/myapp"})
+# パイプライン詳細（ID を明示）
+glab_command(args=["ci", "get", "-R", "myorg/myapp", "--pipeline-id", "123456", "--output", "json"])
 
-# リポジトリ確認（repo_view に flags.repo はない。group/project は positional）
-glab_repo_view(args=["myorg/myapp"])
+# ジョブログ（ジョブ ID を明示）
+glab_command(args=["ci", "trace", "987654", "-R", "myorg/myapp"])
 ```
 
-## EXPERIMENTAL / deprecated について
+### release / repo
 
-`glab mcp serve` は GitLab により EXPERIMENTAL と位置づけられ、**glab v1.124.0 で deprecated** になった（起動時に stderr へ警告が出るが動作は継続する。後継は GitLab 公式の MCP Server）。ツールの仕様・引数名・ツール数はバージョンアップで変更される可能性がある。パラメータ名は必ずツールスキーマ（エージェントのツールリスト）を参照する。
+```
+glab_command(args=["release", "list", "-R", "myorg/myapp", "--output", "json"])
+glab_command(args=["repo", "view", "myorg/myapp", "--output", "json"])
+```
+
+### api（任意の GitLab REST API v4 呼び出し）
+
+`:fullpath` / `:id` などのプレースホルダは CWD のリポジトリから解決されるので使わない。
+プロジェクトは **URL エンコードしたパス**（`/` → `%2F`）か数値 ID で直接書く。
+
+```
+glab_command(args=["api", "projects/myorg%2Fmyapp"])
+glab_command(args=["api", "projects/myorg%2Fmyapp/issues?state=opened&per_page=5"])
+```
+
+## 主要サブコマンド一覧
+
+| カテゴリ | サブコマンド |
+|---|---|
+| コア | `issue` / `mr` / `release` / `repo` |
+| CI/CD | `ci` / `job` / `schedule` / `variable` |
+| プロジェクト管理 | `label` / `milestone` / `iteration` / `incident` / `work-items` |
+| 低レベル | `api` |
+
+## 注意: 破壊的操作
+
+`glab_command` は `glab` の**あらゆるサブコマンドを実行できる**。`mr merge` / `issue close` / `repo delete` / `variable set` /
+`api`（任意の REST 呼び出し）といった**書き込み・破壊的操作も実行可能**で、`glab auth login` 済みアカウントの権限で動く。
+`--yes` は確認プロンプトを飛ばすためのもので、実行前の意図の確認は呼び出し側で行う。

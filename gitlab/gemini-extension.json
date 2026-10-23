@@ -1,0 +1,10 @@
+{
+  "name": "gitlab",
+  "version": "1.0.0",
+  "description": "GitLab MCP server wrapping the glab CLI.",
+  "mcpServers": {
+    "gitlab": {
+      "command": "${extensionPath}${/}bin${/}gitlab"
+    }
+  }
+}

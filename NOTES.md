@@ -12,13 +12,12 @@
 | `<plugin>/bin/` | 配布物: `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe` と、拡張子なしの dispatcher `<name>`（100755） |
 | `<plugin>/gemini-extension.json` | マニフェスト兼 MCP 定義（`command` は `${extensionPath}${/}bin${/}<name>`） |
 | `<plugin>/skills/<name>/SKILL.md` | エージェント向けのツールリファレンス |
-| `gitlab/` | `plugin.json` + `mcp_config.json`（`glab mcp serve`）と skill だけ。Go ソースなし |
 | `agy-plugin-kit/` | 開発キット（下記） |
 | `build.sh` / `build.ps1` | 決定論ビルド。引数でターゲットを選ぶ（`github` / `validator` / … / 省略で全部） |
 | `.go-version` | 固定する Go のパッチ版（build スクリプトと CI が読む） |
 | `.github/workflows/build-verify.yml` | モジュールごとに vet・test・govulncheck・再ビルド後の `git diff --exit-code`（stale 検出） |
 
-Go 製プラグイン: github / ast-grep / go-lsp / retro-status / settings-advisor / worktree-manager / test-runner
+Go 製プラグイン: github / gitlab / ast-grep / go-lsp / retro-status / settings-advisor / worktree-manager / test-runner
 （`mark3labs/mcp-go` v1 系に依存）。validator は依存なし。
 
 ## agy-plugin-kit

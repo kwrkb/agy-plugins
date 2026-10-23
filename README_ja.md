@@ -7,7 +7,7 @@
 | プラグイン | 説明 |
 | :-- | :-- |
 | **[github](./github/README_ja.md)** | GitHub CLI (`gh`) を利用して GitHub の Issues / PR / リポジトリ等を操作する MCP サーバー（OS 共通） |
-| **[gitlab](./gitlab/README_ja.md)** | GitLab の Issues / MR / プロジェクト等を操作する MCP サーバー |
+| **[gitlab](./gitlab/README_ja.md)** | GitLab CLI (`glab`) を利用して GitLab の Issues / MR / CI / プロジェクト等を操作する MCP サーバー（OS 共通） |
 | **[agy-plugin-kit](./agy-plugin-kit/README_ja.md)** | agy プラグイン開発メタ・ヘルパー（雛形生成・静的検査・Issue #390 パス修正・doc 生成） |
 | **[ast-grep](./ast-grep/README_ja.md)** | `ast-grep` (`sg`) を利用してコード構造の検索・安全なリファクタリングを行う MCP サーバー |
 | **[go-lsp](./go-lsp/README_ja.md)** | `gopls` を利用して Go 言語の定義ジャンプ・参照検索・ホバー情報を取得する MCP サーバー |
@@ -58,7 +58,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/test-runner
 | プラグイン | 必要な CLI / バイナリ | 認証 |
 | :-- | :-- | :-- |
 | github | `gh`（PATH 上） | `gh auth login` 済み |
-| gitlab | `glab` >= v1.117.0（PATH 上） | `glab auth login` 済み |
+| gitlab | `glab`（PATH 上。v1.124.0 で動作確認） | `glab auth login` 済み |
 | agy-plugin-kit | （任意）`go` ※validator 再ビルド時のみ。バイナリ同梱のため通常不要 | 不要 |
 | ast-grep | `ast-grep`（CLI, PATH 上） | 不要 |
 | go-lsp | `gopls`（PATH 上） | 不要 |
@@ -69,9 +69,9 @@ agy plugin install https://github.com/kwrkb/agy-plugins/test-runner
 
 ### 同梱プラットフォームと self-build
 
-既存プラグインは Windows ネイティブ動作確認済み。`test-runner` は Linux・macOS・Windows のCIテストを追加し、ローカルではLinuxで検証しています。
+既存プラグインは Windows ネイティブ動作確認済み。`test-runner` は Linux・macOS・Windows のCIテストを追加し、ローカルではLinuxで検証しています。`gitlab`（`glab` ラッパー）の実機確認は現時点で Linux のみです。
 
-Go 製プラグイン（`github`、`ast-grep`、`go-lsp`、`retro-status`、`settings-advisor`、`worktree-manager`、`test-runner`、および `agy-plugin-kit` の validator）は、**`linux/amd64`**、**`darwin/arm64`（Apple Silicon）**、**`windows/amd64`** のネイティブバイナリを `bin/` に同梱しています。拡張子なしの `bin/<name>` ディスパッチャスクリプトが `uname` で実行環境を判別し、`<name>-<goos>-<goarch>` を起動します（Windows では agy が `<name>.exe` を直接起動）。
+Go 製プラグイン（`github`、`gitlab`、`ast-grep`、`go-lsp`、`retro-status`、`settings-advisor`、`worktree-manager`、`test-runner`、および `agy-plugin-kit` の validator）は、**`linux/amd64`**、**`darwin/arm64`（Apple Silicon）**、**`windows/amd64`** のネイティブバイナリを `bin/` に同梱しています。拡張子なしの `bin/<name>` ディスパッチャスクリプトが `uname` で実行環境を判別し、`<name>-<goos>-<goarch>` を起動します（Windows では agy が `<name>.exe` を直接起動）。
 
 **それ以外の環境（`linux/arm64` や `darwin/amd64` など）は標準同梱していません**が、スクリプトの書き換えなしで手元でビルドして動かせます：
 
@@ -87,7 +87,7 @@ cd <plugin>/src && CGO_ENABLED=0 go build -o "../bin/<name>-$(go env GOOS)-$(go 
 | プラグイン | ラップ対象 | ライセンス |
 | :-- | :-- | :-- |
 | github | `gh` CLI | MIT |
-| gitlab | [gitlab-org/cli (`glab mcp serve`)](https://gitlab.com/gitlab-org/cli) | MIT |
+| gitlab | [gitlab-org/cli (`glab`)](https://gitlab.com/gitlab-org/cli) | MIT |
 | ast-grep | [`ast-grep` CLI](https://ast-grep.github.io/) | MIT |
 | go-lsp | [`gopls` (Go Language Server)](https://pkg.go.dev/golang.org/x/tools/gopls) | BSD-3-Clause |
 | retro-status | 独自 Go 実装 | MIT |
