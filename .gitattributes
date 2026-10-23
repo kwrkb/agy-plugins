@@ -9,6 +9,7 @@
 *.ps1 text eol=lf
 ast-grep/bin/ast-grep                 text eol=lf
 github/bin/github                     text eol=lf
+gitlab/bin/gitlab                     text eol=lf
 go-lsp/bin/go-lsp                     text eol=lf
 retro-status/bin/retro-status         text eol=lf
 settings-advisor/bin/settings-advisor text eol=lf
