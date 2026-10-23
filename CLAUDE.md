@@ -38,7 +38,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 ## 実機検証（tmux + agy）
 
-agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.2 でも tmux 経由のツール実行まで通しで再確認済み（2026-10-18。注意点は末尾の注記）。
+agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.4 でも tmux 経由のツール実行まで通しで再確認済み（2026-10-23。注意点は末尾の注記）。
 
 ```bash
 # 1) クリーン install を再現（git 追跡ファイルのみ＝URL install と等価）
@@ -87,7 +87,7 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 現在有効な設計判断（マニフェスト形式・dispatcher・バイナリのコミット配布・skills 主体・フックの書き方と受け渡し）は **VISION.md** が正典。
 ここには作業中に踏みやすい手順上の注意だけを置く。根拠は LESSONS.md（`#N` は旧形式の番号付き教訓）。
 
-**実機の agy は 1.4.2**（2026-10-18 に install・MCP 起動・`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH を再検証）。
+**実機の agy は 1.4.4**（2026-10-23 に install・MCP 起動・tmux 経由のツール実行を再確認。`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH は 2026-10-18 に 1.4.2 で再検証したもの）。
 
 - **ソースを変えたら全 OS 分のバイナリを再ビルドしてコミット**。忘れると stale が配布される（#21。CI の stale ゲートでも落ちる）。
 - **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。
