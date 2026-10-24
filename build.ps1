@@ -6,6 +6,7 @@
 # 使い方:
 #   ./build.ps1            # 全モジュール（= all）
 #   ./build.ps1 github     # github プラグインのみ
+#   ./build.ps1 gitlab     # gitlab プラグインのみ
 #   ./build.ps1 validator  # agy-plugin-kit の validator のみ
 #
 # 注意: 決定論ビルドは Go ツールチェーンのパッチ版まで一致が前提。版は .go-version が
@@ -69,6 +70,7 @@ Set-Location $PSScriptRoot
 
 switch ($Target) {
     'github' { Build 'github' 'github' }
+    'gitlab' { Build 'gitlab' 'gitlab' }
     'validator' { Build 'agy-plugin-kit/validator' 'validator' }
     'ast-grep' { Build 'ast-grep' 'ast-grep' }
     'retro-status' { Build 'retro-status' 'retro-status' }
@@ -78,6 +80,7 @@ switch ($Target) {
     'test-runner' { Build 'test-runner' 'test-runner' }
     'all' {
         Build 'github' 'github'
+        Build 'gitlab' 'gitlab'
         Build 'agy-plugin-kit/validator' 'validator'
         Build 'ast-grep' 'ast-grep'
         Build 'retro-status' 'retro-status'
@@ -87,7 +90,7 @@ switch ($Target) {
         Build 'test-runner' 'test-runner'
     }
     default {
-        Write-Error "unknown target: $Target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner | all)"
+        Write-Error "unknown target: $Target (expected: github | gitlab | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner | all)"
         exit 2
     }
 }

@@ -7,7 +7,7 @@ A collection of Model Context Protocol (MCP) plugins designed for AI assistants,
 | Plugin | Description |
 | :-- | :-- |
 | **[github](./github/README.md)** | MCP server wrapping GitHub CLI (`gh`) for cross-platform issue/PR/repository operations |
-| **[gitlab](./gitlab/README.md)** | MCP server wrapping `glab mcp serve` for GitLab issue/MR/project operations |
+| **[gitlab](./gitlab/README.md)** | MCP server wrapping GitLab CLI (`glab`) for cross-platform issue/MR/CI/project operations |
 | **[agy-plugin-kit](./agy-plugin-kit/README.md)** | Meta-helper for agy plugin development (scaffolding, static validation, path fixups, doc generation) |
 | **[ast-grep](./ast-grep/README.md)** | MCP server leveraging `ast-grep` (`sg`) for AST-based code search and safe refactoring |
 | **[go-lsp](./go-lsp/README.md)** | MCP server utilizing `gopls` for Go definitions, references, and hover information |
@@ -58,7 +58,7 @@ Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded on deman
 | Plugin | Required CLI / Binary | Authentication |
 | :-- | :-- | :-- |
 | github | `gh` (on PATH) | Authenticated with `gh auth login` |
-| gitlab | `glab` >= v1.117.0 (on PATH) | Authenticated with `glab auth login` |
+| gitlab | `glab` (on PATH; verified with v1.124.0) | Authenticated with `glab auth login` |
 | agy-plugin-kit | (Optional) `go` (only needed for rebuilding validator; prebuilt binaries included) | None |
 | ast-grep | `ast-grep` (CLI on PATH) | None |
 | go-lsp | `gopls` (on PATH) | None |
@@ -69,9 +69,9 @@ Each plugin includes an agent guide in `skills/<name>/SKILL.md` (loaded on deman
 
 ### Bundled Platforms & Self-Build
 
-Existing plugins have been verified on native Windows. `test-runner` includes CI tests for Linux, macOS, and Windows; local verification is on Linux.
+Existing plugins have been verified on native Windows. `test-runner` includes CI tests for Linux, macOS, and Windows; local verification is on Linux. The `gitlab` plugin (`glab` wrapper) has so far been verified on Linux only.
 
-Go-based plugins (`github`, `ast-grep`, `go-lsp`, `retro-status`, `settings-advisor`, `worktree-manager`, `test-runner`, and `agy-plugin-kit` validator) include native binaries for **`linux/amd64`**, **`darwin/arm64` (Apple Silicon)**, and **`windows/amd64`** in `bin/`. The extensionless `bin/<name>` dispatcher script detects the platform via `uname` and executes `<name>-<goos>-<goarch>` (on Windows, agy directly invokes `<name>.exe`).
+Go-based plugins (`github`, `gitlab`, `ast-grep`, `go-lsp`, `retro-status`, `settings-advisor`, `worktree-manager`, `test-runner`, and `agy-plugin-kit` validator) include native binaries for **`linux/amd64`**, **`darwin/arm64` (Apple Silicon)**, and **`windows/amd64`** in `bin/`. The extensionless `bin/<name>` dispatcher script detects the platform via `uname` and executes `<name>-<goos>-<goarch>` (on Windows, agy directly invokes `<name>.exe`).
 
 **Other platforms (e.g. `linux/arm64` / `darwin/amd64`) are not bundled by default**, but can be built on the target machine without modifying any scripts:
 
@@ -87,7 +87,7 @@ Each plugin acts as a wrapper for existing tools/servers and complies with their
 | Plugin | Wrapped Target | License |
 | :-- | :-- | :-- |
 | github | `gh` CLI | MIT |
-| gitlab | [gitlab-org/cli (`glab mcp serve`)](https://gitlab.com/gitlab-org/cli) | MIT |
+| gitlab | [gitlab-org/cli (`glab`)](https://gitlab.com/gitlab-org/cli) | MIT |
 | ast-grep | [`ast-grep` CLI](https://ast-grep.github.io/) | MIT |
 | go-lsp | [`gopls` (Go Language Server)](https://pkg.go.dev/golang.org/x/tools/gopls) | BSD-3-Clause |
 | retro-status | Custom Go implementation | MIT |

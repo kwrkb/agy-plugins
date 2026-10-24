@@ -2,7 +2,7 @@
 
 agy (Google Antigravity CLI) 向け MCP プラグイン集。グローバル CLAUDE.md のルールに加え、本リポジトリ固有の事実のみをここに記す。
 
-## 構成（Go 製 7 プラグイン + gitlab / 8 Go モジュール）
+## 構成（Go 製 8 プラグイン / 9 Go モジュール）
 
 Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分離。`bin/` に各 OS のネイティブ
 `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe` と、拡張子なしの **OS 分岐 dispatcher**
@@ -10,8 +10,8 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 `command` は `${extensionPath}${/}bin${/}<name>`（Windows は agy が `.exe` を補完し `bin/<name>.exe` を直接起動＝dispatcher 非経由）。
 
 - `github/` — `gh` CLI を exec する自作 Go 製 MCP サーバー。module `github.com/kwrkb/agy-plugins/github`（`github/src/`）。
+- `gitlab/` — `glab` CLI を exec する自作 Go 製 MCP サーバー（`glab_command`）。github と同じ構成で、module `github.com/kwrkb/agy-plugins/gitlab`（`gitlab/src/`）。子プロセスに `GLAB_NO_PROMPT=1` を渡す。
 - `ast-grep/` — `ast-grep` CLI を exec。`retro-status/` — リポジトリ解析。`settings-advisor/` — Gemini の settings 助言。`go-lsp/` — `gopls` 経由の Go LSP（definition/references/hover）。`worktree-manager/` — Git worktree 管理。`test-runner/` — Go テスト実行と失敗ログ・再実行引数の返却。いずれも Go 製 MCP サーバーで src/bin 構成、module パスは `github.com/kwrkb/agy-plugins/<name>`。
-- `gitlab/` — `glab mcp serve` を呼ぶ薄い設定のみ（`plugin.json` + `mcp_config.json`、Go バイナリ無し＝src/bin 非対象）。
 - `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/` `commands/` `templates/`。フックは `hooks.json`（PostToolUse → `--hook`、PreInvocation → `--inject`）。
 
 ## コマンド
@@ -20,10 +20,11 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 # テスト・静的解析（モジュール別。ソースは <plugin>/src/ 配下）
 cd github/src && go vet ./... && go test ./...
 cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
-# 他プラグイン（ast-grep / retro-status / settings-advisor / go-lsp / worktree-manager / test-runner）も同じ流儀（<name>/src で go vet ./... && go test ./...）
+# 他プラグイン（gitlab / ast-grep / retro-status / settings-advisor / go-lsp / worktree-manager / test-runner）も同じ流儀（<name>/src で go vet ./... && go test ./...）
 # バイナリ再ビルド（Go 版は .go-version に固定。build.sh が GOTOOLCHAIN で強制するため事前準備不要。Windows は ./build.ps1）
 ./build.sh                                    # 全プラグイン
 ./build.sh github                             # github だけ
+./build.sh gitlab                             # gitlab だけ
 ./build.sh validator                          # validator だけ
 # 他ターゲット: ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner
 ```
@@ -37,7 +38,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 ## 実機検証（tmux + agy）
 
-agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.2 でも tmux 経由のツール実行まで通しで再確認済み（2026-10-18。注意点は末尾の注記）。
+agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.4 でも tmux 経由のツール実行まで通しで再確認済み（2026-10-23。注意点は末尾の注記）。
 
 ```bash
 # 1) クリーン install を再現（git 追跡ファイルのみ＝URL install と等価）
@@ -86,7 +87,7 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 現在有効な設計判断（マニフェスト形式・dispatcher・バイナリのコミット配布・skills 主体・フックの書き方と受け渡し）は **VISION.md** が正典。
 ここには作業中に踏みやすい手順上の注意だけを置く。根拠は LESSONS.md（`#N` は旧形式の番号付き教訓）。
 
-**実機の agy は 1.4.2**（2026-10-18 に install・MCP 起動・`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH を再検証）。
+**実機の agy は 1.4.4**（2026-10-23 に install・MCP 起動・tmux 経由のツール実行を再確認。`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH は 2026-10-18 に 1.4.2 で再検証したもの）。
 
 - **ソースを変えたら全 OS 分のバイナリを再ビルドしてコミット**。忘れると stale が配布される（#21。CI の stale ゲートでも落ちる）。
 - **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。

@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - 'github/**'
+      - 'gitlab/**'
       - 'agy-plugin-kit/validator/**'
       - 'ast-grep/**'
       - 'retro-status/**'
@@ -24,6 +25,7 @@ on:
     branches: [master]
     paths:
       - 'github/**'
+      - 'gitlab/**'
       - 'agy-plugin-kit/validator/**'
       - 'ast-grep/**'
       - 'retro-status/**'
@@ -75,6 +77,34 @@ jobs:
           if ! git diff --exit-code -- github/bin/github-linux-amd64 github/bin/github-darwin-arm64 github/bin/github.exe; then
             echo "::error::Committed github binaries differ from a deterministic rebuild."
             echo "::error::Run ./build.sh github and commit the result."
+            exit 1
+          fi
+        working-directory: .
+
+  gitlab:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gitlab/src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: .go-version
+      - run: go vet ./...
+      - run: go test ./...
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$GITHUB_WORKSPACE/.github/scripts/govulncheck-gate.sh" "$GITHUB_WORKSPACE/.go-version"
+      - name: Deterministic rebuild
+        run: ./build.sh gitlab
+        working-directory: .
+      - name: Verify committed binaries are up to date
+        run: |
+          if ! git diff --exit-code -- gitlab/bin/gitlab-linux-amd64 gitlab/bin/gitlab-darwin-arm64 gitlab/bin/gitlab.exe; then
+            echo "::error::Committed gitlab binaries differ from a deterministic rebuild."
+            echo "::error::Run ./build.sh gitlab and commit the result."
             exit 1
           fi
         working-directory: .

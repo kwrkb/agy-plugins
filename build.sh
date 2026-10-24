@@ -6,6 +6,7 @@
 # 使い方:
 #   ./build.sh            # 全モジュール（= all）
 #   ./build.sh github     # github プラグインのみ
+#   ./build.sh gitlab     # gitlab プラグインのみ
 #   ./build.sh validator  # agy-plugin-kit の validator のみ
 #
 # 注意: 決定論ビルドは Go ツールチェーンのパッチ版まで一致が前提。版は .go-version が
@@ -51,6 +52,7 @@ build() {
 target="${1:-all}"
 case "$target" in
 	github)       build github github ;;
+	gitlab)       build gitlab gitlab ;;
 	validator)    build agy-plugin-kit/validator validator ;;
 	ast-grep)     build ast-grep ast-grep ;;
 	retro-status) build retro-status retro-status ;;
@@ -60,6 +62,7 @@ case "$target" in
 	test-runner) build test-runner test-runner ;;
 	all)
 		build github github
+		build gitlab gitlab
 		build agy-plugin-kit/validator validator
 		build ast-grep ast-grep
 		build retro-status retro-status
@@ -69,7 +72,7 @@ case "$target" in
 		build test-runner test-runner
 		;;
 	*)
-		echo "unknown target: $target (expected: github | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner | all)" >&2
+		echo "unknown target: $target (expected: github | gitlab | validator | ast-grep | retro-status | settings-advisor | go-lsp | worktree-manager | test-runner | all)" >&2
 		exit 2
 		;;
 esac

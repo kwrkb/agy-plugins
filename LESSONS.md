@@ -609,3 +609,15 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: 最低要件を `mcp serve` が入った v1.74.0 のまま残し、スキルが前提にする v1.117.0 を「推奨」として併記する。
 - 決め手: glab v1.116.0 の `internal/commands/mcp/serve/server.go` はスキーマを `cmd.Flags()` だけから作り、v1.117.0 で `cmd.InheritedFlags()` が加わる（`flags.repo` は継承フラグ）。スキーマ外のフラグはサーバーが転送しないので、v1.116 以前で「常に `flags.repo` を渡す」スキルに従うと、エラーにならず CWD のリポジトリへ write が行く。同じ PR のレビューで「v1.124.0 は打ち切り時に `next_offset` を返さない」という指摘も来たが、v1.124.0 の同ファイルは打ち切り時に `structuredContent.next_offset` と `offset` を案内する通知を本文に付けており、指摘は誤りだったので採らなかった。
 - 覆す条件: スキルが `flags.repo` を前提にしなくなった場合。またはスキーマ外のフラグをサーバーがエラーにするようになった場合（黙って無視されなければ「推奨」で足りる）。
+
+## 2026-10-23: gitlab を `glab mcp serve` から `glab` を exec する Go 製ラッパー（`glab_command`）へ移す（判断 13 を上書き、Issue #38）
+
+- 却下した案: (1) 判断 13 のとおり `glab mcp serve` を使い続ける。(2) 後継の GitLab MCP Server（公式）へ移る。
+- 決め手: glab v1.124.0 で `glab mcp serve` が deprecated になった（起動時に stderr へ警告が出る。後継は GitLab MCP Server）。判断 13 の覆す条件「experimental 依存を切りたい具体理由」に当たる。GitLab MCP Server は HTTP + OAuth で、agy がそれを扱えるかは確かめていない（VISION の「未検証方式への一斉移行」の非スコープに当たる）。一方、github の `gh_command` 方式は agy 1.4.x の実機で動いており、そのまま型にできる。glab v1.124.0 は stdin が `/dev/null`・stdout が pipe のとき、必須フラグなしの `issue create` などを「non-interactive mode では必須」エラーで即終了させる（ハングしない）。そこで stdin は渡さず、子プロセスの環境に `GLAB_NO_PROMPT=1` を足す（glab の設定スキーマ `no_prompt` の環境変数）。ラッパーへ移ると、`glab mcp serve` が自動で有効にしていた JSON 出力は失われる。そのためスキルでは、対応コマンドで `--output json` を明示させる。
+- 覆す条件: `glab mcp serve` の deprecated が撤回された場合。または GitLab MCP Server が agy で動くと実機で確認できた場合。
+
+## 2026-10-23: gitlab ラッパーの子プロセスに `NO_COLOR=1` は入れない（pipe 出力の glab は色のエスケープを出さない）
+
+- 却下した案: glab の装飾付き `ERROR` 表示を避けるため、子プロセスの環境に `NO_COLOR=1` も足す。
+- 決め手: glab v1.124.0 で、stdout / stderr を pipe にして `issue view 999999 -R <project>` を失敗させ、stderr を `od -c` で比べた。`NO_COLOR=1` の有無で出力はバイト単位で一致し、どちらにも ESC（`033`）は無かった。残るのは ` ERROR ` の見出しと、行末の空白による桁揃えだけ。PTY 経由（`script`）で同じコマンドを動かしたときにだけ、ESC 列が出た。ラッパーは github と同じく、失敗時の stderr を加工せずに返す。
+- 覆す条件: glab が pipe 出力でも色を付けるようになった場合（`tools/call` のエラー本文に ESC が混ざることで分かる）。

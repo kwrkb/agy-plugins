@@ -9,7 +9,7 @@
 `agy-plugins` は、agy CLI 向け MCP プラグインのモノレポです。
 
 - `github/`: `gh` CLI を呼び出す Go 製 MCP サーバー
-- `gitlab/`: `glab mcp serve` を利用する設定中心のプラグイン（Go ソースなし）
+- `gitlab/`: `glab` CLI を呼び出す Go 製 MCP サーバー
 - `ast-grep/`: `ast-grep` CLI を呼び出す Go 製 MCP サーバー
 - `go-lsp/`: `gopls` を利用する Go 製 MCP サーバー
 - `retro-status/`: リポジトリ情報をレトロゲーム風に表示する Go 製 MCP サーバー
