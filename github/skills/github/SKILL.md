@@ -21,6 +21,19 @@ gh_command(args=["<subcommand>", "<args...>"])
   - 正: `["pr", "create", "--title", "Fix the bug in login flow"]`
   - 誤: `["pr", "create", "--title", "Fix", "the", "bug"]`（gh が複数引数として受け取る）
 
+## 出力上限とタイムアウト
+
+- **出力の上限**: stdout は先頭 64 KiB、stderr は先頭 16 KiB だけを返す。打ち切ったときは末尾に
+  `[output truncated: kept the first N of M bytes]` の行が付く（N は返した分、M は gh が出した全体）。
+  この行があれば結果は**途中まで**なので、`--limit` / `--json` のフィールド / `--jq` / `api` の `per_page` などで絞って呼び直す
+- **タイムアウト**: 既定で 300 秒たつと gh を（子プロセスごと）止め、エラーで返す。エラーには
+  `timed out after ...` と、それまでの stdout / stderr が入る
+- **流し続けるコマンド**（`run watch` など）はジョブが終わるまで返らない。`timeout_seconds`（1〜3600 の整数）で期限を延ばす:
+
+```
+gh_command(args=["run", "watch", "123456", "-R", "org/repo", "--exit-status"], timeout_seconds=1800)
+```
+
 ## CWD 非定常 — リポジトリは必ず明示する
 
 `gh_command` は MCP サーバーが agy に起動されたディレクトリを CWD として継承する。暗黙のカレントリポジトリ検出（`gh issue list` だけ等）は**信頼できない**。

@@ -40,7 +40,7 @@ The MCP server will automatically utilize this active session.
 
 ## Provided Tools
 
-- **`gh_command`**: Runs an arbitrary `gh` subcommand. Arguments are passed as an array of string tokens in `args` (e.g. `["issue", "list", "--limit", "10"]`, `["pr", "view", "123"]`).
+- **`gh_command`**: Runs an arbitrary `gh` subcommand. Arguments are passed as an array of string tokens in `args` (e.g. `["issue", "list", "--limit", "10"]`, `["pr", "view", "123"]`). Optional `timeout_seconds` (1–3600, default 300) stops the command when it runs too long. stdout is cut at 64 KiB and stderr at 16 KiB, marked by an `[output truncated: ...]` line.
   - Values with spaces (titles, bodies, queries) must be passed as a **single array element** (e.g. `["pr", "create", "--title", "My Title"]`). No internal shell escaping or manual quoting is needed.
 
 > ⚠️ **Warning (Arbitrary Command Execution)**: `gh_command` can execute **any** `gh` subcommand. Beyond read operations, it can perform destructive actions such as `gh pr merge`, `gh issue close`, `gh repo delete`, and arbitrary REST calls via `gh api` under the logged-in user's credentials. Ensure agent tasks are appropriately bounded and run within trusted environments.

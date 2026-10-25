@@ -48,7 +48,7 @@ The MCP server reuses this configuration (`~/.config/glab-cli/config.yml`).
 
 ## Provided Tools
 
-- **`glab_command`**: Runs an arbitrary `glab` subcommand. Arguments are passed as an array of string tokens in `args` (e.g. `["issue", "list", "-R", "group/project"]`, `["mr", "view", "17", "-R", "group/project"]`).
+- **`glab_command`**: Runs an arbitrary `glab` subcommand. Arguments are passed as an array of string tokens in `args` (e.g. `["issue", "list", "-R", "group/project"]`, `["mr", "view", "17", "-R", "group/project"]`). Optional `timeout_seconds` (1–3600, default 300) stops the command when it runs too long. stdout is cut at 64 KiB and stderr at 16 KiB, marked by an `[output truncated: ...]` line.
   - Values with spaces (titles, descriptions, queries) must be passed as a **single array element**. No shell escaping or manual quoting is needed.
   - Always pass `-R group/project`: the server's working directory is not your workspace, so glab's current-repository detection is unreliable.
   - Interactive prompts are disabled (`GLAB_NO_PROMPT=1`, no stdin). A command missing a required flag fails immediately instead of waiting for input.
