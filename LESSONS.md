@@ -621,3 +621,9 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: glab の装飾付き `ERROR` 表示を避けるため、子プロセスの環境に `NO_COLOR=1` も足す。
 - 決め手: glab v1.124.0 で、stdout / stderr を pipe にして `issue view 999999 -R <project>` を失敗させ、stderr を `od -c` で比べた。`NO_COLOR=1` の有無で出力はバイト単位で一致し、どちらにも ESC（`033`）は無かった。残るのは ` ERROR ` の見出しと、行末の空白による桁揃えだけ。PTY 経由（`script`）で同じコマンドを動かしたときにだけ、ESC 列が出た。ラッパーは github と同じく、失敗時の stderr を加工せずに返す。
 - 覆す条件: glab が pipe 出力でも色を付けるようになった場合（`tools/call` のエラー本文に ESC が混ざることで分かる）。
+
+## 2026-10-25: gh_command / glab_command のタイムアウトは「既定 300 秒の全体期限＋任意の `timeout_seconds`」にする（Issue #40）
+
+- 却下した案: (1) 出力が途切れている間だけ数える idle timeout。(2) 引数を足さず、既定の期限を長くするだけ。
+- 決め手: idle timeout では、ログを出さずに長く動くジョブへの `glab ci trace` が途中で止まる。止まらないように閾値を長くすると、固まった認証ヘルパーも同じだけ待つことになる。期限を長くするだけでは、`gh run watch` を 30 分見たい場合と、数秒で返るはずの `issue list` が固まった場合を両立できない。引数を足すと `tools/list` のスキーマは変わるが、省略できるので既存の呼び出しはそのまま動く。test-runner の `timeout_seconds` と同じ名前・同じ厳密な検査（文字列や小数は弾く）にそろえた。上限は 3600 秒。出力の上限は test-runner の返却ログと同じ 64 KiB（stderr は 16 KiB）。打ち切った後もパイプは読み切り、末尾に `[output truncated: kept the first N of M bytes]` の行を付ける。タイムアウト時は、それまでの stdout をエラーに入れて返す。
+- 覆す条件: agy の MCP クライアント側にツール呼び出しの期限があり、300 秒より短いと分かった場合（既定を下げるか、上限をそれに合わせる）。

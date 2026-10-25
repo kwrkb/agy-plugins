@@ -51,7 +51,7 @@ MCP サーバーは `glab` 自身の設定（`~/.config/glab-cli/config.yml`）�
 
 ## 提供されるツール
 
-- **`glab_command`**: 任意の `glab` サブコマンドを実行します。引数は**トークンごとに分割した文字列の配列** `args` で渡します（例: `["issue", "list", "-R", "group/project"]`、`["mr", "view", "17", "-R", "group/project"]`）。
+- **`glab_command`**: 任意の `glab` サブコマンドを実行します。引数は**トークンごとに分割した文字列の配列** `args` で渡します（例: `["issue", "list", "-R", "group/project"]`、`["mr", "view", "17", "-R", "group/project"]`）。任意の `timeout_seconds`（1〜3600、既定 300）を過ぎるとコマンドを止めます。stdout は 64 KiB、stderr は 16 KiB で打ち切り、末尾に `[output truncated: ...]` の行が付きます。
   - スペースを含む値（タイトル・説明・検索クエリなど）は**1要素**にまとめます。文字列を空白分割する方式ではないため、クオートで囲む必要はありません。
   - プロジェクトは常に `-R group/project` で指定します。MCP サーバーの作業ディレクトリはワークスペースとは限らず、`glab` のカレントリポジトリ検出は当てになりません。
   - 対話プロンプトは無効です（`GLAB_NO_PROMPT=1`・stdin なし）。必須フラグが足りないコマンドは、入力を待たずにエラーで返ります。

@@ -23,6 +23,19 @@ glab_command(args=["<subcommand>", "<args...>"])
   - 正: `["mr", "create", "-R", "group/project", "--title", "Fix the bug in login flow", ...]`
   - 誤: `["mr", "create", "--title", "Fix", "the", "bug"]`（glab が複数引数として受け取る）
 
+## 出力上限とタイムアウト
+
+- **出力の上限**: stdout は先頭 64 KiB、stderr は先頭 16 KiB だけを返す。打ち切ったときは末尾に
+  `[output truncated: kept the first N of M bytes]` の行が付く（N は返した分、M は glab が出した全体）。
+  この行があれば結果は**途中まで**なので、`--per-page` / `--jq` / `api` の `per_page` などで絞って呼び直す
+- **タイムアウト**: 既定で 300 秒たつと glab を（子プロセスごと）止め、エラーで返す。エラーには
+  `timed out after ...` と、それまでの stdout / stderr が入る
+- **流し続けるコマンド**（実行中のジョブへの `ci trace` など）はジョブが終わるまで返らない。`timeout_seconds`（1〜3600 の整数）で期限を延ばす:
+
+```
+glab_command(args=["ci", "trace", "987654", "-R", "myorg/myapp"], timeout_seconds=1800)
+```
+
 ## CWD 非定常 — プロジェクトは必ず明示する
 
 `glab_command` は MCP サーバーが agy に起動されたディレクトリを CWD として継承する。暗黙のカレントリポジトリ検出は**信頼できない**
