@@ -627,3 +627,13 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: (1) 出力が途切れている間だけ数える idle timeout。(2) 引数を足さず、既定の期限を長くするだけ。
 - 決め手: idle timeout では、ログを出さずに長く動くジョブへの `glab ci trace` が途中で止まる。止まらないように閾値を長くすると、固まった認証ヘルパーも同じだけ待つことになる。期限を長くするだけでは、`gh run watch` を 30 分見たい場合と、数秒で返るはずの `issue list` が固まった場合を両立できない。引数を足すと `tools/list` のスキーマは変わるが、省略できるので既存の呼び出しはそのまま動く。test-runner の `timeout_seconds` と同じ名前・同じ厳密な検査（文字列や小数は弾く）にそろえた。上限は 3600 秒。出力の上限は test-runner の返却ログと同じ 64 KiB（stderr は 16 KiB）。打ち切った後もパイプは読み切り、末尾に `[output truncated: kept the first N of M bytes]` の行を付ける。タイムアウト時は、それまでの stdout をエラーに入れて返す。
 - 覆す条件: agy の MCP クライアント側にツール呼び出しの期限があり、300 秒より短いと分かった場合（既定を下げるか、上限をそれに合わせる）。
+
+## 2026-10-24: agy 1.4.7 では PostToolUse のフックが失敗してもツール結果は置き換わらない（2026-10-18 の timeout エントリの観測が覆った、upstream #1282）
+
+- 却下した案: (1) 2026-10-18 の観測「PostToolUse のフックが 1 つでも失敗すると、ツールの呼び出し全体がモデルからはエラーに見える」を、今も成り立つ前提として扱い続ける。(2) upstream のコラボレーターの「最新版で解消した」というコメントだけを根拠に、確かめずに Issue を閉じる。
+- 決め手: agy 1.4.7（Linux / WSL2、`agy -p`）で、報告時と同じ手順を使い捨てのプラグインで再現した。どちらの回も `note.txt` は中身どおりに作られた。モデルが受け取った結果は通常の `Created file.` で、モデルは書き込み成功と報告した。
+  - `timeout: 1` に対して `sleep 3` するハンドラは、今も打ち切られる。ただし失敗は CLI ログに `provider.go:65] post-tool hook "..." failed: ... signal: killed` と出るだけになった。
+  - stdout に `{"injectSteps":[]}` を返すハンドラも同じ扱いになった。CLI ログには `failed to unmarshal result ... unknown field "injectSteps"` が出る。
+  - ログに出るのは今も解析エラーである。つまり PostToolUse の stdout による差し込みは、1.4.7 でも受け付けられていない。2026-10-18 の受け渡しのエントリ（PostToolUse → PreInvocation）の覆す条件は満たしていない。
+  - 起動に失敗する場合（コマンドが見つからない・exit 127）は、今回は再現していない。
+- 覆す条件: 後の版で、PostToolUse の失敗によって再びツール結果が `Encountered error in tool execution` に置き換わった場合。起動に失敗する場合を試して、置き換わりが起きた場合も含む。
