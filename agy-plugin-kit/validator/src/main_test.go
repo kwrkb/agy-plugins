@@ -118,8 +118,25 @@ func TestFixPaths(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to read fixed mcp_config.json: %v", err)
 		}
-		if strings.Contains(string(fixed), "${extensionPath}") || strings.Contains(string(fixed), "${/}") {
-			t.Errorf("expected placeholders to be replaced, got: %s", string(fixed))
+		want := `{"mcpServers":{"test":{"command":"./bin/test"}}}`
+		if string(fixed) != want {
+			t.Errorf("expected plugin-root relative command\n got: %s\nwant: %s", fixed, want)
+		}
+	})
+
+	// 1b. 区切りの書き方が混ざっていても ./ 相対に揃い、args 内の単独 ${extensionPath} は . になる
+	t.Run("mixed separators and bare extensionPath", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		mcpPath := filepath.Join(tmpDir, "mcp_config.json")
+		content := `{"mcpServers":{"a":{"command":"${extensionPath}/bin/a","args":["${extensionPath}"]},"b":{"command":"${extensionPath}\\bin\\b"}}}`
+		mustWrite(t, mcpPath, content)
+		if err := fixPaths(tmpDir); err != nil {
+			t.Fatalf("fixPaths failed: %v", err)
+		}
+		fixed := readFile(mcpPath)
+		want := `{"mcpServers":{"a":{"command":"./bin/a","args":["."]},"b":{"command":"./bin\\b"}}}`
+		if fixed != want {
+			t.Errorf("unexpected rewrite\n got: %s\nwant: %s", fixed, want)
 		}
 	})
 
@@ -243,6 +260,39 @@ func TestValidateAgy142Rules(t *testing.T) {
 		fs := validate(dir)
 		if !hasCode(fs, "C2") {
 			t.Errorf("expected C2 error for ${PLUGIN_ROOT} in gemini-extension.json command, got %+v", fs)
+		}
+	})
+
+	t.Run("native mcp_config with ./bin/<name> is clean", func(t *testing.T) {
+		// 同梱バイナリの推奨形（LESSONS 2026-11-04）。dispatcher と .exe を並べた実物の bin/ 構成で検査する。
+		dir := t.TempDir()
+		mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "mcp_config.json"), `{"mcpServers":{"s":{"command":"./bin/srv"}}}`)
+		if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		mustWrite(t, filepath.Join(dir, "bin", "srv"), "#!/bin/sh\n")
+		mustWrite(t, filepath.Join(dir, "bin", "srv.exe"), "MZ")
+		if fs := validate(dir); len(fs) != 0 {
+			t.Errorf("expected no findings for native ./bin/<name>, got %+v", fs)
+		}
+	})
+
+	t.Run("relative bundled command with .exe triggers C6", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "mcp_config.json"), `{"mcpServers":{"s":{"command":"./bin/srv.exe"}}}`)
+		if fs := validate(dir); !hasCode(fs, "C6") {
+			t.Errorf("expected C6 warning for ./bin/srv.exe, got %+v", fs)
+		}
+	})
+
+	t.Run("PATH command with .exe does not trigger C6", func(t *testing.T) {
+		dir := t.TempDir()
+		mustWrite(t, filepath.Join(dir, "plugin.json"), `{"name":"p"}`)
+		mustWrite(t, filepath.Join(dir, "mcp_config.json"), `{"mcpServers":{"s":{"command":"glab.exe"}}}`)
+		if fs := validate(dir); hasCode(fs, "C6") {
+			t.Errorf("expected no C6 for a PATH command, got %+v", fs)
 		}
 	})
 
