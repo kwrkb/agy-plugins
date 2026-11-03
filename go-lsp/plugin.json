@@ -1,0 +1,5 @@
+{
+  "name": "go-lsp",
+  "version": "1.0.0",
+  "description": "Go LSP (gopls) integration plugin for code definitions, references, and hover documentation."
+}

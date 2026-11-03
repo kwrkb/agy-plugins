@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "ast-grep": {
+      "command": "./bin/ast-grep"
+    }
+  }
+}

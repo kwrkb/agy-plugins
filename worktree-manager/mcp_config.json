@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "worktree-manager": {
+      "command": "./bin/worktree-manager"
+    }
+  }
+}
