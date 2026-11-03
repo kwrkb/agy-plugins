@@ -17,7 +17,7 @@ This plugin runs as an independent Go-based MCP server that executes the **syste
 
 | File | Purpose |
 | :--- | :--- |
-| `gemini-extension.json` | Plugin manifest. Resolves `command` to absolute path `${extensionPath}${/}bin${/}gitlab` |
+| `plugin.json` / `mcp_config.json` | Plugin manifest and MCP server definition. `command` is `./bin/gitlab`, relative to the plugin directory (the MCP server's working directory) |
 | `src/main.go` / `src/go.mod` / `src/go.sum` | MCP server Go source code interfacing with `glab` |
 | `bin/gitlab-linux-amd64` / `bin/gitlab-darwin-arm64` / `bin/gitlab.exe` | Precompiled native binaries for each OS/architecture |
 | `bin/gitlab` | OS dispatcher script (`#!/bin/sh`) executing native binary via `uname` |

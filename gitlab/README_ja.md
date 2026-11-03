@@ -17,7 +17,7 @@ GitLab 公式 CLI [`glab`](https://gitlab.com/gitlab-org/cli) を利用して、
 
 | ファイル | 役割 |
 | :--- | :--- |
-| `gemini-extension.json` | プラグインマニフェスト。`command` は `${extensionPath}${/}bin${/}gitlab` を絶対パスへ解決する |
+| `plugin.json` / `mcp_config.json` | プラグインマニフェストと MCP サーバー定義。`command` はプラグインディレクトリ（MCP サーバーの cwd）からの相対パス `./bin/gitlab` |
 | `src/main.go` / `src/go.mod` / `src/go.sum` | `glab` コマンドを呼び出す MCP サーバーのソースコード |
 | `bin/gitlab-linux-amd64` / `bin/gitlab-darwin-arm64` / `bin/gitlab.exe` | コンパイル済みの MCP サーバーネイティブバイナリ（各 OS×arch） |
 | `bin/gitlab` | OS 分岐 dispatcher（shebang sh）。`uname` で実機を判定し対応ネイティブを `exec`（Windows は agy が `bin/gitlab.exe` を直接起動） |

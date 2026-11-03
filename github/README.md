@@ -17,7 +17,7 @@ This provides several key advantages:
 
 | File | Purpose |
 | :--- | :--- |
-| `gemini-extension.json` | Plugin manifest. Resolves `command` to absolute path `${extensionPath}${/}bin${/}github` |
+| `plugin.json` / `mcp_config.json` | Plugin manifest and MCP server definition. `command` is `./bin/github`, relative to the plugin directory (the MCP server's working directory) |
 | `src/main.go` / `src/go.mod` / `src/go.sum` | MCP server Go source code interfacing with `gh` |
 | `bin/github-linux-amd64` / `bin/github-darwin-arm64` / `bin/github.exe` | Precompiled native binaries for each OS/architecture |
 | `bin/github` | OS dispatcher script (`#!/usr/bin/env sh`) executing native binary via `uname` |

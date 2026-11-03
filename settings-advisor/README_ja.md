@@ -25,7 +25,7 @@ agy plugin install https://github.com/kwrkb/agy-plugins/settings-advisor
 > **対応 OS（Linux / macOS / Windows）**: ソースは `src/`、配布物は `bin/` に分離。`bin/` に
 > `settings-advisor-linux-amd64` / `settings-advisor-darwin-arm64` / `settings-advisor.exe`（ネイティブ）と、拡張子なしの
 > OS 分岐 dispatcher `bin/settings-advisor`（shebang sh・`uname` で実機ネイティブを `exec`）を同梱。`command` は
-> `${extensionPath}${/}bin${/}settings-advisor` で 3 OS を単一指定でカバーする（Windows は agy が `.exe` を直接起動）。
+> `./bin/settings-advisor`（`mcp_config.json`、プラグインディレクトリからの相対パス）で 3 OS を単一指定でカバーする（Windows は agy が `.exe` を補って直接起動）。
 
 ## 推奨ロジック
 

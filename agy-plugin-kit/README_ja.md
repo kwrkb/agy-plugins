@@ -1,8 +1,8 @@
 # agy-plugin-kit — agy プラグイン開発メタ・ヘルパー
 
 agy（Antigravity CLI）プラグインを**正しく・速く量産する**ための「プラグイン開発者のためのプラグイン」。
-実機検証で蓄積した落とし穴（リポジトリ `LESSONS.md`、特に Issue #390 = `${extensionPath}` が native
-`plugin.json` 形式で解決されない問題）を、雛形生成・静的検査・自動修正・ドキュメント生成として提供します。
+実機検証で蓄積した落とし穴（リポジトリ `LESSONS.md`、特に Issue #390 = `${extensionPath}` は legacy 専用で native
+`plugin.json` 形式では literal のまま残り、同梱バイナリは `./bin/<name>` で指す問題）を、雛形生成・静的検査・自動修正・ドキュメント生成として提供します。
 
 ## 提供物
 
@@ -11,21 +11,21 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | **`validator/`**（Go・`src/`＋`bin/`） | agy 非依存の決定的バリデータ。C1〜C11 のトラップを検出（下表）。`--fix-paths` モードあり。`bin/` に linux-amd64 / darwin-arm64 / windows のネイティブと OS 分岐 dispatcher を同梱 |
 | **コマンド** `/agy-plugin-kit:new` | マニフェスト形式を自動選択して正しい雛形を生成（量産エンジン） |
 | **コマンド** `/agy-plugin-kit:validate` | 対象プラグインを静的検査して要約 |
-| **コマンド** `/agy-plugin-kit:doctor` | `agy plugin validate` ＋ キット検査 ＋ 修正（Issue #390 の絶対パス自動埋め込み含む） |
+| **コマンド** `/agy-plugin-kit:doctor` | `agy plugin validate` ＋ キット検査 ＋ 修正（Issue #390 の `${extensionPath}` を `./` 相対へ書き換える修正を含む） |
 | **コマンド** `/agy-plugin-kit:doc` | 既存プラグインから README / SKILL.md を生成 |
 | **スキル** `agy-plugin-authoring` | 12 痛点→オーサリング規則（エージェントが正しい流儀を引ける知識） |
-| **`templates/`** | `/new` が複製する雛形群（plugin.json / gemini-extension.json / Go ラッパー 等） |
+| **`templates/`** | `/new` が複製する雛形群（plugin.json / mcp_config.json / Go ラッパー 等） |
 
 ## バリデータのチェック
 
 | # | 検出内容 | 重大度 |
 | :-- | :-- | :-- |
-| C1 | `plugin.json` と `gemini-extension.json` の二重マニフェスト | WARN |
-| C2 | native `plugin.json` 形式で `${extensionPath}` 使用（**Issue #390**）、または MCP `command` フィールドで `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 使用（マニフェスト形式を問わない。`args`/`env` と異なり `command` 本体では未展開、`gemini-extension.json` の install でも literal のまま） | ERROR |
+| C1 | `plugin.json` と `gemini-extension.json` の二重マニフェスト（native 形式に一本化する） | WARN |
+| C2 | native `plugin.json` 形式で `${extensionPath}` 使用（**Issue #390**。`./bin/<name>` で書く）、または MCP `command` フィールドで `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` 使用（マニフェスト形式を問わない。`args`/`env` と異なり `command` 本体では未展開、`gemini-extension.json` の install でも literal のまま） | ERROR |
 | C3 | `.sh`/`.cmd`/`.bat` を `command` に直接指定（Windows で spawn 不可） | ERROR |
 | C4 | マニフェスト参照バイナリが `.gitignore` 対象（URL install で消える。`git check-ignore` 判定） | ERROR |
 | C5 | `plugin.json`（`.antigravity-plugin/plugin.json`・`.gemini-plugin/plugin.json` 含む）/`gemini-extension.json` が無い・不正 JSON | ERROR |
-| C6 | `${extensionPath}` 形式 command に `.exe` 拡張子 | WARN |
+| C6 | 同梱バイナリを指す command（`./…` / `${extensionPath}`）に `.exe` 拡張子 | WARN |
 | C7 | トークン専用 MCP サーバーを wrapper 無しで直叩き（heuristic） | WARN |
 | C8 | `${CLAUDE_PLUGIN_ROOT}`（agy に存在しないトークン） | ERROR |
 | C9 | 同梱 Go ラッパーが自前で stdout に書く（NDJSON 破壊。heuristic） | WARN |
@@ -55,8 +55,8 @@ agy plugin install https://github.com/kwrkb/agy-plugins/agy-plugin-kit
 
 ## マニフェスト形式（このキット自身）
 
-native `plugin.json` を採用。キットは MCP サーバーを持たないため `${extensionPath}` 置換が不要で、
-copy-only で問題ありません（自身が C1 を踏まない）。
+native `plugin.json` を採用（本リポジトリの全プラグインと同じ）。キットは MCP サーバーを持たず、
+フックはプラグインルート相対のパスで書くので、copy-only で問題ありません（自身が C1 を踏まない）。
 
 ## `hooks.json` の自動バリデーション（agy 1.0.9〜、Linux / macOS / Windows）
 
