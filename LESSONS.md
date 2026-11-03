@@ -648,3 +648,13 @@ response = json.loads(proc.stdout.readline())
   - macOS は試していない。ただし起動の仕組みは Linux と同じで、dispatcher が `uname` で振り分ける。
   - 2026-10-18 のもう一つの覆す条件（`command` で `${PLUGIN_ROOT}` が展開される）は、今回は試していない。`hooks.json` の変数が置換されない件は、今回の回答の範囲外で、未解決のまま。
 - 覆す条件: 後の版で、native 形式の MCP サーバーの cwd がプラグインディレクトリでなくなった場合。または Windows で拡張子なしの `command` に `.exe` が補われなくなった場合（この方式へ移行した後なら、移行を戻す）。
+
+## 2026-11-04: 同梱バイナリ 8 プラグインを native 形式へ移し、validator の `--fix-paths` は相対パスへの書き換えとして残す
+
+- 却下した案: (1) `gemini-extension.json` を残したまま `plugin.json` と `mcp_config.json` を足し、移行期間は両方置く。(2) `--fix-paths` を削除する。(3) `--fix-paths` を今までどおり絶対パスの焼き込みのままにする。(4) CHANGELOG をこの PR で書く。
+- 決め手: 両方置くと `plugin.json` が優先されて copy-only になり、`gemini-extension.json` の内容は使われない（C1 の理由そのもの）。両方置いても旧版の agy への保険にはならない。`./` 相対への書き換えは機械に依存しないので、ソースに実行しても配布物を壊さない。そのため `--fix-paths` は用途が残り、git 管理下で実行したときの警告は要らなくなった。CHANGELOG はリリース時にまとめて書く運用（0.6.0 の #36）なので触らない。
+  - 観測した事実は次のとおり。
+    - 移行後の 8 本のソースは、キットの validator で 0 件、`agy plugin validate` で pass した。
+    - agy 1.4.12 の Linux と Windows に `git archive` から 8 本をクリーン install すると、`mcp_config.json` の `command` は `./bin/<name>` のまま残った。MCP キャッシュのツール名は、移行前（gemini-extension.json 形式）と 8 本とも一致した。Linux の対話モードでは `Called 1 MCP tool (test-runner_test-runner/go_test)` を確認した。
+    - 旧形式の install を消さずに native 形式のソースを install すると、`replaced existing installation` と出て、旧 `gemini-extension.json` は install 先から消えた（1.4.12、Linux）。利用者は `agy plugin install <URL>` を打ち直すだけでよい。
+- 覆す条件: 利用者の agy が 1.1.28 より古く、MCP サーバーの cwd がプラグインディレクトリにならない環境を支える必要が出た場合（そのときは legacy 形式の配布を別に用意する）。または、後の版で上書き install が旧ファイルを残すようになり、旧 `gemini-extension.json` が native 形式の解釈を邪魔すると分かった場合。
