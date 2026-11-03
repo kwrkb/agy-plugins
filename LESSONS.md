@@ -637,3 +637,14 @@ response = json.loads(proc.stdout.readline())
   - ログに出るのは今も解析エラーである。つまり PostToolUse の stdout による差し込みは、1.4.7 でも受け付けられていない。2026-10-18 の受け渡しのエントリ（PostToolUse → PreInvocation）の覆す条件は満たしていない。
   - 起動に失敗する場合（コマンドが見つからない・exit 127）は、今回は再現していない。
 - 覆す条件: 後の版で、PostToolUse の失敗によって再びツール結果が `Encountered error in tool execution` に置き換わった場合。起動に失敗する場合を試して、置き換わりが起きた場合も含む。
+
+## 2026-11-04: agy 1.4.12 では native 形式の `"command": "./bin/<name>"` が Linux と Windows の両方で起動する（2026-10-18 の gemini-extension.json 維持エントリの覆す条件を満たした、upstream #390）
+
+- 却下した案: (1) upstream のコラボレーターの回答（「`${extensionPath}` は legacy の `gemini-extension.json` 専用。native 形式は v1.1.28 から MCP の cwd がプラグインディレクトリなので相対パスで書く」）だけを根拠に、覆す条件を満たしたとみなす。(2) `.exe` だけを置いた簡略版の bin/ で試す。拡張子なしの dispatcher が同名で同居する実物の構成でないと、「`.exe` を補うのか、dispatcher を掴んで失敗するのか」という論点そのものが消える。
+- 決め手: test-runner の追跡済み `bin/`（dispatcher と 3 OS 分のバイナリ）に、`plugin.json` と `mcp_config.json`（`"command": "./bin/test-runner"`）を足した使い捨てプラグインを作り、Linux（WSL2）と Windows の agy 1.4.12 に install して `agy -p` で起動した。
+  - install 先の `mcp_config.json` の `command` は、どちらの OS でも literal の `./bin/test-runner` のままだった（展開は起きない）。
+  - どちらの OS でも MCP キャッシュ `mcp/<plugin>_<server>/` に `go_test.json` が現れた。
+  - Windows のログには、起動したパスが出なかった。そこで install 先の `test-runner.exe` を退避してキャッシュを消してから再実行したところ、キャッシュは現れなかった。戻して再実行すると、また現れた。CLI ログの `Not reloading plugin MCP servers: ... not logged into Antigravity` は 3 回とも 1 回ずつ出ていて、起動の成否とは関係ない。これで、拡張子なしの `./bin/test-runner` に agy が `.exe` を補って起動していると分かった。
+  - macOS は試していない。ただし起動の仕組みは Linux と同じで、dispatcher が `uname` で振り分ける。
+  - 2026-10-18 のもう一つの覆す条件（`command` で `${PLUGIN_ROOT}` が展開される）は、今回は試していない。`hooks.json` の変数が置換されない件は、今回の回答の範囲外で、未解決のまま。
+- 覆す条件: 後の版で、native 形式の MCP サーバーの cwd がプラグインディレクトリでなくなった場合。または Windows で拡張子なしの `command` に `.exe` が補われなくなった場合（この方式へ移行した後なら、移行を戻す）。
