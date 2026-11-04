@@ -1,0 +1,5 @@
+{
+  "name": "ast-grep",
+  "version": "1.0.0",
+  "description": "ast-grep (sg) MCP server for structural codebase refactoring."
+}

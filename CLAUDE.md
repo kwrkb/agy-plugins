@@ -7,7 +7,8 @@ agy (Google Antigravity CLI) 向け MCP プラグイン集。グローバル CLA
 Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分離。`bin/` に各 OS のネイティブ
 `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe` と、拡張子なしの **OS 分岐 dispatcher**
 `bin/<name>`（shebang sh・`uname` で実機ネイティブを `exec`、+x コミット）を **git にコミットして配布**。
-`command` は `${extensionPath}${/}bin${/}<name>`（Windows は agy が `.exe` を補完し `bin/<name>.exe` を直接起動＝dispatcher 非経由）。
+マニフェストは native 形式の `plugin.json` + `mcp_config.json`。`command` はプラグインルート相対の `./bin/<name>`
+（MCP サーバーの cwd がプラグインディレクトリ。Windows は agy が `.exe` を補完し `bin/<name>.exe` を直接起動＝dispatcher 非経由）。
 
 - `github/` — `gh` CLI を exec する自作 Go 製 MCP サーバー。module `github.com/kwrkb/agy-plugins/github`（`github/src/`）。
 - `gitlab/` — `glab` CLI を exec する自作 Go 製 MCP サーバー（`glab_command`）。github と同じ構成で、module `github.com/kwrkb/agy-plugins/gitlab`（`gitlab/src/`）。子プロセスに `GLAB_NO_PROMPT=1` を渡す。
@@ -38,7 +39,7 @@ cd agy-plugin-kit/validator/src && go vet ./... && go test ./...
 
 ## 実機検証（tmux + agy）
 
-agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.4 でも tmux 経由のツール実行まで通しで再確認済み（2026-10-23。注意点は末尾の注記）。
+agy の対話セッションは PTY を要するため tmux 経由で起こす。クリーン install → ツール実行までを実環境で確認する。以下は **agy 1.2.7 で確立した手順**で、1.4.12 でも tmux 経由のツール実行まで通しで再確認済み（2026-11-04。注意点は末尾の注記）。
 
 ```bash
 # 1) クリーン install を再現（git 追跡ファイルのみ＝URL install と等価）
@@ -46,7 +47,7 @@ D=$(mktemp -d) && git archive HEAD test-runner/ | tar -x -C "$D" && \
   rm -rf ~/.gemini/config/plugins/test-runner \
          ~/.gemini/antigravity-cli/mcp/test-runner_test-runner && \
   agy plugin install "$D/test-runner"
-# mcp_config.json の command が ${extensionPath} 解決済み絶対パスになっていること
+# mcp_config.json の command が ./bin/test-runner のまま（install は書き換えない）であること
 # 配布物は mtime でなく中身で確認する（目視で突き合わせず、file ごとに判定させる）
 for f in test-runner/bin/*; do
   cmp -s "$f" ~/.gemini/config/plugins/test-runner/bin/"$(basename "$f")" \
@@ -87,12 +88,12 @@ ls ~/.gemini/antigravity-cli/mcp/test-runner_test-runner/   # 新サーバーな
 現在有効な設計判断（マニフェスト形式・dispatcher・バイナリのコミット配布・skills 主体・フックの書き方と受け渡し）は **VISION.md** が正典。
 ここには作業中に踏みやすい手順上の注意だけを置く。根拠は LESSONS.md（`#N` は旧形式の番号付き教訓）。
 
-**実機の agy は 1.4.4**（2026-10-23 に install・MCP 起動・tmux 経由のツール実行を再確認。`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH は 2026-10-18 に 1.4.2 で再検証したもの）。
+**実機の agy は 1.4.12**（2026-11-04 に Linux / Windows で 8 プラグインの install・MCP 起動、Linux で tmux 経由のツール実行を再確認。`rules/`・`agents/`・hooks・`PLUGIN_DATA`・`bin/` PATH は 2026-10-18 に 1.4.2 で再検証したもの）。
 
 - **ソースを変えたら全 OS 分のバイナリを再ビルドしてコミット**。忘れると stale が配布される（#21。CI の stale ゲートでも落ちる）。
-- **install は wipe しない**: 設計変更時は旧ファイルが残る。再 install 前に `~/.gemini/config/plugins/<name>/` を削除（#24）。
+- **install が wipe するとは限らない**: 古い版では設計変更時に旧ファイルが残った（#24）。1.4.12 は上書き install で install 先を置き換えた（旧 `gemini-extension.json` は消えた）が、検証では今まで通り再 install 前に `~/.gemini/config/plugins/<name>/` を削除する。
   install 先の名前はマニフェストの `name` で決まるので、削除はその名前で行う。
-- **ソース検査は `validator <src>`、install 後の検査は `agy plugin validate`**（後者は `plugin.json` を直接要求する）。
+- **ソースには `validator <src>` と `agy plugin validate <src>` の両方をかける**（native 形式なので後者もソースに直接かけられる）。
 - **起動の証拠は MCP キャッシュのツール名**: mtime だけでなく中身で新サーバーを確認する（#25）。場所は `mcp/<plugin>_<server>/`。
 - **フックの差し込みの確認**: `ephemeralMessage` は直後の 1 回のモデル呼び出しにしか見えない。検証プロンプトは「書いた直後に報告」させ、
   届いたかは transcript の `EPHEMERAL_MESSAGE` で判定する（LESSONS 2026-10-18）。

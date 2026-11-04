@@ -8,7 +8,7 @@
 | :-- | :-- |
 | **[github](./github/README_ja.md)** | GitHub CLI (`gh`) を利用して GitHub の Issues / PR / リポジトリ等を操作する MCP サーバー（OS 共通） |
 | **[gitlab](./gitlab/README_ja.md)** | GitLab CLI (`glab`) を利用して GitLab の Issues / MR / CI / プロジェクト等を操作する MCP サーバー（OS 共通） |
-| **[agy-plugin-kit](./agy-plugin-kit/README_ja.md)** | agy プラグイン開発メタ・ヘルパー（雛形生成・静的検査・Issue #390 パス修正・doc 生成） |
+| **[agy-plugin-kit](./agy-plugin-kit/README_ja.md)** | agy プラグイン開発メタ・ヘルパー（雛形生成・静的検査・Issue #390 パスの ./ 相対化・doc 生成） |
 | **[ast-grep](./ast-grep/README_ja.md)** | `ast-grep` (`sg`) を利用してコード構造の検索・安全なリファクタリングを行う MCP サーバー |
 | **[go-lsp](./go-lsp/README_ja.md)** | `gopls` を利用して Go 言語の定義ジャンプ・参照検索・ホバー情報を取得する MCP サーバー |
 | **[retro-status](./retro-status/README_ja.md)** | リポジトリをスキャンし、RPGのレトロステータス画面風のAA（アスキーアート）で出力する MCP サーバー |

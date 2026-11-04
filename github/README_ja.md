@@ -17,7 +17,7 @@ GitHub CLI (`gh`) を利用して、GitHub の各種操作（Issues, Pull Reques
 
 | ファイル | 役割 |
 | :--- | :--- |
-| `gemini-extension.json` | プラグインマニフェスト。`command` は `${extensionPath}${/}bin${/}github` を絶対パスへ解決する |
+| `plugin.json` / `mcp_config.json` | プラグインマニフェストと MCP サーバー定義。`command` はプラグインディレクトリ（MCP サーバーの cwd）からの相対パス `./bin/github` |
 | `src/main.go` / `src/go.mod` / `src/go.sum` | `gh` コマンドを呼び出す MCP サーバーのソースコード |
 | `bin/github-linux-amd64` / `bin/github-darwin-arm64` / `bin/github.exe` | コンパイル済みの MCP サーバーネイティブバイナリ（各 OS×arch） |
 | `bin/github` | OS 分岐 dispatcher（shebang sh）。`uname` で実機を判定し対応ネイティブを `exec`（Windows は agy が `bin/github.exe` を直接起動） |

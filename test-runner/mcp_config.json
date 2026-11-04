@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "test-runner": {
+      "command": "./bin/test-runner"
+    }
+  }
+}

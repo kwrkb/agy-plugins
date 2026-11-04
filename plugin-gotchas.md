@@ -4,15 +4,16 @@
 
 ## 1. パス変数の展開仕様と `command` フィールドの罠 (Issue #390, #395)
 - **Native 形式 (`plugin.json` + `mcp_config.json`)**:
-  - `${extensionPath}` および `${/}` は install 時にも実行時にも展開されず、リテラル文字列のまま残ります（Issue #390 継続）。
+  - `${extensionPath}` および `${/}` は install 時にも実行時にも展開されず、リテラル文字列のまま残ります。upstream の回答（2026-11-03）では legacy の `gemini-extension.json` 専用で、仕様どおりの動作です（Issue #390）。
+  - native 形式の MCP サーバーは cwd がプラグインディレクトリ（v1.1.28〜）なので、同梱バイナリは `"command": "./bin/<name>"` と相対パスで書きます。`agy 1.4.12` の Linux / Windows で実機確認済みで、Windows では拡張子なしの `command` に agy が `.exe` を補います。
   - `agy 1.3.2` 以降、MCP サーバーの `args` / `env`（および `1.4.0` で HTTP `headers`）では `${PLUGIN_ROOT}` と `${PLUGIN_DATA}` が実行時に絶対パスへ展開されるようになりましたが、**`mcp_config.json` の `command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗します**。
 - **`hooks.json`**:
   - `agy 1.4.2` でも `hooks.json` の `command` 内では `${PLUGIN_ROOT}`・`${extensionPath}`・`${/}` のいずれも展開されません（`sh -c` が未定義環境変数として空文字展開し、`${/}` は `Bad substitution` で失敗します）。
 
 > [!TIP]
 > **回避策**
-> - **同梱バイナリを起動する MCP サーバー**: 3 OS（Linux / macOS / Windows）共通で確実に絶対パス起動するため、ソースは `gemini-extension.json` 形式（`plugin.json` を併置しない）で作成し、`"command": "${extensionPath}${/}bin${/}<name>"` と記述します（`agy plugin install` 時に絶対パス解決済みの `mcp_config.json` と `plugin.json` が生成されます）。
-> - **`agy plugin validate` の使い分け（v1.4.0〜）**: `agy plugin validate` は `plugin.json` を直接要求するため、`gemini-extension.json` 形式のソースディレクトリには直接かけず、ソース検査には `agy-plugin-kit` の `validator <src>` を、install 後検査には `agy plugin validate ~/.gemini/config/plugins/<name>` を使います。
+> - **同梱バイナリを起動する MCP サーバー**: native 形式（`plugin.json` + `mcp_config.json`）で作成し、`"command": "./bin/<name>"` と記述します。`bin/<name>` を拡張子なしの POSIX sh dispatcher にし、`bin/<name>.exe` を並べれば、Linux / macOS は dispatcher、Windows は agy が補った `.exe` が起動します。2026-11-04 までは `gemini-extension.json` 形式の `${extensionPath}${/}bin${/}<name>` を使っていました。
+> - **`agy plugin validate`（v1.4.0〜）**: `plugin.json` を直接要求します。native 形式のソースにはそのままかけられます（legacy の `gemini-extension.json` 形式なら install 先にかけます）。`agy-plugin-kit` の `validator <src>` と併用します。
 > - **`hooks.json`**: 変数を使わず、プラグインルートからの相対パスで記述します（フック実行時の `pwd` はプラグインルートになります）。フックは Windows では `cmd /c`、それ以外では `sh -c` で起動され、`cmd` はスラッシュ区切りの `validator/bin/validator` の `/bin` をスイッチとして読むため起動できません。Windows 形と Unix 形を `||` でつなぎます（例: `"command": "validator\\bin\\validator --hook || validator/bin/validator --hook"`。`sh` では前半が not found になり後半が動く）。
 > - **`hooks.json` の `timeout` は秒単位**（既定 30）です。Claude Code のミリ秒の感覚で `10000` と書くと約 2.8 時間になります。
 > - **`PostToolUse` フックの出力はモデルに届きません**（stderr は CLI ログのみ、stdout の `injectSteps` はツール結果ごとエラー化、`overwriteResult` は無視）。モデルに伝えたい内容は `conversationId` ごとのファイルに書き、`PreInvocation` フックの `injectSteps`（`ephemeralMessage`）で差し込みます。

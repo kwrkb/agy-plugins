@@ -1,0 +1,5 @@
+{
+  "name": "test-runner",
+  "version": "1.0.0",
+  "description": "Run Go tests and summarize failures with rerun arguments."
+}

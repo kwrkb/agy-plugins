@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "settings-advisor": {
+      "command": "./bin/settings-advisor"
+    }
+  }
+}

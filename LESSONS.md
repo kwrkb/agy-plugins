@@ -627,3 +627,34 @@ response = json.loads(proc.stdout.readline())
 - 却下した案: (1) 出力が途切れている間だけ数える idle timeout。(2) 引数を足さず、既定の期限を長くするだけ。
 - 決め手: idle timeout では、ログを出さずに長く動くジョブへの `glab ci trace` が途中で止まる。止まらないように閾値を長くすると、固まった認証ヘルパーも同じだけ待つことになる。期限を長くするだけでは、`gh run watch` を 30 分見たい場合と、数秒で返るはずの `issue list` が固まった場合を両立できない。引数を足すと `tools/list` のスキーマは変わるが、省略できるので既存の呼び出しはそのまま動く。test-runner の `timeout_seconds` と同じ名前・同じ厳密な検査（文字列や小数は弾く）にそろえた。上限は 3600 秒。出力の上限は test-runner の返却ログと同じ 64 KiB（stderr は 16 KiB）。打ち切った後もパイプは読み切り、末尾に `[output truncated: kept the first N of M bytes]` の行を付ける。タイムアウト時は、それまでの stdout をエラーに入れて返す。
 - 覆す条件: agy の MCP クライアント側にツール呼び出しの期限があり、300 秒より短いと分かった場合（既定を下げるか、上限をそれに合わせる）。
+
+## 2026-10-24: agy 1.4.7 では PostToolUse のフックが失敗してもツール結果は置き換わらない（2026-10-18 の timeout エントリの観測が覆った、upstream #1282）
+
+- 却下した案: (1) 2026-10-18 の観測「PostToolUse のフックが 1 つでも失敗すると、ツールの呼び出し全体がモデルからはエラーに見える」を、今も成り立つ前提として扱い続ける。(2) upstream のコラボレーターの「最新版で解消した」というコメントだけを根拠に、確かめずに Issue を閉じる。
+- 決め手: agy 1.4.7（Linux / WSL2、`agy -p`）で、報告時と同じ手順を使い捨てのプラグインで再現した。どちらの回も `note.txt` は中身どおりに作られた。モデルが受け取った結果は通常の `Created file.` で、モデルは書き込み成功と報告した。
+  - `timeout: 1` に対して `sleep 3` するハンドラは、今も打ち切られる。ただし失敗は CLI ログに `provider.go:65] post-tool hook "..." failed: ... signal: killed` と出るだけになった。
+  - stdout に `{"injectSteps":[]}` を返すハンドラも同じ扱いになった。CLI ログには `failed to unmarshal result ... unknown field "injectSteps"` が出る。
+  - ログに出るのは今も解析エラーである。つまり PostToolUse の stdout による差し込みは、1.4.7 でも受け付けられていない。2026-10-18 の受け渡しのエントリ（PostToolUse → PreInvocation）の覆す条件は満たしていない。
+  - 起動に失敗する場合（コマンドが見つからない・exit 127）は、今回は再現していない。
+- 覆す条件: 後の版で、PostToolUse の失敗によって再びツール結果が `Encountered error in tool execution` に置き換わった場合。起動に失敗する場合を試して、置き換わりが起きた場合も含む。
+
+## 2026-11-04: agy 1.4.12 では native 形式の `"command": "./bin/<name>"` が Linux と Windows の両方で起動する（2026-10-18 の gemini-extension.json 維持エントリの覆す条件を満たした、upstream #390）
+
+- 却下した案: (1) upstream のコラボレーターの回答（「`${extensionPath}` は legacy の `gemini-extension.json` 専用。native 形式は v1.1.28 から MCP の cwd がプラグインディレクトリなので相対パスで書く」）だけを根拠に、覆す条件を満たしたとみなす。(2) `.exe` だけを置いた簡略版の bin/ で試す。拡張子なしの dispatcher が同名で同居する実物の構成でないと、「`.exe` を補うのか、dispatcher を掴んで失敗するのか」という論点そのものが消える。
+- 決め手: test-runner の追跡済み `bin/`（dispatcher と 3 OS 分のバイナリ）に、`plugin.json` と `mcp_config.json`（`"command": "./bin/test-runner"`）を足した使い捨てプラグインを作り、Linux（WSL2）と Windows の agy 1.4.12 に install して `agy -p` で起動した。
+  - install 先の `mcp_config.json` の `command` は、どちらの OS でも literal の `./bin/test-runner` のままだった（展開は起きない）。
+  - どちらの OS でも MCP キャッシュ `mcp/<plugin>_<server>/` に `go_test.json` が現れた。
+  - Windows のログには、起動したパスが出なかった。そこで install 先の `test-runner.exe` を退避してキャッシュを消してから再実行したところ、キャッシュは現れなかった。戻して再実行すると、また現れた。CLI ログの `Not reloading plugin MCP servers: ... not logged into Antigravity` は 3 回とも 1 回ずつ出ていて、起動の成否とは関係ない。これで、拡張子なしの `./bin/test-runner` に agy が `.exe` を補って起動していると分かった。
+  - macOS は試していない。ただし起動の仕組みは Linux と同じで、dispatcher が `uname` で振り分ける。
+  - 2026-10-18 のもう一つの覆す条件（`command` で `${PLUGIN_ROOT}` が展開される）は、今回は試していない。`hooks.json` の変数が置換されない件は、今回の回答の範囲外で、未解決のまま。
+- 覆す条件: 後の版で、native 形式の MCP サーバーの cwd がプラグインディレクトリでなくなった場合。または Windows で拡張子なしの `command` に `.exe` が補われなくなった場合（この方式へ移行した後なら、移行を戻す）。
+
+## 2026-11-04: 同梱バイナリ 8 プラグインを native 形式へ移し、validator の `--fix-paths` は相対パスへの書き換えとして残す
+
+- 却下した案: (1) `gemini-extension.json` を残したまま `plugin.json` と `mcp_config.json` を足し、移行期間は両方置く。(2) `--fix-paths` を削除する。(3) `--fix-paths` を今までどおり絶対パスの焼き込みのままにする。(4) CHANGELOG をこの PR で書く。
+- 決め手: 両方置くと `plugin.json` が優先されて copy-only になり、`gemini-extension.json` の内容は使われない（C1 の理由そのもの）。両方置いても旧版の agy への保険にはならない。`./` 相対への書き換えは機械に依存しないので、ソースに実行しても配布物を壊さない。そのため `--fix-paths` は用途が残り、git 管理下で実行したときの警告は要らなくなった。CHANGELOG はリリース時にまとめて書く運用（0.6.0 の #36）なので触らない。
+  - 観測した事実は次のとおり。
+    - 移行後の 8 本のソースは、キットの validator で 0 件、`agy plugin validate` で pass した。
+    - agy 1.4.12 の Linux と Windows に `git archive` から 8 本をクリーン install すると、`mcp_config.json` の `command` は `./bin/<name>` のまま残った。MCP キャッシュのツール名は、移行前（gemini-extension.json 形式）と 8 本とも一致した。Linux の対話モードでは `Called 1 MCP tool (test-runner_test-runner/go_test)` を確認した。
+    - 旧形式の install を消さずに native 形式のソースを install すると、`replaced existing installation` と出て、旧 `gemini-extension.json` は install 先から消えた（1.4.12、Linux）。利用者は `agy plugin install <URL>` を打ち直すだけでよい。
+- 覆す条件: 利用者の agy が 1.1.28 より古く、MCP サーバーの cwd がプラグインディレクトリにならない環境を支える必要が出た場合（そのときは legacy 形式の配布を別に用意する）。または、後の版で上書き install が旧ファイルを残すようになり、旧 `gemini-extension.json` が native 形式の解釈を邪魔すると分かった場合。

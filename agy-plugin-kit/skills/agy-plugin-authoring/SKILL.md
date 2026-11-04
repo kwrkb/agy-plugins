@@ -11,29 +11,32 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 
 ## マニフェスト形式の選択（最重要）
 
-- **`gemini-extension.json` 形式**（`plugin.json` を置かない）: `agy plugin install` 時に `${extensionPath}`/`${/}` を
-  **絶対パスへ解決**し、install 先に `plugin.json`+`mcp_config.json` を生成する。**3 OS 共通で同梱バイナリを MCP `command` に指定する場合は引き続きこれ**。
-- **`plugin.json` 形式**（native。ルート直下または `.antigravity-plugin/plugin.json` / `.gemini-plugin/plugin.json`）:
-  `mcp_config.json` はそのままコピーされ **`${extensionPath}` は解決されない**（= Issue #390。1.4.2 でも継続）。
-  マニフェストをサブフォルダに置いても `mcp_config.json`・`hooks.json`・`skills/` 等のコンポーネントは**プラグインルート直下**に置く
-  （`.antigravity-plugin/` 内に置くと読まれない。1.4.2 で `agy plugin validate` / `install` により確認、出典は同梱 changelog）。
-  PATH 上のコマンドを使う場合、または `command` に変数展開が不要な場合のみこれ。
-- **両方置かない**（C1 警告対象）。曖昧になり `plugin.json` 側が優先され copy-only 化する。
+- **`plugin.json` 形式（native。これを使う）**: ルート直下または `.antigravity-plugin/plugin.json` / `.gemini-plugin/plugin.json`。
+  `mcp_config.json` はそのままコピーされる（変数の書き換えは起きない）。
+  - **同梱バイナリは `"command": "./bin/<name>"`**。native 形式の MCP サーバーは cwd がプラグインディレクトリ（agy 1.1.28〜）なので、
+    プラグインルート相対のパスがそのまま正式な書き方（upstream #390 のコラボレーター回答）。agy 1.4.12 の Linux / Windows で実機確認、
+    Windows は拡張子なしの `command` に agy が `.exe` を補い `bin/<name>.exe` を起動する（LESSONS 2026-11-04）。
+  - マニフェストをサブフォルダに置いても `mcp_config.json`・`hooks.json`・`skills/` 等のコンポーネントは**プラグインルート直下**に置く
+    （`.antigravity-plugin/` 内に置くと読まれない。1.4.2 で `agy plugin validate` / `install` により確認、出典は同梱 changelog）。
+- **`gemini-extension.json` 形式（legacy）**（`plugin.json` を置かない）: `agy plugin install` 時に `${extensionPath}`/`${/}` を
+  絶対パスへ解決し、install 先に `plugin.json`+`mcp_config.json` を生成する。upstream は legacy の取り込み用と位置づけている。
+  新規には使わない（本リポジトリも 2026-11-04 に native 形式へ移した）。
+- **両方置かない**（C1 警告対象）。`plugin.json` 側が優先され copy-only 化し、`gemini-extension.json` の内容は使われない。
 
 ## 変数展開仕様と `command` フィールドの罠（Issue #390 / `${PLUGIN_ROOT}` / `${PLUGIN_DATA}`）
 
-- **`${extensionPath}` / `${/}`**: `gemini-extension.json` の install 時変換でのみ展開される。native `plugin.json` 形式の
-  `mcp_config.json` に書くと **literal のまま**残り起動不能になる（C2 エラー）。
+- **`${extensionPath}` / `${/}`**: `gemini-extension.json` の install 時変換でのみ展開される（legacy 専用で仕様どおり。Issue #390）。
+  native `plugin.json` 形式の `mcp_config.json` に書くと **literal のまま**残り起動不能になる（C2 エラー）。
 - **`${PLUGIN_ROOT}` / `${PLUGIN_DATA}`（agy 1.3.2〜）**:
   - MCP サーバーのプロセス環境変数 `PLUGIN_ROOT`（`~/.gemini/config/plugins/<name>`）と `PLUGIN_DATA`
     （`~/.gemini/antigravity-cli/plugin_data/<name>`、install 更新でも消えない永続領域＝Issue #554 解消。ただし `.agents/plugins/` 直置き時は空文字）が自動注入される。
   - native `mcp_config.json` の **`args` / `env`（および 1.4.0〜 の HTTP `headers`）では実行時に絶対パスへ展開される**。
   - **罠**: native `mcp_config.json` の **`command` フィールド自体では `${PLUGIN_ROOT}` が展開されず起動に失敗する**（1.4.2 実機検証済み、C2 エラー）。
     `gemini-extension.json` の `command` に書いても install は `${PLUGIN_ROOT}` を書き換えず、生成先 `mcp_config.json` に literal のまま残る（1.4.2 実測。マニフェスト形式を問わず C2 エラー）。
-- **対処**: (a) 同梱バイナリを MCP `command` で起動するなら `gemini-extension.json` 形式にし `${extensionPath}${/}bin${/}<name>` と書く
-  （`command` の `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` はこれで置き換える） / (b) **`${extensionPath}` の場合に限り** `/agy-plugin-kit:doctor` の
-  path-fix（validator `--fix-paths`）で install 先を絶対パスへ書き換える（`--fix-paths` は `${extensionPath}`/`${/}` しか置換しないため
-  `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` は直らない） / (c) PATH 上のコマンドにして同梱をやめる。
+- **対処**: (a) 同梱バイナリは native `mcp_config.json` に `"command": "./bin/<name>"` と書く（`command` の
+  `${extensionPath}`/`${PLUGIN_ROOT}`/`${PLUGIN_DATA}` はすべてこれで置き換える） / (b) `${extensionPath}${/}` が残っている
+  `mcp_config.json` は `/agy-plugin-kit:doctor` の path-fix（validator `--fix-paths`）で `./` 相対へ書き換えられる（ソースに実行してよい。
+  `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` は置換しないので手で直す） / (c) PATH 上のコマンドにして同梱をやめる。
 
 ## マルチプラットフォーム対応（同梱 Go バイナリ・`src/`＋`bin/`）
 
@@ -41,7 +44,7 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
   **dispatcher 方式**で単一 command に畳み込む（実機検証済み）:
   - ソースは `<plugin>/src/`、配布物は `<plugin>/bin/`。`bin/` に `<name>-linux-amd64` / `<name>-darwin-arm64` /
     `<name>.exe`（ネイティブ）＋拡張子なし `bin/<name>`（**POSIX sh dispatcher**＝OS 非依存テキスト。`uname` で実機
-    判定し対応ネイティブを `exec`）。`command` は `${extensionPath}${/}bin${/}<name>`。Windows は agy が `.exe` を
+    判定し対応ネイティブを `exec`）。`command` は `./bin/<name>`（拡張子なし。`.exe` を付けると C6）。Windows は agy が `.exe` を
     補完して `bin/<name>.exe` を直接起動＝dispatcher 非経由。
   - dispatcher はエラーのみ stderr（stdout は NDJSON 専用）。実行ビット（`100755`）をコミット
     （`git update-index --chmod=+x`。install コピーで +x は保持＝実機検証済み）。`.sh`/`.cmd`/`.bat` の直 `command`
@@ -93,11 +96,10 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 
 ## 検証
 
-- **ソース検査と install 後検査の使い分け（1.4.0〜重要）**:
-  - `agy plugin validate <path>`（`--strict` / `--json` 対応）は 1.4.0 から **`plugin.json` の存在を直接要求する**ため、
-    `gemini-extension.json` 形式の**ソースディレクトリ**に直接かけるとエラーになる。
-  - **ソースディレクトリの検査**には本キットの `validator <src-dir>` を使い、**`agy plugin validate` は native `plugin.json`
-    形式のプラグイン、または `agy plugin install` 後の `~/.gemini/config/plugins/<name>`** に対して実行する（install 先には変換済みの `plugin.json` があるため pass する）。
+- **ソースには本キットの `validator <src-dir>` と `agy plugin validate <src-dir>` の両方をかける**:
+  - `agy plugin validate <path>`（`--strict` / `--json` 対応）は 1.4.0 から **`plugin.json` の存在を直接要求する**。native 形式のソースならそのままかけられる。
+    legacy の `gemini-extension.json` 形式のソースでは失敗するので、install 後の `~/.gemini/config/plugins/<name>` にかける。
+  - 本キットの validator は `agy plugin validate` が見ない罠（#390・`command` の変数・hooks の変数・gitignore 等）を見る。
 - 「動く」の証明は **実環境（端末から agy）** で行う（手動 export の直叩きは不可）。証拠は
   **`~/.gemini/antigravity-cli/mcp/<plugin>_<server>/` 内のツール名**で取る。
   - **ディレクトリ名は `<plugin>_<server>`**（例 `github_github`）。`mcp/<plugin>/` という旧名の

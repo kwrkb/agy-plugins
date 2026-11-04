@@ -2,7 +2,7 @@
 
 ## 現在地
 
-フェーズ1〜17 完了。次のフェーズは未定。
+フェーズ1〜17 完了。フェーズ18（同梱バイナリの native 形式への移行）は PR レビュー待ち。
 
 ## 完了フェーズ
 
@@ -27,3 +27,4 @@
 | 15 | mcp-go v1 移行（PR #35） | 7 モジュールを v0.54.1 → v1.3.0 へ。ソース変更なし・Go の引き上げなし。新旧バイナリの JSON-RPC 応答比較と agy 1.4.2 実機（7 サーバーのキャッシュ一致・go_test / gh_command 実行）で確認 |
 | 16 | agy 1.4.2 でのプラグイン仕様再検証（PR #28） | プラグイン `rules/`・`agents/*.md`・`PLUGIN_DATA`・`bin/` PATH の機能化を確認。MCP `command` の `${PLUGIN_ROOT}` 未展開を受けて同梱バイナリは `gemini-extension.json` 形式を維持。validator の C2/C10 を拡張し、サブディレクトリ配置のマニフェストに対応 |
 | 17 | validator フックの結果をエージェントへ届ける（PR #29, #31, #32、Issue #30） | PostToolUse → PreInvocation の受け渡しで指摘を差し込み、`timeout` を秒に修正（C11 新設）。Windows 形と Unix 形を `||` でつなぐ command にし、Linux / macOS / Windows の実機で確認 |
+| 18 | 同梱バイナリの native 形式への移行（upstream #390 の回答を受けて） | 8 プラグインを `plugin.json` + `mcp_config.json`（`./bin/<name>`）へ。validator の C1/C2/C6 と `--fix-paths` を新形式に合わせ、雛形・skill・doctor・VISION を更新。agy 1.4.12 の Linux / Windows で 8 サーバーのキャッシュ一致、Linux の対話で `go_test` 実行を確認 |

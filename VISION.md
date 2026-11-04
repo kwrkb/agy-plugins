@@ -35,12 +35,13 @@ Linux / macOS / Windows のどれでも動く形**で配布する。あわせて
 
 ### 配布・パッケージング
 
-- **同梱バイナリを使うプラグインは `gemini-extension.json` 形式にし、`plugin.json` を置かない。**
-  `command` は `${extensionPath}${/}bin${/}<name>`。`${extensionPath}` が install 時に解決されるのはこの形式だけで、
-  native `mcp_config.json` の `command` では `${PLUGIN_ROOT}` も展開されない
-  （#1、LESSONS 2026-10-18「同梱バイナリ参照プラグインは gemini-extension.json 形式を維持」）。
+- **同梱バイナリを使うプラグインも native 形式（`plugin.json` + `mcp_config.json`）にし、`command` は `./bin/<name>` と書く。**
+  native 形式の MCP サーバーは cwd がプラグインディレクトリなので、プラグインルート相対のパスで起動する（upstream #390 の回答）。
+  agy 1.4.12 の Linux / Windows で 8 プラグインの起動を実機で確認した。macOS は Linux と同じ dispatcher 経路で、実機では未確認。
+  `${extensionPath}` は legacy の `gemini-extension.json` 専用で、`command` では `${PLUGIN_ROOT}` も展開されないので、どちらも使わない
+  （LESSONS 2026-11-04 の 2 エントリ）。
 - **OS 別のネイティブバイナリ 3 本と、拡張子なしの POSIX sh dispatcher `bin/<name>` を同梱する。**
-  dispatcher が `uname` で実機向けを `exec` し、Windows は agy が `.exe` を補完して直接起動する（#40）。
+  dispatcher が `uname` で実機向けを `exec` し、Windows は agy が拡張子なしの `command` に `.exe` を補って直接起動する（#40）。
 - **バイナリは git にコミットして配布する。** `agy plugin install` はビルドせず追跡ファイルをコピーするだけ（#21）。
   CI は再ビルドして差分を検出する検証ゲートで、CI から自動コミットはしない（判断 10）。
 - **ビルドは決定論的にし、Go のパッチ版を `.go-version` の 1 か所に固定する。** `build.sh` / `build.ps1` / CI が
@@ -86,5 +87,5 @@ Linux / macOS / Windows のどれでも動く形**で配布する。あわせて
 - **「動く」の証明は実機の agy で取る。** 起動の証拠は MCP キャッシュ `mcp/<plugin>_<server>/` のツール名、
   対話でのツール実行の証拠は TUI の `Called N MCP tool (...)` 表示、フックの差し込みの証拠は transcript の
   `EPHEMERAL_MESSAGE`（#25、LESSONS 2026-09-20 / 2026-10-18 の各エントリ）。
-- **ソースの検査はキットの validator、install 後の検査は `agy plugin validate`。** `agy plugin validate` は
-  `plugin.json` を直接要求するので、`gemini-extension.json` 形式のソースには使えない。
+- **ソースにはキットの validator と `agy plugin validate` の両方をかける。** native 形式なので `agy plugin validate` を
+  ソースに直接かけられる。validator は `agy plugin validate` が見ない罠（#390・`command` やフックの変数・gitignore など）を見る。

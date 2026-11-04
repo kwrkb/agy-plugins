@@ -13,8 +13,9 @@
 //	validator --inject            stdin の PreInvocation JSON の conversationId に対応する受け渡しファイルを
 //	                              読んで消し、injectSteps の ephemeralMessage としてモデルへ差し込む。
 //	                              無ければ {}。常に exit 0。
-//	validator --fix-paths <dir>   #390 ワークアラウンド: plugin.json 形式の mcp_config.json に残る
-//	                              ${extensionPath} を <dir> の絶対パスへ書き換える。
+//	validator --fix-paths <dir>   #390 対処: plugin.json 形式の mcp_config.json に残る ${extensionPath}${/}
+//	                              をプラグインルート相対の ./ へ書き換える（native 形式の MCP サーバーは
+//	                              cwd がプラグインディレクトリなので、相対パスがそのまま正式な書き方）。
 //
 // stdout/stderr 方針: 検査結果は stdout（--hook 時は stderr）に人間可読で出す。MCP の NDJSON は流さない。
 // --hook / --inject の stdout は agy が JSON として厳格に解釈するため、決められた JSON 以外は書かない。
@@ -408,7 +409,7 @@ func validate(dir string) []finding {
 	// C1: 二重マニフェスト
 	if hasPluginJSON && hasGeminiExt {
 		out = append(out, finding{sevWarn, "C1",
-			"plugin.json と gemini-extension.json が両方あります。plugin.json があると install は copy-only になり ${extensionPath} は解決されません（LESSONS #1）。"})
+			"plugin.json と gemini-extension.json が両方あります。plugin.json があると install は copy-only になり、gemini-extension.json の mcpServers も ${extensionPath} の解決も使われません（LESSONS #1）。native 形式（plugin.json + mcp_config.json、同梱バイナリは \"command\": \"./bin/<name>\"）に一本化してください。"})
 	}
 
 	// command を構造化して収集。C3/C6/C7 は MCP の executable（command 本体）のみを対象にする
@@ -417,20 +418,22 @@ func validate(dir string) []finding {
 	hookCmds := collectHookCommands(hooksRaw)
 
 	// C2: MCP 定義で未解決変数を参照
-	// - ${extensionPath}/${/} は native 形式ではどこでも未解決（Issue #390）。gemini-extension.json 形式では install 時に解決されるので native 限定。
+	// - ${extensionPath}/${/} は native 形式ではどこでも未解決（Issue #390。upstream の回答では legacy の gemini-extension.json 専用で仕様どおり）。
+	//   gemini-extension.json 形式では install 時に解決されるので native 限定。native 形式の正しい書き方は ./bin/<name> の相対パス
+	//   （MCP サーバーの cwd がプラグインディレクトリ。agy 1.4.12 の Linux / Windows で実機確認、Windows は .exe を補う。LESSONS 2026-11-04）。
 	// - ${PLUGIN_ROOT}/${PLUGIN_DATA} は args/env では解決されるが、command フィールド自体では未解決で起動不能（agy 1.4.2 実機検証は ${PLUGIN_ROOT}）。
 	//   gemini-extension.json 形式でも install は ${PLUGIN_ROOT} を書き換えず生成先 mcp_config.json の command に literal で残すため
 	//   （agy 1.4.2 実測）、マニフェスト形式を問わず mcp_config.json と gemini-extension.json の両方の command を検査する。
 	if hasPluginJSON && !hasGeminiExt && mcpRaw != "" {
 		if strings.Contains(mcpRaw, "${extensionPath}") || strings.Contains(mcpRaw, "${/}") {
 			out = append(out, finding{sevError, "C2",
-				"plugin.json 形式の mcp_config.json で ${extensionPath}/${/} を使用しています。native 形式では解決されず（Issue #390）パスが literal のまま壊れます。gemini-extension.json 形式にするか、/agy-plugin-kit:doctor の --fix-paths で絶対パス化してください。"})
+				"plugin.json 形式の mcp_config.json で ${extensionPath}/${/} を使用しています。native 形式では解決されず（Issue #390）パスが literal のまま壊れます。プラグインルート相対の \"./bin/<name>\" で書いてください（MCP サーバーの cwd はプラグインディレクトリ。validator --fix-paths で書き換えられます）。"})
 		}
 	}
 	for _, c := range mcpCmds {
 		if strings.Contains(c.command, "${PLUGIN_ROOT}") || strings.Contains(c.command, "${PLUGIN_DATA}") {
 			out = append(out, finding{sevError, "C2",
-				fmt.Sprintf("MCP の command フィールドで ${PLUGIN_ROOT}/${PLUGIN_DATA} を使用しています: %q。args/env では展開されますが command 本体では展開されず起動に失敗します（agy 1.4.2 で ${PLUGIN_ROOT} を実機検証。gemini-extension.json 形式でも install 時に書き換えられず literal のまま残る）。同梱バイナリ起動は gemini-extension.json 形式で ${extensionPath}${/}bin${/}<name> を指定してください。", c.command)})
+				fmt.Sprintf("MCP の command フィールドで ${PLUGIN_ROOT}/${PLUGIN_DATA} を使用しています: %q。args/env では展開されますが command 本体では展開されず起動に失敗します（agy 1.4.2 で ${PLUGIN_ROOT} を実機検証。gemini-extension.json 形式でも install 時に書き換えられず literal のまま残る）。同梱バイナリは native 形式の mcp_config.json でプラグインルート相対の \"./bin/<name>\" を指定してください。", c.command)})
 		}
 	}
 
@@ -465,10 +468,11 @@ func validate(dir string) []finding {
 				break
 			}
 		}
-		// C6: ${extensionPath} 形式の MCP command に .exe 拡張子（拡張子なしにすべき）
-		if strings.Contains(c.command, "${extensionPath}") && strings.HasSuffix(exe, ".exe") {
+		// C6: 同梱バイナリを指す MCP command（./ 相対 または ${extensionPath}）に .exe 拡張子（拡張子なしにすべき）。
+		// Windows では agy が .exe を補い、Linux / macOS では同名の dispatcher が起動する。.exe を付けると後者が Windows 用を掴む。
+		if isBundledCommand(c.command) && strings.HasSuffix(exe, ".exe") {
 			out = append(out, finding{sevWarn, "C6",
-				fmt.Sprintf("${extensionPath} 形式の MCP command に .exe を付けています。agy が補完するため拡張子なしフルパス推奨（LESSONS #10）: %q", c.command)})
+				fmt.Sprintf("同梱バイナリを指す MCP command に .exe を付けています。Windows では agy が .exe を補い、Linux / macOS では拡張子なしの dispatcher が起動するので、拡張子なしで指定してください（LESSONS #10 / 2026-11-04）: %q", c.command)})
 		}
 		// C7: トークン専用 MCP サーバーを wrapper 無しで直叩き（heuristic）
 		if strings.Contains(exe, "github-mcp-server") && !strings.Contains(exe, "wrapper") {
@@ -560,6 +564,11 @@ func collectMCPCommands(raws ...string) []mcpCmd {
 		}
 	}
 	return cmds
+}
+
+// isBundledCommand は MCP command がプラグイン同梱のファイルを指す書き方（./ や .\ の相対、または ${extensionPath}）かを返す。
+func isBundledCommand(cmd string) bool {
+	return strings.HasPrefix(cmd, "./") || strings.HasPrefix(cmd, `.\`) || strings.Contains(cmd, "${extensionPath}")
 }
 
 // firstShellToken はシェル風コマンド文字列の先頭トークン（実行ファイル）を引用符対応で返す。
@@ -699,22 +708,11 @@ func gitIgnored(dir, path string) bool {
 	return false
 }
 
-// inGitWorkTree は dir が git の作業ツリー内か判定する（--fix-paths をソースで実行した警告用）。
-func inGitWorkTree(dir string) bool {
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--is-inside-work-tree").Output()
-	return err == nil && strings.TrimSpace(string(out)) == "true"
-}
-
 func runFixPaths(dir string) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "validator: bad path:", err)
 		os.Exit(2)
-	}
-	// ソースツリー（git 管理下）で実行すると開発機固有の絶対パスが焼き込まれる。install 先で実行すべき。
-	if inGitWorkTree(abs) {
-		fmt.Fprintln(os.Stderr, "警告: --fix-paths は install 先のプラグインディレクトリ（~/.gemini/config/plugins/<name>）で実行してください。"+
-			"git 管理下のソースで実行すると開発機固有の絶対パスが mcp_config.json に焼き込まれ、配布できなくなります。")
 	}
 	if err := fixPaths(abs); err != nil {
 		fmt.Fprintln(os.Stderr, "validator --fix-paths:", err)
@@ -722,7 +720,8 @@ func runFixPaths(dir string) {
 	}
 }
 
-// fixPaths replaces ${extensionPath} in mcp_config.json with absolute paths.
+// fixPaths は mcp_config.json の ${extensionPath}${/} をプラグインルート相対の ./ に書き換える。
+// 書き換え後は機械に依存しないので、ソース（git 管理下）にも install 先にも実行してよい。
 // It verifies that mcp_config.json is not a symlink escaping outside the plugin directory.
 func fixPaths(abs string) error {
 	mcpPath := filepath.Join(abs, "mcp_config.json")
@@ -747,14 +746,12 @@ func fixPaths(abs string) error {
 	if err != nil {
 		return fmt.Errorf("mcp_config.json が読めません: %w", err)
 	}
-	sep := string(filepath.Separator)
-	// Windows の絶対パス（C:\Users\...）はバックスラッシュを含むため、JSON 文字列値に埋め込む前に
-	// \ を \\ にエスケープする。しないと \U 等が不正な JSON エスケープになり mcp_config.json が壊れる。
-	absEsc := strings.ReplaceAll(abs, `\`, `\\`)
-	sepEsc := strings.ReplaceAll(sep, `\`, `\\`)
-	fixed := strings.ReplaceAll(string(raw), "${extensionPath}${/}", absEsc+sepEsc)
-	fixed = strings.ReplaceAll(fixed, "${extensionPath}", absEsc)
-	fixed = strings.ReplaceAll(fixed, "${/}", sepEsc)
+	// 区切りは / に統一する（Windows でも agy は ./bin/<name> を解決できる。LESSONS 2026-11-04）。
+	fixed := strings.ReplaceAll(string(raw), "${extensionPath}${/}", "./")
+	fixed = strings.ReplaceAll(fixed, "${extensionPath}/", "./")
+	fixed = strings.ReplaceAll(fixed, `${extensionPath}\\`, "./")
+	fixed = strings.ReplaceAll(fixed, "${extensionPath}", ".")
+	fixed = strings.ReplaceAll(fixed, "${/}", "/")
 	if fixed == string(raw) {
 		fmt.Println("変更なし（${extensionPath} は見つかりませんでした）:", mcpPath)
 		return nil
@@ -767,7 +764,7 @@ func fixPaths(abs string) error {
 	if err := os.WriteFile(mcpPath, []byte(fixed), 0o644); err != nil {
 		return fmt.Errorf("書き込み失敗: %w", err)
 	}
-	fmt.Printf("Issue #390 ワークアラウンド適用: %s の ${extensionPath} を %q に置換しました。\n", mcpPath, abs)
+	fmt.Printf("Issue #390 対処: %s の ${extensionPath}${/} をプラグインルート相対の ./ に書き換えました。\n", mcpPath)
 	return nil
 }
 

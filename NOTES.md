@@ -10,7 +10,7 @@
 |---|---|
 | `<plugin>/src/` | Go 製プラグインのソース（独立した Go モジュール。module パスは `github.com/kwrkb/agy-plugins/<plugin>`） |
 | `<plugin>/bin/` | 配布物: `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe` と、拡張子なしの dispatcher `<name>`（100755） |
-| `<plugin>/gemini-extension.json` | マニフェスト兼 MCP 定義（`command` は `${extensionPath}${/}bin${/}<name>`） |
+| `<plugin>/plugin.json` / `<plugin>/mcp_config.json` | マニフェストと MCP 定義（native 形式。`command` は `./bin/<name>`） |
 | `<plugin>/skills/<name>/SKILL.md` | エージェント向けのツールリファレンス |
 | `agy-plugin-kit/` | 開発キット（下記） |
 | `build.sh` / `build.ps1` | 決定論ビルド。引数でターゲットを選ぶ（`github` / `validator` / … / 省略で全部） |
@@ -41,7 +41,7 @@ Go 製プラグイン: github / gitlab / ast-grep / go-lsp / retro-status / sett
 | C3 | ERROR | MCP `command` に `.sh`/`.cmd`/`.bat` |
 | C4 | ERROR | 参照する実行ファイルが `.gitignore` 対象 |
 | C5 | ERROR | マニフェストが無い・空・不正 JSON（`.antigravity-plugin/` / `.gemini-plugin/` 配下も対象） |
-| C6 | WARN | `${extensionPath}` 形式の `command` に `.exe` |
+| C6 | WARN | 同梱バイナリを指す `command`（`./…` / `${extensionPath}`）に `.exe` |
 | C7 | WARN | トークン専用 MCP サーバーを wrapper なしで起動（heuristic） |
 | C8 | ERROR | `${CLAUDE_PLUGIN_ROOT}` |
 | C9 | WARN | 同梱 Go ラッパーが自前で stdout に書く（heuristic） |
