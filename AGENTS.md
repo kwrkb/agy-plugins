@@ -50,7 +50,6 @@ Go 製プラグインは原則として `<plugin>/src/` に独立した Go モ�
 
 - dispatcher（拡張子なし `bin/<name>`）の executable bit を維持する。
 - Go ソースを変えたら、配布対象 `bin/<name>-linux-amd64`・`bin/<name>-darwin-arm64`・`bin/<name>.exe` を再ビルドしてコミットする。
-- プラグインが同梱する skill（`<plugin>/skills/<name>/SKILL.md`）は、ディレクトリ名と frontmatter の `name:` を一致させる。対象 AI の接尾辞（`-codex` など）は付けなくてよい（個人用 skill の規則で、プラグインには適用しない）。
 - hook command は既存の `agy-plugin-kit/hooks.json` の書き方（変数を使わず、Windows 形 `||` Unix 形の相対パス）に従う。
 
 ## Build and Test
