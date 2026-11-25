@@ -7,10 +7,10 @@ A meta-plugin designed for plugin authors to scaffold, validate, repair, and doc
 | Component | Description |
 | :-- | :-- |
 | **`validator/`** (Go `src/` + `bin/`) | Deterministic validator detecting traps C1–C11. Includes `--fix-paths` mode and precompiled multi-platform binaries |
-| **Command** `/agy-plugin-kit:new` | Scaffolds compliant plugins with automatic manifest format selection |
-| **Command** `/agy-plugin-kit:validate` | Statically checks target plugin and provides structured summary |
-| **Command** `/agy-plugin-kit:doctor` | Combines `agy plugin validate` + kit checks + automated path fixes (rewrites Issue #390 `${extensionPath}` paths to `./`) |
-| **Command** `/agy-plugin-kit:doc` | Generates or updates README and SKILL.md from existing plugin structure |
+| **Skill** `/agy-plugin-kit:new` | Scaffolds compliant plugins with automatic manifest format selection |
+| **Skill** `/agy-plugin-kit:validate` | Statically checks target plugin and provides structured summary |
+| **Skill** `/agy-plugin-kit:doctor` | Combines `agy plugin validate` + kit checks + automated path fixes (rewrites Issue #390 `${extensionPath}` paths to `./`) |
+| **Skill** `/agy-plugin-kit:doc` | Generates or updates README and SKILL.md from existing plugin structure |
 | **Skill** `agy-plugin-authoring` | Core authoring guidelines distilled from empirical lessons |
 | **`templates/`** | Templates replicated by `/new` (`plugin.json`, `mcp_config.json`, Go wrappers, etc.) |
 

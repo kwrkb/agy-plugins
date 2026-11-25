@@ -1,6 +1,12 @@
-description = "正しい構造の agy プラグイン雛形を生成する（マニフェスト形式の自動選択・Windows 対応・検証込み）"
-prompt = """
-新しい agy プラグインの雛形を生成します。引数: {{args}}（プラグイン名。必要なら種別も）。
+---
+name: new
+description: 正しい構造の agy プラグイン雛形を生成する（マニフェスト形式の自動選択・Windows 対応・検証込み）。agy プラグインを新しく作るとき、`/agy-plugin-kit:new <プラグイン名>` で呼ばれたときに使う。
+---
+
+# 新しい agy プラグインの雛形を生成する
+
+引数はプラグイン名（必要なら種別も）。`/agy-plugin-kit:new <name>` のように呼ばれたときは、その後ろに続く文字列を引数とみなす。
+引数が無ければ会話から読み取り、確信が持てなければユーザーに尋ねる。
 
 まず skill `agy-plugin-authoring` の規則を読み込み、それに完全準拠した雛形を作ること。
 
@@ -13,9 +19,11 @@ prompt = """
      `bin/` に `<name>-linux-amd64` / `<name>-darwin-arm64` / `<name>.exe`（ネイティブ）＋拡張子なしの
      OS 分岐 dispatcher `bin/<name>`（shebang sh・`uname` で `exec`、+x コミット）を置く。Windows は agy が `.exe` を補って直起動。
      `gemini-extension.json` は置かない（legacy 形式）。再ビルドはルートの `./build.sh <name>`（`./build.ps1`）。
-   - **C. コマンド/スキル中心**（MCP 無し）→ native `plugin.json` のみ。
+   - **C. スキル中心**（MCP 無し）→ native `plugin.json` ＋ `skills/<skill名>/SKILL.md`。
+     `commands/` の TOML コマンドは native 形式では読み込まれない（`agy plugin validate` が `commands: never loaded` を出す）ので作らない。
 2. `~/.gemini/config/plugins/agy-plugin-kit/templates/` の該当テンプレートを複製し、プレースホルダ
    （`{{NAME}}` `{{DESC}}` `{{COMMAND}}` 等）を埋める。種別 B の `{{COMMAND}}` は `./bin/<name>`、`{{ARGS}}` は空。
+   skill は `SKILL.md.tmpl` から作り、frontmatter の `name` をディレクトリ名と完全一致させる。
    生成先はカレントリポジトリ直下の `<name>/`。
    - **プラグイン名は識別子安全に検証**する（英数・ハイフンのみ。空白や記号は不可）。Go ラッパー雛形の
      `module`/識別子に使う値も同様。
@@ -28,4 +36,3 @@ prompt = """
 4. 生成後に `~/.gemini/config/plugins/agy-plugin-kit/validator/bin/validator <生成先>` と `agy plugin validate <生成先>` を実行し、
    **0 エラー**であることを確認してからユーザーに引き渡す（自分が吐いた雛形が自分のルールに適合することを保証）。
 5. 最後に `agy plugin install <生成先>` でのインストール手順を案内する。
-"""

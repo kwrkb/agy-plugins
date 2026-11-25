@@ -658,3 +658,11 @@ response = json.loads(proc.stdout.readline())
     - agy 1.4.12 の Linux と Windows に `git archive` から 8 本をクリーン install すると、`mcp_config.json` の `command` は `./bin/<name>` のまま残った。MCP キャッシュのツール名は、移行前（gemini-extension.json 形式）と 8 本とも一致した。Linux の対話モードでは `Called 1 MCP tool (test-runner_test-runner/go_test)` を確認した。
     - 旧形式の install を消さずに native 形式のソースを install すると、`replaced existing installation` と出て、旧 `gemini-extension.json` は install 先から消えた（1.4.12、Linux）。利用者は `agy plugin install <URL>` を打ち直すだけでよい。
 - 覆す条件: 利用者の agy が 1.1.28 より古く、MCP サーバーの cwd がプラグインディレクトリにならない環境を支える必要が出た場合（そのときは legacy 形式の配布を別に用意する）。または、後の版で上書き install が旧ファイルを残すようになり、旧 `gemini-extension.json` が native 形式の解釈を邪魔すると分かった場合。
+
+## 2026-11-25: agy-plugin-kit の 4 コマンドは TOML をやめ skill にし、名前は new / validate / doctor / doc のまま残す（Issue #43）
+
+- 却下した案: (1) `commands/` の TOML を残し、skill と二重に持つ。(2) skill 名を `agy-plugin-new` のように長くして、ほかのプラグインとの衝突を避ける。(3) validator の差し込みメッセージから `/agy-plugin-kit:doctor` の案内を外し、skill `agy-plugin-authoring` だけを案内する。
+- 決め手: agy 1.4.12 の `agy plugin validate agy-plugin-kit` が `commands: never loaded: plugins have no commands` を出し、install 先の `skills/` には `agy-plugin-authoring` しか無く、対話モードの補完にも 4 つは出なかった（Issue #43 の観測、Linux）。TOML を skill に変換するのは Claude Code / Gemini CLI 形式を install するときだけで、native 形式は対象外らしい。キットを Claude Code / Gemini CLI から使う予定は無いので、残すと読まれない複製を保守するだけになる。skill は `/<plugin>:<skill>` で呼ばれ、プラグイン名で区切られる（`/agy-plugin-kit:agy-plugin-authoring` が補完に出ている）ので、短い名前でも呼び出しは衝突しない。名前を変えなければ、README・skill・validator の差し込みにある `/agy-plugin-kit:doctor` 等の案内はそのまま正しくなり、validator の再ビルドも要らない。種別 C（MCP 無し）の雛形 `templates/command.toml.tmpl` も同じ理由で消し、`SKILL.md.tmpl` に寄せた。
+  - skill に `{{args}}` の置換があるかは分からないので、各 SKILL.md は「呼び出しの後ろに続く文字列を引数とみなし、無ければ会話から読み取るか尋ねる」と本文で書いた。どちらの仕組みでも動く書き方にしておく。
+  - 未確認（実機で確かめる）: (a) 書き換え後に `agy plugin validate agy-plugin-kit` の warning が消えること、(b) 補完に `/agy-plugin-kit:new` / `:validate` / `:doctor` / `:doc` が出て、少なくとも 1 つが引数つきで動くこと、(c) モデルが自分で skill を選ぶ場面で、`new` や `doc` という短い名前が他プラグインの skill と紛れないこと。この環境には agy が無く試せていない。
+- 覆す条件: (b) で skill に引数が渡らず、`/agy-plugin-kit:doctor <path>` の形で使えないと分かった場合（案内を「skill を呼んでからパスを伝える」形に改める）。(c) で短い名前が誤選択を招くと分かった場合（名前を長くし、案内と validator のメッセージを直して `./build.sh validator`）。agy が native 形式でも `commands/` を読むようになった場合。

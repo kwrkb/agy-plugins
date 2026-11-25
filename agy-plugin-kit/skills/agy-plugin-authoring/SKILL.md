@@ -66,7 +66,9 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 
 - **`skills/<name>/SKILL.md`（主力）**: 呼び出し時（オンデマンド）にロードされる知識。YAML frontmatter の `name` と
   `description` が必須で、**`name` はディレクトリ名と完全一致**させる（1.4.1〜 `agy plugin validate` で検査、本文 24KB 上限）。
-  `commands/<group>/<name>.toml` も install 時に skills に変換される。
+  **native 形式では `commands/<group>/<name>.toml` は読み込まれない**（skill にも変換されず、install 先へコピーされるだけ。
+  `agy plugin validate` が `commands: never loaded` を警告する。1.4.12 実測）。TOML から skill への変換は Claude Code / Gemini CLI 形式の
+  プラグインを install するときだけ。スラッシュで呼びたい手順も `skills/<name>/SKILL.md` に書く（`/<plugin>:<name>` で呼べる）。
 - **`hooks.json`（agy 1.0.9〜で利用可）**: `PostToolUse` payload の `toolCall.args.TargetFile` で編集ファイルの絶対パスを取得可能。
   ただし **1.4.2 でも `hooks.json` の `command` 内では `${extensionPath}`・`${PLUGIN_ROOT}`・`${/}` は一切展開されない**
   （`sh -c` が未定義変数として空文字展開し `/hook.sh: No such file` になるか、`${/}` で `Bad substitution` になる＝C10 警告）。
@@ -118,5 +120,6 @@ agy プラグイン開発で繰り返し踏んできた落とし穴を規則化�
 
 ## このキットのツール
 
+いずれも skill（`skills/<name>/SKILL.md`）として同梱している。
 - `/agy-plugin-kit:new <name>` 正しい雛形を生成 / `/agy-plugin-kit:validate <path>` 上記トラップを機械検出 /
   `/agy-plugin-kit:doctor <path>` 検出＋修正提案（#390 の path-fix 含む） / `/agy-plugin-kit:doc <path>` README/SKILL 生成。
