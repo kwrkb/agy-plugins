@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: agy プラグインを診断し、検出した問題を修正する（agy plugin validate ＋キットの validator ＋ Issue #390 の ./ 相対パスへの書き換えを含む）。agy プラグインが install・起動できないとき、validator の指摘を直すとき、`/agy-plugin-kit:doctor <パス>` で呼ばれたときに使う。
+description: "agy プラグインを診断し、検出した問題を修正する（agy plugin validate ＋キットの validator ＋ Issue #390 の ./ 相対パスへの書き換えを含む）。agy プラグインが install・起動できないとき、validator の指摘を直すとき、`/agy-plugin-kit:doctor <パス>` で呼ばれたときに使う。"
 ---
 
 # agy プラグインを診断して修正する

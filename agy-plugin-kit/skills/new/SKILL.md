@@ -1,6 +1,6 @@
 ---
 name: new
-description: 正しい構造の agy プラグイン雛形を生成する（マニフェスト形式の自動選択・Windows 対応・検証込み）。agy プラグインを新しく作るとき、`/agy-plugin-kit:new <プラグイン名>` で呼ばれたときに使う。
+description: "正しい構造の agy プラグイン雛形を生成する（マニフェスト形式の自動選択・Windows 対応・検証込み）。agy プラグインを新しく作るとき、`/agy-plugin-kit:new <プラグイン名>` で呼ばれたときに使う。"
 ---
 
 # 新しい agy プラグインの雛形を生成する

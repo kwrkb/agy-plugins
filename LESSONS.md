@@ -666,3 +666,11 @@ response = json.loads(proc.stdout.readline())
   - skill に `{{args}}` の置換があるかは分からないので、各 SKILL.md は「呼び出しの後ろに続く文字列を引数とみなし、無ければ会話から読み取るか尋ねる」と本文で書いた。どちらの仕組みでも動く書き方にしておく。
   - 未確認（実機で確かめる）: (a) 書き換え後に `agy plugin validate agy-plugin-kit` の warning が消えること、(b) 補完に `/agy-plugin-kit:new` / `:validate` / `:doctor` / `:doc` が出て、少なくとも 1 つが引数つきで動くこと、(c) モデルが自分で skill を選ぶ場面で、`new` や `doc` という短い名前が他プラグインの skill と紛れないこと。この環境には agy が無く試せていない。
 - 覆す条件: (b) で skill に引数が渡らず、`/agy-plugin-kit:doctor <path>` の形で使えないと分かった場合（案内を「skill を呼んでからパスを伝える」形に改める）。(c) で短い名前が誤選択を招くと分かった場合（名前を長くし、案内と validator のメッセージを直して `./build.sh validator`）。agy が native 形式でも `commands/` を読むようになった場合。
+
+## 2026-11-26: SKILL.md の `description` は引用符で囲む（agy は frontmatter を YAML として読み、` #` 以降をコメントとして捨てる）
+
+- 却下した案: (1) `validate` / `doctor` の説明文から `Issue #390` を消す、または `#` の前の空白を詰める。(2) 実害の出た 2 つだけを囲み、`new` / `doc` はそのままにする。
+- 決め手: agy 1.5.15（Linux）の対話モードで、`/agy-plugin-kit:` の補完に出る `validate` と `doctor` の説明が「…（Issue」で切れていた。どちらも引用符なしの `description` に ` #390` を含んでいた。後半の「`/agy-plugin-kit:<name> <パス>` で呼ばれたときに使う」という発動条件が、モデルにも見えていなかったことになる。4 つを `"…"` で囲んで install し直すと、補完の説明は `#390` の後ろまで出た。`#` を消すと Issue 番号という手がかりも消えるうえ、次に誰かが説明文に `#` を書けばまた同じことが起きる。書き方は 4 つそろえておく。
+  - 同じ検証で、2026-11-25 のエントリで未確認としていた (a)〜(c) を agy 1.5.15 で確かめた。(a) `agy plugin validate` の `commands: never loaded` は消え、skills は 1 → 5 になった。(b) クリーン install 後の補完に 4 つが出た。`/agy-plugin-kit:validate <絶対パス>` は、入力した 1 行がそのまま `<USER_REQUEST>` に入り、本文が `<SKILL>` として差し込まれる形で動いた。本文に書いた「後ろに続く文字列を引数とみなす」で足りる。(c) スラッシュを付けない自然文の依頼で、README を書く依頼には `doc`、起動しないので直す依頼には `validate` → `doctor`、新規作成の依頼には `new` が読まれた。
+  - master 版（`commands/agy-plugin-kit/*.toml` あり）を 1.5.15 に install すると `commands: 1 installed (converted to skills)` と出るが、install 先の `skills/` は `agy-plugin-authoring` だけで、`commands/` がそのままコピーされていた。表示に反して、native 形式の TOML は skill に変換されていない。
+- 覆す条件: agy が `description` を YAML でなく行単位の文字列として読むようになり、引用符がそのまま説明文に残るようになった場合。

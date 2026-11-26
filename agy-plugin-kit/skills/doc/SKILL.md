@@ -1,6 +1,6 @@
 ---
 name: doc
-description: 既存の agy プラグインの構成を読み取り、README.md / SKILL.md を生成・更新する。agy プラグインのドキュメントを書くとき、`/agy-plugin-kit:doc <パス>` で呼ばれたときに使う。
+description: "既存の agy プラグインの構成を読み取り、README.md / SKILL.md を生成・更新する。agy プラグインのドキュメントを書くとき、`/agy-plugin-kit:doc <パス>` で呼ばれたときに使う。"
 ---
 
 # agy プラグインのドキュメントを生成・更新する

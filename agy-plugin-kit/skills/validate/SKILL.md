@@ -1,6 +1,6 @@
 ---
 name: validate
-description: agy プラグインのソースディレクトリを静的検査し、既知のトラップ（Issue #390 / Windows .sh / gitignore 消失 等）を検出して要約する。agy プラグインを検査したいとき、`/agy-plugin-kit:validate <パス>` で呼ばれたときに使う。
+description: "agy プラグインのソースディレクトリを静的検査し、既知のトラップ（Issue #390 / Windows .sh / gitignore 消失 等）を検出して要約する。agy プラグインを検査したいとき、`/agy-plugin-kit:validate <パス>` で呼ばれたときに使う。"
 ---
 
 # agy プラグインのソースを検査する
