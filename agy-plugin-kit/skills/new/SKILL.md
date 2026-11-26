@@ -24,6 +24,7 @@ description: "正しい構造の agy プラグイン雛形を生成する（マ�
 2. `~/.gemini/config/plugins/agy-plugin-kit/templates/` の該当テンプレートを複製し、プレースホルダ
    （`{{NAME}}` `{{DESC}}` `{{COMMAND}}` 等）を埋める。種別 B の `{{COMMAND}}` は `./bin/<name>`、`{{ARGS}}` は空。
    skill は `SKILL.md.tmpl` から作り、frontmatter の `name` をディレクトリ名と完全一致させる。
+   `description` は二重引用符で囲んだまま埋め、説明文の中の `"` は `\"`、`\` は `\\` と書く（引用符を外すと ` #` 以降が YAML のコメントとして捨てられる）。
    生成先はカレントリポジトリ直下の `<name>/`。
    - **プラグイン名は識別子安全に検証**する（英数・ハイフンのみ。空白や記号は不可）。Go ラッパー雛形の
      `module`/識別子に使う値も同様。
