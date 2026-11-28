@@ -27,8 +27,8 @@ Go 製プラグイン: github / gitlab / ast-grep / go-lsp / retro-status / sett
 | `validator/src/main.go` | validator 本体（1 ファイル）。モードは `<dir>` / `--hook` / `--inject` / `--fix-paths` |
 | `validator/bin/` | 配布物（他プラグインと同じ 3 本＋dispatcher） |
 | `hooks.json` | 名前付きフック `agy-plugin-kit-validator`: PostToolUse → `--hook`、PreInvocation → `--inject`（各 timeout 10 秒） |
-| `commands/agy-plugin-kit/` | `/agy-plugin-kit:new` / `:validate` / `:doctor` / `:doc` |
 | `skills/agy-plugin-authoring/` | オーサリング規則の skill |
+| `skills/{new,validate,doctor,doc}/` | `/agy-plugin-kit:new` / `:validate` / `:doctor` / `:doc`（skill。native 形式は `commands/` を読まないため） |
 | `templates/` | `:new` が使う雛形 |
 | `fixtures/` | validator の動作確認用の壊れたプラグイン（`broken-plugin`） |
 

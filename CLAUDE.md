@@ -13,7 +13,7 @@ Go プラグインは **`src/`（ソース）＋ `bin/`（配布物）** に分�
 - `github/` — `gh` CLI を exec する自作 Go 製 MCP サーバー。module `github.com/kwrkb/agy-plugins/github`（`github/src/`）。
 - `gitlab/` — `glab` CLI を exec する自作 Go 製 MCP サーバー（`glab_command`）。github と同じ構成で、module `github.com/kwrkb/agy-plugins/gitlab`（`gitlab/src/`）。子プロセスに `GLAB_NO_PROMPT=1` を渡す。
 - `ast-grep/` — `ast-grep` CLI を exec。`retro-status/` — リポジトリ解析。`settings-advisor/` — Gemini の settings 助言。`go-lsp/` — `gopls` 経由の Go LSP（definition/references/hover）。`worktree-manager/` — Git worktree 管理。`test-runner/` — Go テスト実行と失敗ログ・再実行引数の返却。いずれも Go 製 MCP サーバーで src/bin 構成、module パスは `github.com/kwrkb/agy-plugins/<name>`。
-- `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/` `commands/` `templates/`。フックは `hooks.json`（PostToolUse → `--hook`、PreInvocation → `--inject`）。
+- `agy-plugin-kit/` — プラグイン開発ヘルパー。`validator/`（Go 製・module `agy-plugin-validator`・`validator/src/`＋`validator/bin/`）＋ `skills/`（`agy-plugin-authoring` と `new` / `validate` / `doctor` / `doc`）＋ `templates/`。native 形式は `commands/` を読まないので置かない。フックは `hooks.json`（PostToolUse → `--hook`、PreInvocation → `--inject`）。
 
 ## コマンド
 

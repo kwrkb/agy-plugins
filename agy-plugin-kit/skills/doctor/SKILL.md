@@ -1,6 +1,12 @@
-description = "プラグインを診断し、検出した問題を修正する（agy plugin validate + Issue #390 の ./ 相対パスへの書き換えを含む）"
-prompt = """
-agy プラグインを診断して修正します。対象パス: {{args}}。
+---
+name: doctor
+description: "agy プラグインを診断し、検出した問題を修正する（agy plugin validate ＋キットの validator ＋ Issue #390 の ./ 相対パスへの書き換えを含む）。agy プラグインが install・起動できないとき、validator の指摘を直すとき、`/agy-plugin-kit:doctor <パス>` で呼ばれたときに使う。"
+---
+
+# agy プラグインを診断して修正する
+
+引数は対象ディレクトリのパス。`/agy-plugin-kit:doctor <path>` のように呼ばれたときは、その後ろに続く文字列を引数とみなす。
+引数が無ければ会話から読み取り、確信が持てなければユーザーに尋ねる。
 
 手順:
 1. キット固有のトラップ検査（ソース・install 先とも実行可）:
@@ -19,7 +25,8 @@ agy プラグインを診断して修正します。対象パス: {{args}}。
    - **C8**（`${CLAUDE_PLUGIN_ROOT}`）: agy には無いので除去し、MCP `args`/`env` なら `${PLUGIN_ROOT}`、同梱バイナリ `command` なら native `mcp_config.json` の `./bin/<name>` へ。
    - **C10**（`hooks.json` で変数使用）: `hooks.json` では `${extensionPath}` も `${PLUGIN_ROOT}` も展開されないため、プラグインルートからの PWD 相対パスへ書き換える。
    - **C6**（同梱バイナリの `command` に `.exe`）: 拡張子を外す。Windows は agy が `.exe` を補い、Linux / macOS は dispatcher が起動する。
+   - **`commands: never loaded` 警告**（`agy plugin validate`）: native 形式では `commands/` の TOML コマンドは読み込まれない。
+     各コマンドを `skills/<name>/SKILL.md` に移す（frontmatter の `name` はディレクトリ名と一致させ、`{{args}}` は使わず本文で引数の受け取り方を書く）。
    - **C11**（`hooks.json` の `timeout` が長すぎる）: agy の `timeout` は秒単位。ミリ秒のつもりで書いた値なら 1000 で割った秒数に直す（例: `10000` → `10`）。
 4. 破壊的な書き換え（--fix-paths や .gitignore 変更）は実行前に必ず差分と意図を説明し、同意を取る。
 5. 修正後に再度 validator を実行して 0 エラーを確認する。
-"""

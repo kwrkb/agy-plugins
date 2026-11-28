@@ -9,10 +9,10 @@ agy（Antigravity CLI）プラグインを**正しく・速く量産する**た�
 | コンポーネント | 内容 |
 | :-- | :-- |
 | **`validator/`**（Go・`src/`＋`bin/`） | agy 非依存の決定的バリデータ。C1〜C11 のトラップを検出（下表）。`--fix-paths` モードあり。`bin/` に linux-amd64 / darwin-arm64 / windows のネイティブと OS 分岐 dispatcher を同梱 |
-| **コマンド** `/agy-plugin-kit:new` | マニフェスト形式を自動選択して正しい雛形を生成（量産エンジン） |
-| **コマンド** `/agy-plugin-kit:validate` | 対象プラグインを静的検査して要約 |
-| **コマンド** `/agy-plugin-kit:doctor` | `agy plugin validate` ＋ キット検査 ＋ 修正（Issue #390 の `${extensionPath}` を `./` 相対へ書き換える修正を含む） |
-| **コマンド** `/agy-plugin-kit:doc` | 既存プラグインから README / SKILL.md を生成 |
+| **スキル** `/agy-plugin-kit:new` | マニフェスト形式を自動選択して正しい雛形を生成（量産エンジン） |
+| **スキル** `/agy-plugin-kit:validate` | 対象プラグインを静的検査して要約 |
+| **スキル** `/agy-plugin-kit:doctor` | `agy plugin validate` ＋ キット検査 ＋ 修正（Issue #390 の `${extensionPath}` を `./` 相対へ書き換える修正を含む） |
+| **スキル** `/agy-plugin-kit:doc` | 既存プラグインから README / SKILL.md を生成 |
 | **スキル** `agy-plugin-authoring` | 12 痛点→オーサリング規則（エージェントが正しい流儀を引ける知識） |
 | **`templates/`** | `/new` が複製する雛形群（plugin.json / mcp_config.json / Go ラッパー 等） |
 
